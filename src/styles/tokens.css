@@ -1,0 +1,21 @@
+:root {
+  --ds-label:           rgba(0, 0, 0, 0.85);
+  --ds-secondary:       rgba(0, 0, 0, 0.50);
+  --ds-separator:       rgba(0, 0, 0, 0.10);
+  --ds-sidebar-bg:      rgba(246, 246, 246, 0.72);
+  --ds-content-bg:      #ffffff;
+  --ds-control-bg:      rgba(0, 0, 0, 0.06);
+  --ds-accent:          #007AFF;
+  --ds-destructive:     #FF3B30;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ds-label:          rgba(255, 255, 255, 0.85);
+    --ds-secondary:      rgba(255, 255, 255, 0.50);
+    --ds-separator:      rgba(255, 255, 255, 0.10);
+    --ds-sidebar-bg:     rgba(30, 30, 30, 0.72);
+    --ds-content-bg:     #1e1e1e;
+    --ds-control-bg:     rgba(255, 255, 255, 0.06);
+  }
+}
