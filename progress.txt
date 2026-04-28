@@ -1,3 +1,36 @@
+## Phase 05 — SQL Query Editor [DONE]
+- Rust: execute_sql Tauri command in src-tauri/src/commands/data.rs
+  - Multi-statement execution: splits on ';', runs each via simple_query, stops on first error
+  - QueryResult: columns, rows (all Option<String>), rows_affected (u64 from CommandComplete), execution_ms, error
+  - QueryError: message, position (byte offset from Postgres ErrorPosition::Original), SQLSTATE code
+  - simple_query returns everything as strings; no parameter binding needed for raw SQL
+- Rust: new src-tauri/src/commands/saved_queries.rs
+  - save_query (create or update by id), list_saved_queries, get_saved_query, delete_saved_query
+  - Persisted to $APP_DATA_DIR/saved_queries.json; grouped by optional folder field
+- Registered execute_sql + 4 saved_queries commands in lib.rs
+- Frontend: src/features/query-editor/
+  - types.ts: ResultColumn, QueryError, QueryResult, SavedQuery
+  - api.ts: queryEditorApi.executeSql, savedQueriesApi (list/save/get/delete)
+  - SqlEditor.tsx: CodeMirror 6 wrapper — SQL highlighting, line numbers, fold gutter, bracket
+    matching, autocompletion, ⌘↵ keymap; uses refs to avoid stale closures; reconfigures
+    extensions on schema/dark-mode changes; syncs external value changes; setDiagnostics for errors
+  - QueryEditorTab.tsx: full tab component
+    - Toolbar: connection badge (green dot, active session name), Run/Save buttons with spinner
+    - Schema-aware completions built from React Query object cache (same cache as CommandPalette)
+    - useMutation for executeSql; result state held locally
+    - ResultPanel: stacked ResultSection per statement (header with row count / rows affected / ms)
+    - ResultGrid: virtualized body (TanStack Virtual, overscan 10, 33px rows), sticky header
+      scroll-synced via JS, cell click-to-select, ⌘C copies raw value
+    - Resizable result panel (drag handle, min 80px)
+    - SaveDialog: name + folder inputs, ⌘S shortcut, invalidates saved-queries React Query cache
+  - SavedQueriesSection.tsx: groups queries by folder, click opens in new tab, right-click → delete
+  - index.ts: exports QueryEditorTab, SavedQueriesSection, types
+- store/index.ts: added queryContext?: { sql, savedQueryId } to Tab interface
+- AppShell.tsx: renders QueryEditorTab; ⌘T opens new query tab, ⌘W closes active tab
+- Sidebar.tsx: SavedQueriesSection wired into Saved Queries section
+- CommandPalette.tsx: 'New Query' command; saved queries from cache as 'Open: {name}' commands
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 04 — Table Viewer [DONE]
 - Rust: query_table Tauri command in src-tauri/src/commands/data.rs
   - TableQueryRequest with filters, sort, pagination; all identifiers validated (^[a-zA-Z_][a-zA-Z0-9_$]*$)
