@@ -2,6 +2,7 @@ import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { CommandPalette } from "./CommandPalette";
+import { TableViewerTab } from "../features/table-viewer";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -41,23 +42,22 @@ export function AppShell() {
 
           <main
             className={cn(
-              "flex-1 overflow-auto bg-content",
+              "flex-1 overflow-hidden bg-content",
               "text-label",
             )}
           >
-            {activeTab?.type === "welcome" && <WelcomeView />}
+            {(activeTab?.type === "welcome" || !activeTab) && (
+              <div className="flex h-full overflow-auto">
+                <WelcomeView />
+              </div>
+            )}
             {activeTab?.type === "query" && (
-              <div className="p-6 text-secondary text-sm">
+              <div className="p-6 text-secondary text-sm overflow-auto h-full">
                 Query editor — coming in Phase 05
               </div>
             )}
             {activeTab?.type === "table" && (
-              <div className="p-6 text-secondary text-sm">
-                Table viewer — coming in Phase 04
-              </div>
-            )}
-            {!activeTab && (
-              <WelcomeView />
+              <TableViewerTab tab={activeTab} />
             )}
           </main>
         </div>
