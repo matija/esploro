@@ -1,3 +1,20 @@
+## Keyboard Navigation — Schema Tree [DONE]
+- src/features/schema/SchemaTree.tsx
+  - focusedKey state tracks the focused row by its unique key (survives tree expansion)
+  - focusedIndex derived from focusedKey via items.findIndex (re-derived on each render)
+  - handleKeyDown on the outer container div (tabIndex=0, outline-none):
+    - ArrowDown / ArrowUp: move focus to next/previous navigable item (skips loading/error)
+    - ArrowRight: expand collapsed node; no-op if already expanded
+    - ArrowLeft: collapse expanded node; if already collapsed, jump to nearest ancestor
+      (walks backwards to find first item with lower nodeDepth)
+    - Enter: open table/view in table viewer tab; toggle expand for other node types
+  - Focused item rendered with bg-accent/10 + ring-1 ring-inset ring-accent/30 highlight
+  - useEffect scrolls focused child into view (block: nearest) on focusedKey change
+  - onBlur clears focus when focus leaves the container entirely
+  - onClick on every TreeRow calls onFocus (setFocusedKey) + onToggle if expandable
+  - isNavigable / nodeDepth module-level helpers (loading/error rows skipped)
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 06 — Licensing [DONE]
 - Rust: src-tauri/src/commands/license.rs — full offline licensing system
   - HMAC-SHA256 key verification using hmac + sha2 crates; signing key from
