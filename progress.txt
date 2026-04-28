@@ -1,3 +1,45 @@
+## Phase 06 — Licensing [DONE]
+- Rust: src-tauri/src/commands/license.rs — full offline licensing system
+  - HMAC-SHA256 key verification using hmac + sha2 crates; signing key from
+    ESPLORO_LICENSE_SECRET_KEY env var at compile time (dev fallback included)
+  - LicensePayload: version, tier, issued_at, expires_at, licensee, max_seats, key_id
+  - LicenseTier enum: Personal | Commercial | Unlicensed
+  - LicenseStatus: tier, licensee, expiresAt, daysUntilExpiry, bannerVisible,
+    gracePeriodEnds, showUsageDialog
+  - UserPrefs: usage_type_answered, usage_type, first_launch, commercial_detected_at
+    persisted to $APP_DATA_DIR/prefs.json
+  - License key stored at $APP_DATA_DIR/license.key
+  - 6 Tauri commands: get_license_status, activate_license, deactivate_license,
+    answer_usage_dialog, dismiss_license_banner, notify_connection_count
+  - open_license_url: macOS `open` command to ESPLORO_STRIPE_URL (env var, dev fallback)
+  - Banner logic: shown when commercial_detected_at set + 14-day grace elapsed + not
+    session-dismissed (banner_dismissed bool in AppState, not persisted)
+  - Usage dialog: shown 3 days after first launch if usage not answered and no license
+  - Heuristic: ≥4 connections sets commercial_detected_at
+- Rust: lib.rs — added banner_dismissed: Mutex<bool> to AppState; registered 7 new commands
+- Rust: Cargo.toml — added hmac 0.12, sha2 0.10, base64 0.22
+- Rust: Cargo.toml (workspace) — added tools/keygen to workspace members
+- tools/keygen/ — standalone CLI for generating signed license keys
+  - Usage: ESPLORO_LICENSE_SECRET_KEY=... keygen --licensee "Acme" [--expires YYYY-MM-DD]
+  - Uses clap for arg parsing; outputs ESPLORO-<payload_b64>.<sig_b64>
+- Frontend: src/features/license/
+  - types.ts: LicenseTier, LicenseStatus
+  - api.ts: licenseApi + LICENSE_STATUS_KEY React Query key constant
+  - LicenseBanner.tsx: amber banner at bottom of right panel; session-dismiss; links to
+    activation sheet and Stripe URL; only renders when bannerVisible
+  - LicenseActivationSheet.tsx: Radix Dialog slide-in from right; textarea for key input,
+    ⌘↵ shortcut; inline error display; auto-closes on success
+  - UsageTypeDialog.tsx: Radix Dialog modal; radio personal/commercial; shown when
+    showUsageDialog is true in license status
+  - LicenseSettings.tsx: settings tab content; shows tier/licensee/expiry for commercial;
+    get/activate/remove actions for personal/unlicensed
+  - index.ts: exports all components and api
+- store/index.ts: added "settings" to TabType
+- AppShell.tsx: renders LicenseBanner below main content, UsageTypeDialog globally;
+  LicenseSettings for settings tabs; useEffect notifies Rust of profile count changes
+- CommandPalette.tsx: "License Settings" command opens a settings tab (KeyRound icon)
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 05 — SQL Query Editor [DONE]
 - Rust: execute_sql Tauri command in src-tauri/src/commands/data.rs
   - Multi-statement execution: splits on ';', runs each via simple_query, stops on first error
