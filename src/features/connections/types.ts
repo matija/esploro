@@ -1,4 +1,4 @@
-export type SslMode = 'Disable' | 'Prefer' | 'Require' | 'VerifyFull';
+export type SslMode = 'disable' | 'prefer' | 'require' | 'verifyFull';
 
 export interface ConnectionProfile {
   id: string;

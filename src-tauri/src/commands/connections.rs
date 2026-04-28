@@ -55,6 +55,21 @@ pub struct ConnectionInput {
 }
 
 // ---------------------------------------------------------------------------
+// Error helpers
+// ---------------------------------------------------------------------------
+
+fn error_chain(e: impl std::error::Error) -> String {
+    let mut s = e.to_string();
+    let mut src = e.source();
+    while let Some(err) = src {
+        s.push_str(": ");
+        s.push_str(&err.to_string());
+        src = err.source();
+    }
+    s
+}
+
+// ---------------------------------------------------------------------------
 // Keychain helpers
 // ---------------------------------------------------------------------------
 
@@ -235,11 +250,11 @@ pub async fn test_connection(
 
     let pool = build_pool(&profile, &password)?;
     let start = Instant::now();
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let client = pool.get().await.map_err(error_chain)?;
     client
         .execute("SELECT 1", &[])
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(error_chain)?;
     Ok(start.elapsed().as_millis() as u64)
 }
 
@@ -262,11 +277,11 @@ pub async fn connect(
     let pool = build_pool(profile, &password)?;
 
     // Verify connectivity before registering the session
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+    let client = pool.get().await.map_err(error_chain)?;
     client
         .execute("SELECT 1", &[])
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(error_chain)?;
     drop(client);
 
     let session_id = Uuid::new_v4().to_string();

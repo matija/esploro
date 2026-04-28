@@ -15,10 +15,10 @@ interface Props {
 }
 
 const SSL_OPTIONS: { value: SslMode; label: string }[] = [
-  { value: 'Disable', label: 'Disable' },
-  { value: 'Prefer', label: 'Prefer' },
-  { value: 'Require', label: 'Require' },
-  { value: 'VerifyFull', label: 'Verify Full' },
+  { value: 'disable', label: 'Disable' },
+  { value: 'prefer', label: 'Prefer' },
+  { value: 'require', label: 'Require' },
+  { value: 'verifyFull', label: 'Verify Full' },
 ];
 
 type ConnectionType = 'host' | 'socket';
@@ -71,7 +71,7 @@ export function ConnectionForm({ open, onClose, profile, onSaved }: Props) {
   const [database, setDatabase] = useState(profile?.database ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
   const [password, setPassword] = useState('');
-  const [sslMode, setSslMode] = useState<SslMode>(profile?.sslMode ?? 'Prefer');
+  const [sslMode, setSslMode] = useState<SslMode>(profile?.sslMode ?? 'prefer');
   const [urlInput, setUrlInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [testState, setTestState] = useState<TestState>('idle');
