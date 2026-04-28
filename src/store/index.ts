@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ConnectionProfile } from "../features/connections/types";
 
 export type TabType = "welcome" | "table" | "query";
 
@@ -25,6 +26,17 @@ interface AppState {
   addTab: (tab: Omit<Tab, "id">) => string;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
+
+  // Connections
+  profiles: ConnectionProfile[];
+  setProfiles: (profiles: ConnectionProfile[]) => void;
+  /** connectionId -> sessionId */
+  activeSessions: Record<string, string>;
+  connectSession: (connectionId: string, sessionId: string) => void;
+  disconnectSession: (connectionId: string) => void;
+  /** Set to true by CommandPalette; Sidebar consumes and resets it */
+  pendingNewConnection: boolean;
+  setPendingNewConnection: (v: boolean) => void;
 }
 
 const WELCOME_TAB_ID = "welcome";
@@ -64,6 +76,23 @@ export const useAppStore = create<AppState>()(
         }),
 
       setActiveTab: (id) => set({ activeTabId: id }),
+
+      // Connections
+      profiles: [],
+      setProfiles: (profiles) => set({ profiles }),
+      activeSessions: {},
+      connectSession: (connectionId, sessionId) =>
+        set((s) => ({
+          activeSessions: { ...s.activeSessions, [connectionId]: sessionId },
+        })),
+      disconnectSession: (connectionId) =>
+        set((s) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [connectionId]: _removed, ...rest } = s.activeSessions;
+          return { activeSessions: rest };
+        }),
+      pendingNewConnection: false,
+      setPendingNewConnection: (v) => set({ pendingNewConnection: v }),
     }),
     {
       name: "esploro-ui",

@@ -1,0 +1,29 @@
+## Phase 01 — Project Scaffold [DONE]
+- Tauri 2 + React 19 + TypeScript + Tailwind CSS 4 project initialized
+- macOS window config: title bar overlay, vibrancy sidebar effect
+- Design token CSS variables (light + dark mode)
+- AppShell with resizable sidebar, TabBar, WelcomeView
+- SidebarSection collapsible component
+- CommandPalette (⌘K) stub with Radix UI Dialog
+- Zustand store: tabs, sidebar width (persisted), command palette state
+- CI: cargo clippy, tsc --noEmit, eslint (all green)
+- Placeholder RGBA icons for build
+
+## Phase 02 — Connection Management [DONE]
+- Rust: ConnectionProfile + SslMode data model (stored in connections.json, no password in JSON)
+- Rust: AppState with sessions HashMap (session_id → pool + connection_id)
+- Rust: 7 Tauri commands — list_connections, create_connection, update_connection,
+  delete_connection, test_connection, connect, disconnect
+- Passwords stored in macOS Keychain via keyring crate (key: "esploro" / "connection:{id}")
+- Pool builder using deadpool-postgres + tokio-postgres (NoTls; unix socket via host path)
+- Fixed tauri.conf.json: vibrancy → windowEffects with camelCase enum values
+- Frontend: TypeScript types (ConnectionProfile, ConnectionInput, SslMode)
+- Frontend: API layer wrapping invoke calls + postgres:// URL parser
+- Frontend: ConnectionForm — create/edit Dialog with all fields, Test Connection button,
+  URL quick-fill, inline validation, color swatch picker
+- Frontend: ConnectionList — sidebar items with connect/disconnect/edit/delete actions,
+  green dot for active connections
+- Frontend: Zustand store extended with profiles, activeSessions, pendingNewConnection
+- CommandPalette: "New Connection" + "Connect to {name}" commands
+- SidebarSection: added optional action prop for "+" button
+- Sidebar: loads profiles on mount, wires ConnectionList + ConnectionForm

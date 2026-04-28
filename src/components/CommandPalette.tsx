@@ -1,22 +1,52 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search } from "lucide-react";
+import { Search, Plus, Plug } from "lucide-react";
 import { useAppStore } from "../store";
+import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
 
 interface Command {
   id: string;
   label: string;
+  icon?: React.ReactNode;
+  group?: string;
   onSelect: () => void;
 }
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen } = useAppStore();
+  const {
+    commandPaletteOpen,
+    setCommandPaletteOpen,
+    profiles,
+    connectSession,
+    setPendingNewConnection,
+  } = useAppStore();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Built-in commands (stub — more added in later phases)
-  const allCommands: Command[] = [];
+  const allCommands: Command[] = [
+    {
+      id: "new-connection",
+      label: "New Connection",
+      icon: <Plus size={13} />,
+      group: "Connections",
+      onSelect: () => setPendingNewConnection(true),
+    },
+    ...profiles.map((p) => ({
+      id: `connect-${p.id}`,
+      label: `Connect to ${p.displayName}`,
+      icon: <Plug size={13} />,
+      group: "Connections",
+      onSelect: async () => {
+        try {
+          const sessionId = await connectionsApi.connect(p.id);
+          connectSession(p.id, sessionId);
+        } catch (e) {
+          console.error("Connect failed", e);
+        }
+      },
+    })),
+  ];
 
   const filtered = query.trim()
     ? allCommands.filter((c) =>
@@ -24,7 +54,6 @@ export function CommandPalette() {
       )
     : allCommands;
 
-  // Reset query on close
   useEffect(() => {
     if (!commandPaletteOpen) setQuery("");
   }, [commandPaletteOpen]);
@@ -78,11 +107,19 @@ export function CommandPalette() {
                     setCommandPaletteOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2 px-4 py-2 text-sm",
+                    "flex w-full items-center gap-2.5 px-4 py-2 text-sm",
                     "text-label hover:bg-control transition-colors text-left",
                   )}
                 >
+                  {cmd.icon && (
+                    <span className="text-secondary shrink-0">{cmd.icon}</span>
+                  )}
                   {cmd.label}
+                  {cmd.group && (
+                    <span className="ml-auto text-xs text-secondary">
+                      {cmd.group}
+                    </span>
+                  )}
                 </button>
               ))
             )}
