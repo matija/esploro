@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
@@ -132,7 +132,9 @@ function ColBadge({
 interface RowProps {
   node: TreeNode;
   isExpanded: boolean;
+  isFocused: boolean;
   onToggle: () => void;
+  onFocus: () => void;
   onContextMenu: (x: number, y: number) => void;
   onDoubleClick: () => void;
 }
@@ -140,7 +142,9 @@ interface RowProps {
 function TreeRow({
   node,
   isExpanded,
+  isFocused,
   onToggle,
+  onFocus,
   onContextMenu,
   onDoubleClick,
 }: RowProps) {
@@ -182,8 +186,12 @@ function TreeRow({
     const { def } = node;
     return (
       <div
-        className="flex items-center gap-1 py-[3px] hover:bg-control transition-colors cursor-default"
+        className={cn(
+          "flex items-center gap-1 py-[3px] hover:bg-control transition-colors cursor-default",
+          isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
+        )}
         style={{ paddingLeft: 4 * 10 + 8, paddingRight: 8 }}
+        onClick={onFocus}
         onContextMenu={handleContextMenu}
       >
         <span className="w-[10px] shrink-0" />
@@ -262,9 +270,10 @@ function TreeRow({
         "flex items-center gap-1 py-[3px] select-none transition-colors",
         "hover:bg-control",
         expandable ? "cursor-pointer" : "cursor-default",
+        isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
       )}
       style={{ paddingLeft: depth * 10 + 8, paddingRight: 8 }}
-      onClick={expandable ? onToggle : undefined}
+      onClick={() => { onFocus(); if (expandable) onToggle(); }}
       onDoubleClick={onDoubleClick}
       onContextMenu={handleContextMenu}
     >
@@ -309,12 +318,27 @@ function TreeRow({
 
 // ─── SchemaTree ───────────────────────────────────────────────────────────────
 
+function isNavigable(node: TreeNode) {
+  return node.kind !== "loading" && node.kind !== "error";
+}
+
+function nodeDepth(node: TreeNode): number {
+  if (node.kind === "database") return 0;
+  if (node.kind === "schema") return 1;
+  if (node.kind === "group") return 2;
+  if (node.kind === "table" || node.kind === "view" || node.kind === "sequence" || node.kind === "function") return 3;
+  if (node.kind === "column") return 4;
+  return 0;
+}
+
 export function SchemaTree({ sessionId, connectionId }: Props) {
   const { expandedNodes, toggleNode, addTab } = useAppStore();
   const isExp = (key: string) => !!expandedNodes[key];
 
   const [searchQuery, setSearchQuery] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
 
   // Level 1 — databases
   const dbsQuery = useQuery({
@@ -557,6 +581,89 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     }
   }
 
+  // ── Keyboard navigation ───────────────────────────────────────────────────────
+
+  const focusedIndex = focusedKey !== null
+    ? items.findIndex(({ key }) => key === focusedKey)
+    : -1;
+
+  useEffect(() => {
+    if (focusedIndex >= 0 && rowsRef.current) {
+      const child = rowsRef.current.children[focusedIndex] as HTMLElement | undefined;
+      child?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusedIndex]);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.target instanceof HTMLInputElement) return;
+
+    const navItems = items.filter(({ node }) => isNavigable(node));
+    if (navItems.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown": {
+        e.preventDefault();
+        if (focusedIndex < 0) {
+          setFocusedKey(navItems[0].key);
+        } else {
+          for (let i = focusedIndex + 1; i < items.length; i++) {
+            if (isNavigable(items[i].node)) { setFocusedKey(items[i].key); break; }
+          }
+        }
+        break;
+      }
+      case "ArrowUp": {
+        e.preventDefault();
+        if (focusedIndex <= 0) break;
+        for (let i = focusedIndex - 1; i >= 0; i--) {
+          if (isNavigable(items[i].node)) { setFocusedKey(items[i].key); break; }
+        }
+        break;
+      }
+      case "ArrowRight": {
+        e.preventDefault();
+        if (focusedIndex < 0) break;
+        const { node } = items[focusedIndex];
+        const nkey = keyForNode(node);
+        if (nkey && !isExp(nkey)) toggleNode(nkey);
+        break;
+      }
+      case "ArrowLeft": {
+        e.preventDefault();
+        if (focusedIndex < 0) break;
+        const { node } = items[focusedIndex];
+        const nkey = keyForNode(node);
+        if (nkey && isExp(nkey)) {
+          toggleNode(nkey);
+        } else {
+          // Move to nearest ancestor (lower depth)
+          const curDepth = nodeDepth(node);
+          for (let i = focusedIndex - 1; i >= 0; i--) {
+            if (isNavigable(items[i].node) && nodeDepth(items[i].node) < curDepth) {
+              setFocusedKey(items[i].key);
+              break;
+            }
+          }
+        }
+        break;
+      }
+      case "Enter": {
+        e.preventDefault();
+        if (focusedIndex < 0) break;
+        const { node } = items[focusedIndex];
+        if (node.kind === "table" || node.kind === "view") {
+          handleDoubleClick(node);
+        } else {
+          const nkey = keyForNode(node);
+          if (nkey) toggleNode(nkey);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   // ── Actions ──────────────────────────────────────────────────────────────────
 
   function handleAction(node: TreeNode, action: string) {
@@ -632,7 +739,16 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col">
+    <div
+      className="flex flex-col outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setFocusedKey(null);
+        }
+      }}
+    >
       {/* Search input */}
       <div className="px-2 pt-1 pb-1.5">
         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-control">
@@ -655,7 +771,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       </div>
 
       {/* Tree nodes */}
-      <div>
+      <div ref={rowsRef}>
         {searchQuery.trim() && items.length === 0 && (
           <div className="px-3 py-2 text-xs text-secondary">
             No tables matching "{searchQuery}"
@@ -668,7 +784,9 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               key={key}
               node={node}
               isExpanded={nkey ? isExp(nkey) : false}
+              isFocused={key === focusedKey}
               onToggle={() => nkey && toggleNode(nkey)}
+              onFocus={() => setFocusedKey(key)}
               onContextMenu={(x, y) => setContextMenu({ node, x, y })}
               onDoubleClick={() => handleDoubleClick(node)}
             />
