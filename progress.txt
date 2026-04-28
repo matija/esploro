@@ -1,3 +1,11 @@
+## Schema Tree — Fuzzy Search [DONE]
+- PRD required "fuzzy, case-insensitive" search on the schema tree; prior impl used substring only
+- src/lib/fuzzy.ts: extracted fuzzyScore(str, query) → 0/1/2 as shared utility
+- src/components/CommandPalette.tsx: now imports fuzzyScore from lib/fuzzy (local copy removed)
+- src/features/schema/SchemaTree.tsx: search results scored and sorted descending; leaves collected
+  with scores, sorted, then db/schema ancestor rows injected (deduped) above their matches
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Command Palette — Fuzzy Search + Keyboard Navigation [DONE]
 - src/components/CommandPalette.tsx
   - fuzzyScore(str, query): returns 2 (substring match), 1 (fuzzy: all chars in order), 0 (no match)
