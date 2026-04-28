@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Search, Plus, Plug, Table2, FileCode, KeyRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,21 @@ import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
 import type { SchemaObjects } from "../features/schema";
 import type { SavedQuery } from "../features/query-editor";
+
+// Returns 0 (no match), 1 (fuzzy match), or 2 (substring match)
+function fuzzyScore(str: string, query: string): number {
+  if (!query) return 2;
+  const s = str.toLowerCase();
+  const q = query.toLowerCase();
+  if (s.includes(q)) return 2;
+  let si = 0;
+  for (const ch of q) {
+    si = s.indexOf(ch, si);
+    if (si === -1) return 0;
+    si++;
+  }
+  return 1;
+}
 
 interface Command {
   id: string;
@@ -27,7 +42,10 @@ export function CommandPalette() {
     addTab,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const queryClient = useQueryClient();
 
   // Build table commands from React Query cache (loaded schemas only)
@@ -144,10 +162,45 @@ export function CommandPalette() {
   ];
 
   const filtered = query.trim()
-    ? allCommands.filter((c) =>
-        c.label.toLowerCase().includes(query.toLowerCase()),
-      )
+    ? allCommands
+        .map((c) => ({ cmd: c, score: fuzzyScore(c.label, query.trim()) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(({ cmd }) => cmd)
     : allCommands;
+
+  // Reset selection when results change
+  useEffect(() => {
+    setSelectedIdx(0);
+    itemRefs.current = [];
+  }, [filtered.length, query]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    itemRefs.current[selectedIdx]?.scrollIntoView({ block: "nearest" });
+  }, [selectedIdx]);
+
+  const handleSelect = useCallback(
+    (cmd: Command) => {
+      cmd.onSelect();
+      setCommandPaletteOpen(false);
+    },
+    [setCommandPaletteOpen],
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const cmd = filtered[selectedIdx];
+      if (cmd) handleSelect(cmd);
+    }
+  };
 
   useEffect(() => {
     if (!commandPaletteOpen) setQuery("");
@@ -176,6 +229,7 @@ export function CommandPalette() {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Search commands, tables, connections…"
               className={cn(
                 "flex-1 bg-transparent text-label text-sm outline-none",
@@ -188,26 +242,28 @@ export function CommandPalette() {
           </div>
 
           {/* Results */}
-          <div className="max-h-72 overflow-y-auto py-2">
+          <div ref={listRef} className="max-h-72 overflow-y-auto py-2">
             {filtered.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-secondary">
                 {query ? "No results" : "No commands available"}
               </div>
             ) : (
-              filtered.map((cmd) => (
+              filtered.map((cmd, i) => (
                 <button
                   key={cmd.id}
-                  onClick={() => {
-                    cmd.onSelect();
-                    setCommandPaletteOpen(false);
-                  }}
+                  ref={(el) => { itemRefs.current[i] = el; }}
+                  onClick={() => handleSelect(cmd)}
+                  onMouseEnter={() => setSelectedIdx(i)}
                   className={cn(
                     "flex w-full items-center gap-2.5 px-4 py-2 text-sm",
-                    "text-label hover:bg-control transition-colors text-left",
+                    "text-label transition-colors text-left",
+                    i === selectedIdx ? "bg-accent/10" : "hover:bg-control",
                   )}
                 >
                   {cmd.icon && (
-                    <span className="text-secondary shrink-0">{cmd.icon}</span>
+                    <span className={cn("shrink-0", i === selectedIdx ? "text-accent" : "text-secondary")}>
+                      {cmd.icon}
+                    </span>
                   )}
                   {cmd.label}
                   {cmd.group && (

@@ -1,3 +1,14 @@
+## Command Palette — Fuzzy Search + Keyboard Navigation [DONE]
+- src/components/CommandPalette.tsx
+  - fuzzyScore(str, query): returns 2 (substring match), 1 (fuzzy: all chars in order), 0 (no match)
+  - Filtered results sorted by score descending (substring matches ranked above fuzzy)
+  - selectedIdx state: resets to 0 on query/results change; itemRefs array for scroll-into-view
+  - onKeyDown on the search input: ArrowDown/ArrowUp move selection (clamped), Enter selects
+  - onMouseEnter on each item updates selectedIdx (mouse and keyboard stay in sync)
+  - Selected item rendered with bg-accent/10 highlight; icon tinted text-accent
+  - Scroll-into-view (block: nearest) fires on selectedIdx change via useEffect
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Keyboard Navigation — Schema Tree [DONE]
 - src/features/schema/SchemaTree.tsx
   - focusedKey state tracks the focused row by its unique key (survives tree expansion)
