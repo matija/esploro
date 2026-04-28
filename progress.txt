@@ -1,3 +1,15 @@
+## Connection Folders — Sidebar Grouping [DONE]
+- PRD required "Connections sidebar grouped by user-defined folders"; prior impl rendered all connections flat
+- src/features/connections/ConnectionList.tsx:
+  - Ungrouped connections (no folder set) rendered at top, unchanged
+  - Connections with a folder= value grouped into collapsible folder sections below
+  - Folders sorted alphabetically; each folder header shows ChevronRight + Folder icon + name
+  - collapsedFolders: Set<string> state; all folders expanded by default; toggleFolder flips membership
+  - Connections inside a folder rendered with pl-6 indent to visually nest them
+  - renderConnection() extracted as an inner function; handles both flat and indented cases
+- No Rust changes needed (folder field already persisted by Phase 02 connection backend)
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Schema Tree — Fuzzy Search [DONE]
 - PRD required "fuzzy, case-insensitive" search on the schema tree; prior impl used substring only
 - src/lib/fuzzy.ts: extracted fuzzyScore(str, query) → 0/1/2 as shared utility
