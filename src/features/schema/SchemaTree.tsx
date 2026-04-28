@@ -1,0 +1,689 @@
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import {
+  ChevronRight,
+  Database,
+  Folder,
+  Table2,
+  Eye,
+  Hash,
+  Zap,
+  Search,
+  X,
+} from "lucide-react";
+import { useAppStore } from "../../store";
+import { schemaApi } from "./api";
+import type { TreeNode, SchemaObjects, ColumnDef, GroupLabel } from "./types";
+import { cn } from "../../lib/utils";
+
+interface Props {
+  sessionId: string;
+  connectionId: string;
+}
+
+// ─── Key helpers ──────────────────────────────────────────────────────────────
+
+const dbKey = (cid: string, db: string) => `${cid}:db:${db}`;
+const schemaKey = (cid: string, db: string, s: string) =>
+  `${cid}:db:${db}:schema:${s}`;
+const groupKey = (cid: string, db: string, s: string, label: GroupLabel) =>
+  `${cid}:db:${db}:schema:${s}:group:${label}`;
+const tableKey = (cid: string, db: string, s: string, t: string) =>
+  `${cid}:db:${db}:schema:${s}:table:${t}`;
+
+// ─── Context menu ─────────────────────────────────────────────────────────────
+
+type ContextMenuState = { node: TreeNode; x: number; y: number };
+
+function ContextMenu({
+  menu,
+  onClose,
+  onAction,
+}: {
+  menu: ContextMenuState;
+  onClose: () => void;
+  onAction: (action: string) => void;
+}) {
+  useEffect(() => {
+    const onMouseDown = () => onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const { node } = menu;
+
+  type MenuItem = { label: string; action: string } | "sep";
+  let items: MenuItem[] = [];
+
+  if (node.kind === "table" || node.kind === "view") {
+    items = [
+      { label: "Copy table name", action: "copy-name" },
+      { label: "Copy qualified name", action: "copy-qualified" },
+      "sep",
+      { label: "Open table viewer", action: "open-table" },
+      { label: "Open in query editor", action: "open-query" },
+    ];
+  } else if (node.kind === "column") {
+    items = [
+      { label: "Copy column name", action: "copy-name" },
+      { label: "Copy type", action: "copy-type" },
+    ];
+  }
+
+  if (items.length === 0) return null;
+
+  return createPortal(
+    <div
+      className="fixed z-50 min-w-[180px] rounded-lg border border-separator bg-content shadow-2xl py-1"
+      style={{ left: menu.x, top: menu.y }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {items.map((item, i) =>
+        item === "sep" ? (
+          <div key={i} className="my-1 border-t border-separator" />
+        ) : (
+          <button
+            key={item.action}
+            onClick={() => onAction(item.action)}
+            className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-control transition-colors text-left"
+          >
+            {item.label}
+          </button>
+        ),
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+// ─── Tree row ─────────────────────────────────────────────────────────────────
+
+function ColBadge({
+  label,
+  color,
+}: {
+  label: string;
+  color: "gold" | "blue" | "gray";
+}) {
+  return (
+    <span
+      className={cn(
+        "px-[3px] py-px text-[8px] font-semibold rounded shrink-0 leading-tight",
+        color === "gold" &&
+          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+        color === "blue" &&
+          "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+        color === "gray" && "bg-separator text-secondary",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+interface RowProps {
+  node: TreeNode;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onContextMenu: (x: number, y: number) => void;
+  onDoubleClick: () => void;
+}
+
+function TreeRow({
+  node,
+  isExpanded,
+  onToggle,
+  onContextMenu,
+  onDoubleClick,
+}: RowProps) {
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    onContextMenu(e.clientX, e.clientY);
+  };
+
+  if (node.kind === "loading") {
+    return (
+      <div
+        className="flex items-center py-[3px] text-xs text-secondary animate-pulse"
+        style={{ paddingLeft: node.depth * 10 + 8 }}
+      >
+        Loading…
+      </div>
+    );
+  }
+
+  if (node.kind === "error") {
+    return (
+      <div
+        className="flex items-center py-[3px] text-xs text-destructive"
+        style={{ paddingLeft: node.depth * 10 + 8 }}
+      >
+        {node.message}
+      </div>
+    );
+  }
+
+  const expandable =
+    node.kind === "database" ||
+    node.kind === "schema" ||
+    node.kind === "group" ||
+    node.kind === "table";
+
+  // Column row — special layout with badges
+  if (node.kind === "column") {
+    const { def } = node;
+    return (
+      <div
+        className="flex items-center gap-1 py-[3px] hover:bg-control transition-colors cursor-default"
+        style={{ paddingLeft: 4 * 10 + 8, paddingRight: 8 }}
+        onContextMenu={handleContextMenu}
+      >
+        <span className="w-[10px] shrink-0" />
+        <span className="text-xs text-label truncate flex-1 min-w-0">
+          {def.name}
+        </span>
+        {def.isPrimaryKey && <ColBadge label="PK" color="gold" />}
+        {def.isForeignKey && <ColBadge label="FK" color="blue" />}
+        {def.isNullable && !def.isPrimaryKey && (
+          <ColBadge label="?" color="gray" />
+        )}
+        <span className="text-[10px] text-secondary shrink-0 ml-0.5">
+          {def.dataType}
+        </span>
+      </div>
+    );
+  }
+
+  const depth =
+    node.kind === "database"
+      ? 0
+      : node.kind === "schema"
+        ? 1
+        : node.kind === "group"
+          ? 2
+          : 3; // table, view, sequence, function
+
+  const icon = (() => {
+    switch (node.kind) {
+      case "database":
+        return <Database size={11} />;
+      case "schema":
+        return <Folder size={11} />;
+      case "table":
+        return <Table2 size={11} />;
+      case "view":
+        return <Eye size={11} />;
+      case "sequence":
+        return <Hash size={11} />;
+      case "function":
+        return <Zap size={11} />;
+      default:
+        return null;
+    }
+  })();
+
+  const label = (() => {
+    switch (node.kind) {
+      case "database":
+      case "schema":
+        return node.name;
+      case "group":
+        return node.label;
+      case "table":
+      case "view":
+      case "sequence":
+      case "function":
+        return node.name;
+      default:
+        return "";
+    }
+  })();
+
+  const secondary = (() => {
+    if (node.kind === "group") return `${node.count}`;
+    if (node.kind === "table" && node.estimatedRows != null) {
+      return node.estimatedRows.toLocaleString();
+    }
+    if (node.kind === "view") return "view";
+    return null;
+  })();
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 py-[3px] select-none transition-colors",
+        "hover:bg-control",
+        expandable ? "cursor-pointer" : "cursor-default",
+      )}
+      style={{ paddingLeft: depth * 10 + 8, paddingRight: 8 }}
+      onClick={expandable ? onToggle : undefined}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={handleContextMenu}
+    >
+      {/* Chevron */}
+      {expandable ? (
+        <ChevronRight
+          size={10}
+          className={cn(
+            "text-secondary shrink-0 transition-transform duration-100",
+            isExpanded && "rotate-90",
+          )}
+        />
+      ) : (
+        <span className="w-[10px] shrink-0" />
+      )}
+
+      {/* Icon */}
+      {icon && (
+        <span className="text-secondary shrink-0 flex items-center">{icon}</span>
+      )}
+
+      {/* Label */}
+      <span
+        className={cn(
+          "text-xs text-label truncate flex-1 min-w-0",
+          node.kind === "group" &&
+            "text-secondary text-[10px] uppercase tracking-wide",
+        )}
+      >
+        {label}
+      </span>
+
+      {/* Secondary */}
+      {secondary && (
+        <span className="text-[10px] text-secondary shrink-0 ml-1">
+          {secondary}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── SchemaTree ───────────────────────────────────────────────────────────────
+
+export function SchemaTree({ sessionId, connectionId }: Props) {
+  const { expandedNodes, toggleNode, addTab } = useAppStore();
+  const isExp = (key: string) => !!expandedNodes[key];
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Level 1 — databases
+  const dbsQuery = useQuery({
+    queryKey: ["databases", sessionId],
+    queryFn: () => schemaApi.listDatabases(sessionId),
+  });
+  const databases = dbsQuery.data ?? [];
+
+  // Level 2 — schemas (one query per expanded database)
+  const expandedDbs = databases.filter((db) => isExp(dbKey(connectionId, db)));
+  const schemaQueries = useQueries({
+    queries: expandedDbs.map((db) => ({
+      queryKey: ["schemas", sessionId, db],
+      queryFn: () => schemaApi.listSchemas(sessionId, db),
+    })),
+  });
+  const schemasMap: Record<string, string[]> = {};
+  expandedDbs.forEach((db, i) => {
+    schemasMap[db] = schemaQueries[i]?.data ?? [];
+  });
+
+  // Level 3 — objects (one query per expanded schema)
+  const expandedSchemaEntries: { db: string; schema: string }[] = [];
+  for (const db of expandedDbs) {
+    for (const s of schemasMap[db] ?? []) {
+      if (isExp(schemaKey(connectionId, db, s))) {
+        expandedSchemaEntries.push({ db, schema: s });
+      }
+    }
+  }
+  const objectQueries = useQueries({
+    queries: expandedSchemaEntries.map(({ db, schema }) => ({
+      queryKey: ["objects", sessionId, db, schema],
+      queryFn: () => schemaApi.listObjects(sessionId, db, schema),
+    })),
+  });
+  const objectsMap: Record<string, SchemaObjects> = {};
+  expandedSchemaEntries.forEach(({ db, schema }, i) => {
+    const data = objectQueries[i]?.data;
+    if (data) objectsMap[`${db}:${schema}`] = data;
+  });
+
+  // Level 4 — columns (one query per expanded table)
+  const expandedTableEntries: { db: string; schema: string; table: string }[] =
+    [];
+  for (const { db, schema } of expandedSchemaEntries) {
+    const objs = objectsMap[`${db}:${schema}`];
+    if (!objs) continue;
+    if (!isExp(groupKey(connectionId, db, schema, "Tables"))) continue;
+    for (const t of objs.tables) {
+      if (isExp(tableKey(connectionId, db, schema, t.name))) {
+        expandedTableEntries.push({ db, schema, table: t.name });
+      }
+    }
+  }
+  const columnQueries = useQueries({
+    queries: expandedTableEntries.map(({ db, schema, table }) => ({
+      queryKey: ["columns", sessionId, db, schema, table],
+      queryFn: () => schemaApi.listColumns(sessionId, db, schema, table),
+    })),
+  });
+  const columnsMap: Record<string, ColumnDef[]> = {};
+  expandedTableEntries.forEach(({ db, schema, table }, i) => {
+    const data = columnQueries[i]?.data;
+    if (data) columnsMap[`${db}:${schema}:${table}`] = data;
+  });
+
+  // ── Build flat list ──────────────────────────────────────────────────────────
+
+  type FlatItem = { key: string; node: TreeNode };
+  const items: FlatItem[] = [];
+
+  if (searchQuery.trim()) {
+    // Search mode: filter tables/views across all loaded schemas
+    const q = searchQuery.toLowerCase();
+    const seenDbs = new Set<string>();
+    const seenSchemas = new Set<string>();
+
+    for (const [oKey, objs] of Object.entries(objectsMap)) {
+      const colonIdx = oKey.indexOf(":");
+      const db = oKey.slice(0, colonIdx);
+      const schema = oKey.slice(colonIdx + 1);
+
+      const matchTables = objs.tables.filter((t) =>
+        t.name.toLowerCase().includes(q),
+      );
+      const matchViews = objs.views.filter((v) =>
+        v.toLowerCase().includes(q),
+      );
+      if (matchTables.length === 0 && matchViews.length === 0) continue;
+
+      if (!seenDbs.has(db)) {
+        seenDbs.add(db);
+        items.push({
+          key: dbKey(connectionId, db),
+          node: { kind: "database", name: db, sessionId, connectionId },
+        });
+      }
+      if (!seenSchemas.has(oKey)) {
+        seenSchemas.add(oKey);
+        items.push({
+          key: schemaKey(connectionId, db, schema),
+          node: { kind: "schema", name: schema, database: db, sessionId, connectionId },
+        });
+      }
+      for (const t of matchTables) {
+        items.push({
+          key: tableKey(connectionId, db, schema, t.name),
+          node: { kind: "table", name: t.name, schema, database: db, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
+        });
+      }
+      for (const v of matchViews) {
+        items.push({
+          key: `${connectionId}:db:${db}:schema:${schema}:view:${v}`,
+          node: { kind: "view", name: v, schema, database: db, sessionId, connectionId },
+        });
+      }
+    }
+  } else {
+    // Normal tree mode
+    if (dbsQuery.isLoading) {
+      items.push({ key: "loading-dbs", node: { kind: "loading", depth: 0 } });
+    } else {
+      for (const db of databases) {
+        const dk = dbKey(connectionId, db);
+        const dbExpanded = isExp(dk);
+        items.push({
+          key: dk,
+          node: { kind: "database", name: db, sessionId, connectionId },
+        });
+        if (!dbExpanded) continue;
+
+        const sqi = expandedDbs.indexOf(db);
+        const sq = schemaQueries[sqi];
+        if (!sq || sq.isLoading) {
+          items.push({
+            key: `${dk}:loading`,
+            node: { kind: "loading", depth: 1 },
+          });
+          continue;
+        }
+
+        for (const schema of schemasMap[db] ?? []) {
+          const sk = schemaKey(connectionId, db, schema);
+          const sExpanded = isExp(sk);
+          items.push({
+            key: sk,
+            node: { kind: "schema", name: schema, database: db, sessionId, connectionId },
+          });
+          if (!sExpanded) continue;
+
+          const oki = expandedSchemaEntries.findIndex(
+            (e) => e.db === db && e.schema === schema,
+          );
+          const oq = objectQueries[oki];
+          if (!oq || oq.isLoading) {
+            items.push({
+              key: `${sk}:loading`,
+              node: { kind: "loading", depth: 2 },
+            });
+            continue;
+          }
+
+          const objs = objectsMap[`${db}:${schema}`];
+          if (!objs) continue;
+
+          const allGroups: { label: GroupLabel; count: number }[] = [
+            { label: "Tables", count: objs.tables.length },
+            { label: "Views", count: objs.views.length },
+            { label: "Sequences", count: objs.sequences.length },
+            { label: "Functions", count: objs.functions.length },
+          ];
+
+          for (const grp of allGroups) {
+            if (grp.count === 0) continue;
+            const gk = groupKey(connectionId, db, schema, grp.label);
+            const gExpanded = isExp(gk);
+            items.push({
+              key: gk,
+              node: { kind: "group", label: grp.label, count: grp.count, schema, database: db, sessionId, connectionId },
+            });
+            if (!gExpanded) continue;
+
+            if (grp.label === "Tables") {
+              for (const t of objs.tables) {
+                const tk = tableKey(connectionId, db, schema, t.name);
+                const tExpanded = isExp(tk);
+                items.push({
+                  key: tk,
+                  node: { kind: "table", name: t.name, schema, database: db, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
+                });
+                if (!tExpanded) continue;
+
+                const ci = expandedTableEntries.findIndex(
+                  (e) =>
+                    e.db === db &&
+                    e.schema === schema &&
+                    e.table === t.name,
+                );
+                const cq = columnQueries[ci];
+                if (!cq || cq.isLoading) {
+                  items.push({
+                    key: `${tk}:loading`,
+                    node: { kind: "loading", depth: 4 },
+                  });
+                  continue;
+                }
+                for (const col of columnsMap[`${db}:${schema}:${t.name}`] ?? []) {
+                  items.push({
+                    key: `${tk}:col:${col.name}`,
+                    node: { kind: "column", def: col, table: t.name, schema, database: db, sessionId, connectionId },
+                  });
+                }
+              }
+            } else if (grp.label === "Views") {
+              for (const v of objs.views) {
+                items.push({
+                  key: `${connectionId}:db:${db}:schema:${schema}:view:${v}`,
+                  node: { kind: "view", name: v, schema, database: db, sessionId, connectionId },
+                });
+              }
+            } else if (grp.label === "Sequences") {
+              for (const seq of objs.sequences) {
+                items.push({
+                  key: `${connectionId}:db:${db}:schema:${schema}:seq:${seq}`,
+                  node: { kind: "sequence", name: seq, schema, database: db, sessionId, connectionId },
+                });
+              }
+            } else if (grp.label === "Functions") {
+              for (const fn of objs.functions) {
+                items.push({
+                  key: `${connectionId}:db:${db}:schema:${schema}:fn:${fn.name}`,
+                  node: { kind: "function", name: fn.name, resultType: fn.resultType, schema, database: db, sessionId, connectionId },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  function handleAction(node: TreeNode, action: string) {
+    if (node.kind === "table" || node.kind === "view") {
+      if (action === "copy-name") {
+        navigator.clipboard.writeText(node.name);
+      } else if (action === "copy-qualified") {
+        navigator.clipboard.writeText(`${node.schema}.${node.name}`);
+      } else if (action === "open-table") {
+        addTab({
+          type: "table",
+          title: `${node.schema}.${node.name}`,
+          sessionId,
+          tableContext: {
+            database: node.database,
+            schema: node.schema,
+            table: node.name,
+            connectionId,
+          },
+        });
+      } else if (action === "open-query") {
+        addTab({
+          type: "query",
+          title: `Query ${node.name}`,
+          sessionId,
+          tableContext: {
+            database: node.database,
+            schema: node.schema,
+            table: node.name,
+            connectionId,
+          },
+        });
+      }
+    } else if (node.kind === "column") {
+      if (action === "copy-name") navigator.clipboard.writeText(node.def.name);
+      else if (action === "copy-type")
+        navigator.clipboard.writeText(node.def.dataType);
+    }
+    setContextMenu(null);
+  }
+
+  function handleDoubleClick(node: TreeNode) {
+    if (node.kind === "table" || node.kind === "view") {
+      addTab({
+        type: "table",
+        title: `${node.schema}.${node.name}`,
+        sessionId,
+        tableContext: {
+          database: node.database,
+          schema: node.schema,
+          table: node.name,
+          connectionId,
+        },
+      });
+    }
+  }
+
+  function keyForNode(node: TreeNode): string {
+    switch (node.kind) {
+      case "database":
+        return dbKey(connectionId, node.name);
+      case "schema":
+        return schemaKey(connectionId, node.database, node.name);
+      case "group":
+        return groupKey(connectionId, node.database, node.schema, node.label);
+      case "table":
+        return tableKey(connectionId, node.database, node.schema, node.name);
+      default:
+        return "";
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col">
+      {/* Search input */}
+      <div className="px-2 pt-1 pb-1.5">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-control">
+          <Search size={10} className="text-secondary shrink-0" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter tables…"
+            className="flex-1 text-xs bg-transparent text-label outline-none placeholder:text-secondary min-w-0"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-secondary hover:text-label transition-colors"
+            >
+              <X size={9} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tree nodes */}
+      <div>
+        {searchQuery.trim() && items.length === 0 && (
+          <div className="px-3 py-2 text-xs text-secondary">
+            No tables matching "{searchQuery}"
+          </div>
+        )}
+        {items.map(({ key, node }) => {
+          const nkey = keyForNode(node);
+          return (
+            <TreeRow
+              key={key}
+              node={node}
+              isExpanded={nkey ? isExp(nkey) : false}
+              onToggle={() => nkey && toggleNode(nkey)}
+              onContextMenu={(x, y) => setContextMenu({ node, x, y })}
+              onDoubleClick={() => handleDoubleClick(node)}
+            />
+          );
+        })}
+      </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <ContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onAction={(action) => handleAction(contextMenu.node, action)}
+        />
+      )}
+    </div>
+  );
+}

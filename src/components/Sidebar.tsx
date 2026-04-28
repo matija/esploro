@@ -5,6 +5,7 @@ import { SidebarSection } from "./SidebarSection";
 import { ConnectionForm, ConnectionList } from "../features/connections";
 import { connectionsApi } from "../features/connections";
 import type { ConnectionProfile } from "../features/connections";
+import { SchemaTree } from "../features/schema";
 import { cn } from "../lib/utils";
 
 export function Sidebar() {
@@ -107,6 +108,9 @@ export function Sidebar() {
               profiles={profiles}
               onEdit={openEdit}
               onRefresh={loadProfiles}
+              renderExpansion={(connectionId, sessionId) => (
+                <SchemaTree sessionId={sessionId} connectionId={connectionId} />
+              )}
             />
           </SidebarSection>
 

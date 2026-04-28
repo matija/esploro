@@ -9,6 +9,12 @@ export interface Tab {
   type: TabType;
   title: string;
   sessionId?: string;
+  tableContext?: {
+    database: string;
+    schema: string;
+    table: string;
+    connectionId: string;
+  };
 }
 
 interface AppState {
@@ -37,9 +43,13 @@ interface AppState {
   /** Set to true by CommandPalette; Sidebar consumes and resets it */
   pendingNewConnection: boolean;
   setPendingNewConnection: (v: boolean) => void;
+
+  // Schema browser — persisted: node key -> true
+  expandedNodes: Record<string, true>;
+  toggleNode: (key: string) => void;
 }
 
-const WELCOME_TAB_ID = "welcome";
+const WELCOME_TAB: Tab = { id: "welcome", type: "welcome", title: "Welcome" };
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -53,8 +63,8 @@ export const useAppStore = create<AppState>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
       // Tabs
-      tabs: [{ id: WELCOME_TAB_ID, type: "welcome", title: "Welcome" }],
-      activeTabId: WELCOME_TAB_ID,
+      tabs: [WELCOME_TAB],
+      activeTabId: WELCOME_TAB.id as string | null,
 
       addTab: (tabInfo) => {
         const id = crypto.randomUUID();
@@ -68,7 +78,7 @@ export const useAppStore = create<AppState>()(
       closeTab: (id) =>
         set((s) => {
           const tabs = s.tabs.filter((t) => t.id !== id);
-          const activeTabId =
+          const activeTabId: string | null =
             s.activeTabId === id
               ? (tabs[tabs.length - 1]?.id ?? null)
               : s.activeTabId;
@@ -93,10 +103,25 @@ export const useAppStore = create<AppState>()(
         }),
       pendingNewConnection: false,
       setPendingNewConnection: (v) => set({ pendingNewConnection: v }),
+
+      // Schema browser
+      expandedNodes: {},
+      toggleNode: (key) =>
+        set((s) => {
+          if (s.expandedNodes[key]) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [key]: _removed, ...rest } = s.expandedNodes;
+            return { expandedNodes: rest as Record<string, true> };
+          }
+          return { expandedNodes: { ...s.expandedNodes, [key]: true } };
+        }),
     }),
     {
       name: "esploro-ui",
-      partialize: (state) => ({ sidebarWidth: state.sidebarWidth }),
+      partialize: (state) => ({
+        sidebarWidth: state.sidebarWidth,
+        expandedNodes: state.expandedNodes,
+      }),
     },
   ),
 );

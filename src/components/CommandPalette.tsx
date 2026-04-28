@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, Plug } from "lucide-react";
+import { Search, Plus, Plug, Table2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
+import type { SchemaObjects } from "../features/schema";
 
 interface Command {
   id: string;
@@ -18,11 +20,56 @@ export function CommandPalette() {
     commandPaletteOpen,
     setCommandPaletteOpen,
     profiles,
+    activeSessions,
     connectSession,
     setPendingNewConnection,
+    addTab,
   } = useAppStore();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+
+  // Build table commands from React Query cache (loaded schemas only)
+  const tableCommands: Command[] = [];
+  for (const [connectionId, sessionId] of Object.entries(activeSessions)) {
+    const profile = profiles.find((p) => p.id === connectionId);
+    const profileName = profile?.displayName ?? connectionId;
+
+    // Collect all cached object results for this session
+    const cache = queryClient.getQueryCache();
+    const objectQueries = cache
+      .getAll()
+      .filter(
+        (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === "objects" &&
+          q.queryKey[1] === sessionId &&
+          q.state.status === "success",
+      );
+
+    for (const oq of objectQueries) {
+      const [, , db, schema] = oq.queryKey as string[];
+      const data = oq.state.data as SchemaObjects;
+      if (!data) continue;
+
+      for (const table of data.tables) {
+        tableCommands.push({
+          id: `table-${connectionId}-${db}-${schema}-${table.name}`,
+          label: `${schema}.${table.name}`,
+          icon: <Table2 size={13} />,
+          group: profileName,
+          onSelect: () => {
+            addTab({
+              type: "table",
+              title: `${schema}.${table.name}`,
+              sessionId,
+              tableContext: { database: db, schema, table: table.name, connectionId },
+            });
+          },
+        });
+      }
+    }
+  }
 
   const allCommands: Command[] = [
     {
@@ -46,6 +93,7 @@ export function CommandPalette() {
         }
       },
     })),
+    ...tableCommands,
   ];
 
   const filtered = query.trim()
