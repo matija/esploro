@@ -15,6 +15,10 @@ export interface Tab {
     table: string;
     connectionId: string;
   };
+  queryContext?: {
+    sql: string;
+    savedQueryId?: string;
+  };
 }
 
 interface AppState {

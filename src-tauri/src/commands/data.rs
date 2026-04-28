@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use tokio_postgres::SimpleQueryMessage;
 
 use crate::AppState;
 
@@ -262,4 +263,123 @@ pub async fn query_table(
         page_size: request.page_size,
         execution_ms,
     })
+}
+
+// ─── execute_sql ─────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryResult {
+    pub columns: Vec<ResultColumn>,
+    pub rows: Vec<Vec<Option<String>>>,
+    pub rows_affected: Option<u64>,
+    pub execution_ms: u64,
+    pub error: Option<QueryError>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryError {
+    pub message: String,
+    pub position: Option<u32>,
+    pub code: Option<String>,
+}
+
+#[tauri::command]
+pub async fn execute_sql(
+    session_id: String,
+    sql: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<QueryResult>, String> {
+    let pool = {
+        let sessions = state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .ok_or_else(|| "Session not found".to_string())?
+            .pool
+            .clone()
+    };
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let statements: Vec<&str> = sql
+        .split(';')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut results: Vec<QueryResult> = vec![];
+
+    for stmt in statements {
+        let t0 = Instant::now();
+        match client.simple_query(stmt).await {
+            Ok(messages) => {
+                let execution_ms = t0.elapsed().as_millis() as u64;
+                let mut columns: Vec<ResultColumn> = vec![];
+                let mut rows: Vec<Vec<Option<String>>> = vec![];
+                let mut rows_affected: Option<u64> = None;
+
+                for msg in messages {
+                    match msg {
+                        SimpleQueryMessage::Row(row) => {
+                            if columns.is_empty() {
+                                columns = (0..row.len())
+                                    .map(|i| ResultColumn {
+                                        name: row.columns()[i].name().to_string(),
+                                        data_type: String::new(),
+                                    })
+                                    .collect();
+                            }
+                            rows.push(
+                                (0..row.len())
+                                    .map(|i| row.get(i).map(|s| s.to_string()))
+                                    .collect(),
+                            );
+                        }
+                        SimpleQueryMessage::CommandComplete(n) => {
+                            rows_affected = Some(n);
+                        }
+                        _ => {}
+                    }
+                }
+
+                results.push(QueryResult {
+                    columns,
+                    rows,
+                    rows_affected,
+                    execution_ms,
+                    error: None,
+                });
+            }
+            Err(e) => {
+                let execution_ms = t0.elapsed().as_millis() as u64;
+                let position =
+                    e.as_db_error()
+                        .and_then(|db| db.position())
+                        .and_then(|p| {
+                            if let tokio_postgres::error::ErrorPosition::Original(pos) = p {
+                                Some(*pos)
+                            } else {
+                                None
+                            }
+                        });
+                let code = e
+                    .as_db_error()
+                    .map(|db| db.code().code().to_string());
+                results.push(QueryResult {
+                    columns: vec![],
+                    rows: vec![],
+                    rows_affected: None,
+                    execution_ms,
+                    error: Some(QueryError {
+                        message: e.to_string(),
+                        position,
+                        code,
+                    }),
+                });
+                break;
+            }
+        }
+    }
+
+    Ok(results)
 }

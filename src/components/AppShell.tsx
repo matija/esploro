@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { CommandPalette } from "./CommandPalette";
 import { TableViewerTab } from "../features/table-viewer";
+import { QueryEditorTab } from "../features/query-editor";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -21,8 +23,24 @@ function WelcomeView() {
 }
 
 export function AppShell() {
-  const { tabs, activeTabId } = useAppStore();
+  const { tabs, activeTabId, addTab, closeTab, activeSessions } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === "t") {
+        e.preventDefault();
+        const sessionId = Object.values(activeSessions)[0];
+        addTab({ type: "query", title: "Query", sessionId });
+      } else if (e.key === "w") {
+        e.preventDefault();
+        if (activeTabId && activeTabId !== "welcome") closeTab(activeTabId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [addTab, closeTab, activeTabId, activeSessions]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -52,9 +70,7 @@ export function AppShell() {
               </div>
             )}
             {activeTab?.type === "query" && (
-              <div className="p-6 text-secondary text-sm overflow-auto h-full">
-                Query editor — coming in Phase 05
-              </div>
+              <QueryEditorTab tab={activeTab} />
             )}
             {activeTab?.type === "table" && (
               <TableViewerTab tab={activeTab} />

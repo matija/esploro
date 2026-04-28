@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, Plug, Table2 } from "lucide-react";
+import { Search, Plus, Plug, Table2, FileCode } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
 import type { SchemaObjects } from "../features/schema";
+import type { SavedQuery } from "../features/query-editor";
 
 interface Command {
   id: string;
@@ -71,7 +72,45 @@ export function CommandPalette() {
     }
   }
 
+  // Saved query commands from React Query cache
+  const savedQueryData =
+    queryClient
+      .getQueryCache()
+      .getAll()
+      .find(
+        (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === "saved-queries" &&
+          q.state.status === "success",
+      )?.state.data as SavedQuery[] | undefined;
+
+  const savedQueryCommands: Command[] = (savedQueryData ?? []).map((sq) => ({
+    id: `saved-query-${sq.id}`,
+    label: `Open: ${sq.name}`,
+    icon: <FileCode size={13} />,
+    group: "Saved Queries",
+    onSelect: () => {
+      const sessionId = Object.values(activeSessions)[0];
+      addTab({
+        type: "query",
+        title: sq.name,
+        sessionId,
+        queryContext: { sql: sq.sql, savedQueryId: sq.id },
+      });
+    },
+  }));
+
   const allCommands: Command[] = [
+    {
+      id: "new-query",
+      label: "New Query",
+      icon: <FileCode size={13} />,
+      group: "Queries",
+      onSelect: () => {
+        const sessionId = Object.values(activeSessions)[0];
+        addTab({ type: "query", title: "Query", sessionId });
+      },
+    },
     {
       id: "new-connection",
       label: "New Connection",
@@ -94,6 +133,7 @@ export function CommandPalette() {
       },
     })),
     ...tableCommands,
+    ...savedQueryCommands,
   ];
 
   const filtered = query.trim()

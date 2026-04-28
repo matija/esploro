@@ -6,6 +6,7 @@ import { ConnectionForm, ConnectionList } from "../features/connections";
 import { connectionsApi } from "../features/connections";
 import type { ConnectionProfile } from "../features/connections";
 import { SchemaTree } from "../features/schema";
+import { SavedQueriesSection } from "../features/query-editor";
 import { cn } from "../lib/utils";
 
 export function Sidebar() {
@@ -115,9 +116,7 @@ export function Sidebar() {
           </SidebarSection>
 
           <SidebarSection title="Saved Queries">
-            <div className="px-3 py-2 text-sm text-secondary">
-              No saved queries
-            </div>
+            <SavedQueriesSection />
           </SidebarSection>
         </div>
 
