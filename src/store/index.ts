@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { ConnectionProfile } from "../features/connections/types";
 
-export type TabType = "welcome" | "table" | "query";
+export type TabType = "welcome" | "table" | "query" | "settings";
 
 export interface Tab {
   id: string;

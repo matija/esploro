@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, Plug, Table2, FileCode } from "lucide-react";
+import { Search, Plus, Plug, Table2, FileCode, KeyRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
@@ -110,6 +110,13 @@ export function CommandPalette() {
         const sessionId = Object.values(activeSessions)[0];
         addTab({ type: "query", title: "Query", sessionId });
       },
+    },
+    {
+      id: "open-license",
+      label: "License Settings",
+      icon: <KeyRound size={13} />,
+      group: "Settings",
+      onSelect: () => addTab({ type: "settings", title: "License" }),
     },
     {
       id: "new-connection",

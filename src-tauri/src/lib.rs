@@ -14,12 +14,15 @@ pub struct SessionInfo {
 pub struct AppState {
     /// session_id -> SessionInfo
     pub sessions: Mutex<HashMap<String, SessionInfo>>,
+    /// Session-only banner dismiss flag (not persisted to disk)
+    pub banner_dismissed: Mutex<bool>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            banner_dismissed: Mutex::new(false),
         }
     }
 }
@@ -46,6 +49,13 @@ pub fn run() {
             commands::saved_queries::list_saved_queries,
             commands::saved_queries::get_saved_query,
             commands::saved_queries::delete_saved_query,
+            commands::license::get_license_status,
+            commands::license::activate_license,
+            commands::license::deactivate_license,
+            commands::license::answer_usage_dialog,
+            commands::license::dismiss_license_banner,
+            commands::license::notify_connection_count,
+            commands::license::open_license_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,10 +1,18 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { CommandPalette } from "./CommandPalette";
 import { TableViewerTab } from "../features/table-viewer";
 import { QueryEditorTab } from "../features/query-editor";
+import {
+  LicenseBanner,
+  LicenseSettings,
+  UsageTypeDialog,
+  licenseApi,
+  LICENSE_STATUS_KEY,
+} from "../features/license";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -23,8 +31,17 @@ function WelcomeView() {
 }
 
 export function AppShell() {
-  const { tabs, activeTabId, addTab, closeTab, activeSessions } = useAppStore();
+  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const queryClient = useQueryClient();
+
+  // Notify Rust of current connection count for commercial heuristic
+  useEffect(() => {
+    if (profiles.length === 0) return;
+    licenseApi.notifyConnectionCount(profiles.length).then((status) => {
+      queryClient.setQueryData(LICENSE_STATUS_KEY, status);
+    });
+  }, [profiles.length, queryClient]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,11 +92,19 @@ export function AppShell() {
             {activeTab?.type === "table" && (
               <TableViewerTab tab={activeTab} />
             )}
+            {activeTab?.type === "settings" && (
+              <div className="flex h-full overflow-auto">
+                <LicenseSettings />
+              </div>
+            )}
           </main>
+
+          <LicenseBanner />
         </div>
       </div>
 
       <CommandPalette />
+      <UsageTypeDialog />
     </div>
   );
 }
