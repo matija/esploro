@@ -5,23 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
+import { fuzzyScore } from "../lib/fuzzy";
 import type { SchemaObjects } from "../features/schema";
 import type { SavedQuery } from "../features/query-editor";
-
-// Returns 0 (no match), 1 (fuzzy match), or 2 (substring match)
-function fuzzyScore(str: string, query: string): number {
-  if (!query) return 2;
-  const s = str.toLowerCase();
-  const q = query.toLowerCase();
-  if (s.includes(q)) return 2;
-  let si = 0;
-  for (const ch of q) {
-    si = s.indexOf(ch, si);
-    if (si === -1) return 0;
-    si++;
-  }
-  return 1;
-}
 
 interface Command {
   id: string;

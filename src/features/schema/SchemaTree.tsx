@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppStore } from "../../store";
+import { fuzzyScore } from "../../lib/fuzzy";
 import { schemaApi } from "./api";
 import type { TreeNode, SchemaObjects, ColumnDef, GroupLabel } from "./types";
 import { cn } from "../../lib/utils";
@@ -412,24 +413,36 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const items: FlatItem[] = [];
 
   if (searchQuery.trim()) {
-    // Search mode: filter tables/views across all loaded schemas
-    const q = searchQuery.toLowerCase();
-    const seenDbs = new Set<string>();
-    const seenSchemas = new Set<string>();
+    // Search mode: fuzzy-filter tables/views across all loaded schemas, sorted by score
+    const q = searchQuery.trim();
+    type ScoredLeaf = { score: number; db: string; schema: string; oKey: string } & (
+      | { kind: "table"; t: { name: string; estimatedRowCount: number | null } }
+      | { kind: "view"; name: string }
+    );
+    const leaves: ScoredLeaf[] = [];
 
     for (const [oKey, objs] of Object.entries(objectsMap)) {
       const colonIdx = oKey.indexOf(":");
       const db = oKey.slice(0, colonIdx);
       const schema = oKey.slice(colonIdx + 1);
 
-      const matchTables = objs.tables.filter((t) =>
-        t.name.toLowerCase().includes(q),
-      );
-      const matchViews = objs.views.filter((v) =>
-        v.toLowerCase().includes(q),
-      );
-      if (matchTables.length === 0 && matchViews.length === 0) continue;
+      for (const t of objs.tables) {
+        const score = fuzzyScore(t.name, q);
+        if (score > 0) leaves.push({ kind: "table", score, db, schema, oKey, t });
+      }
+      for (const v of objs.views) {
+        const score = fuzzyScore(v, q);
+        if (score > 0) leaves.push({ kind: "view", score, db, schema, oKey, name: v });
+      }
+    }
 
+    leaves.sort((a, b) => b.score - a.score);
+
+    const seenDbs = new Set<string>();
+    const seenSchemas = new Set<string>();
+
+    for (const leaf of leaves) {
+      const { db, schema, oKey } = leaf;
       if (!seenDbs.has(db)) {
         seenDbs.add(db);
         items.push({
@@ -444,16 +457,15 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           node: { kind: "schema", name: schema, database: db, sessionId, connectionId },
         });
       }
-      for (const t of matchTables) {
+      if (leaf.kind === "table") {
         items.push({
-          key: tableKey(connectionId, db, schema, t.name),
-          node: { kind: "table", name: t.name, schema, database: db, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
+          key: tableKey(connectionId, db, schema, leaf.t.name),
+          node: { kind: "table", name: leaf.t.name, schema, database: db, sessionId, connectionId, estimatedRows: leaf.t.estimatedRowCount },
         });
-      }
-      for (const v of matchViews) {
+      } else {
         items.push({
-          key: `${connectionId}:db:${db}:schema:${schema}:view:${v}`,
-          node: { kind: "view", name: v, schema, database: db, sessionId, connectionId },
+          key: `${connectionId}:db:${db}:schema:${schema}:view:${leaf.name}`,
+          node: { kind: "view", name: leaf.name, schema, database: db, sessionId, connectionId },
         });
       }
     }
