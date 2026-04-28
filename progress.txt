@@ -1,3 +1,31 @@
+## Phase 04 — Table Viewer [DONE]
+- Rust: query_table Tauri command in src-tauri/src/commands/data.rs
+  - TableQueryRequest with filters, sort, pagination; all identifiers validated (^[a-zA-Z_][a-zA-Z0-9_$]*$)
+  - FilterOperator (Eq/Neq/Like/ILike/Gt/Lt/Gte/Lte/IsNull/IsNotNull), SortDirection (Asc/Desc)
+  - SQL built dynamically: columns fetched from information_schema, cast to ::text for uniform deserialisation
+  - Filter values parameterised ($1, $2, …); column/table/schema identifiers validated then double-quoted
+  - Type-aware filter casts: numeric → bigint/numeric, date → timestamptz, etc.
+  - Data and COUNT queries run concurrently via tokio::join! on two pool connections
+  - Returns TableQueryResult: columns, rows (all Option<String>), total_count, page, page_size, execution_ms
+- Registered query_table in lib.rs invoke_handler
+- Frontend: src/features/table-viewer/
+  - types.ts: FilterOperator, SortDirection, ColumnFilter, TableQueryRequest, TableQueryResult, ResultColumn
+    plus getTypeFamily, getOperatorsForFamily, OP_LABELS helpers
+  - api.ts: tableApi.queryTable wrapping invoke
+  - TableViewerTab.tsx: full table viewer component
+    - Filter bar: per-column compact inputs (operator select + value input), horizontally scrollable
+    - Filter debouncing: 300ms before triggering re-fetch; resets to page 0 on change
+    - Active filter chips with × remove and "Clear all" button
+    - Grid: separate sticky header (JS scroll-sync) + TanStack Virtual body (overscan 10, 33px rows)
+    - Column headers: name + data-type badge, click to sort (asc → desc → none)
+    - NULL values rendered as italic grey NULL pill
+    - Focused cell: click to select, ⌘C copies raw value
+    - Right-click row → context menu: Copy row as JSON / Copy row as CSV
+    - Pagination footer: "Showing X–Y of N rows (Zms)" + Prev/Next buttons
+    - keepPreviousData via React Query v5 placeholderData
+- AppShell.tsx: renders TableViewerTab for table-type tabs (overflow-hidden for full-bleed layout)
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 01 — Project Scaffold [DONE]
 - Tauri 2 + React 19 + TypeScript + Tailwind CSS 4 project initialized
 - macOS window config: title bar overlay, vibrancy sidebar effect
