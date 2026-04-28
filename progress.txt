@@ -9,6 +9,24 @@
 - CI: cargo clippy, tsc --noEmit, eslint (all green)
 - Placeholder RGBA icons for build
 
+## Phase 03 — Schema Browser [DONE]
+- Rust: 4 new Tauri commands — list_databases, list_schemas, list_objects, list_columns
+- list_objects returns tables (with estimated row count), views, sequences, functions for a schema
+- list_columns returns full column metadata: name, type, nullable, default, PK/FK flags
+- Frontend: TypeScript types (TreeNode union, ColumnDef, SchemaObjects, etc.)
+- Frontend: API layer wrapping 4 invoke calls
+- Frontend: SchemaTree component — lazy-loading tree using useQuery + useQueries per level
+  - Databases → schemas → groups (Tables/Views/Sequences/Functions) → items → columns
+  - Search box filters across loaded tables/views in real time
+  - Right-click context menu: copy name, copy qualified name, open table viewer, open in query editor
+  - Double-click table/view opens a table tab
+  - Expanded node state persisted per connection in localStorage
+- ConnectionList: added renderExpansion prop; SchemaTree rendered inline below each active connection
+- Sidebar: passes SchemaTree as renderExpansion
+- CommandPalette: table search across React Query cache (loaded schemas only)
+- store/index.ts: added expandedNodes + toggleNode (persisted); Tab extended with tableContext
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 02 — Connection Management [DONE]
 - Rust: ConnectionProfile + SslMode data model (stored in connections.json, no password in JSON)
 - Rust: AppState with sessions HashMap (session_id → pool + connection_id)
