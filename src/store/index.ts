@@ -4,7 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionProfile } from "../features/connections/types";
 import {
   defaultUiPreferences,
+  normalizeUiPreferences,
   normalizeTheme,
+  type UiPreferences,
   type UiTheme,
 } from "../features/settings/preferences";
 
@@ -76,7 +78,17 @@ export const useAppStore = create<AppState>()(
       setTheme: (theme) => {
         const nextTheme = normalizeTheme(theme);
         set({ theme: nextTheme });
-        invoke("set_ui_pref", { key: "ui.theme", value: nextTheme }).catch(console.error);
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) =>
+            invoke("set_ui_preferences", {
+              preferences: normalizeUiPreferences({
+                ...preferences,
+                ui: { ...preferences.ui, theme: nextTheme },
+              }),
+            }),
+          )
+          .catch(console.error);
       },
 
       commandPaletteOpen: false,

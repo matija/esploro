@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sha2::Sha256;
 use tauri::{AppHandle, Manager, State};
 
@@ -21,6 +22,15 @@ const LICENSE_URL: &str = match option_env!("ESPLORO_STRIPE_URL") {
     Some(u) => u,
     None => "https://esploro.app/buy",
 };
+
+const DEFAULT_UI_THEME: &str = "tairiki-light";
+const DEFAULT_UI_FONT_FAMILY: &str =
+    "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Helvetica Neue\", sans-serif";
+const DEFAULT_UI_FONT_SIZE: u8 = 13;
+const DEFAULT_EDITOR_FONT_FAMILY: &str =
+    "ui-monospace, \"SF Mono\", Menlo, Monaco, \"Courier New\", monospace";
+const DEFAULT_EDITOR_FONT_SIZE: u8 = 13;
+const DEFAULT_EDITOR_LINE_HEIGHT: f64 = 1.5;
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -59,6 +69,29 @@ pub struct LicenseStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct UiPreferences {
+    pub ui: UiPreferenceUi,
+    pub editor: UiPreferenceEditor,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPreferenceUi {
+    pub theme: String,
+    pub font_family: String,
+    pub font_size: u8,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPreferenceEditor {
+    pub font_family: String,
+    pub font_size: u8,
+    pub line_height: f64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct UserPrefs {
     pub usage_type_answered: bool,
     pub usage_type: Option<String>,
@@ -66,6 +99,10 @@ pub struct UserPrefs {
     pub commercial_detected_at: Option<String>,
     #[serde(default)]
     pub ui_theme: Option<String>, // "light" | "dark" | "system"
+    #[serde(default)]
+    pub ui: Option<UiPreferenceUi>,
+    #[serde(default)]
+    pub editor: Option<UiPreferenceEditor>,
 }
 
 #[derive(Debug)]
@@ -105,6 +142,152 @@ fn prefs_path(app: &AppHandle) -> PathBuf {
 // Prefs helpers
 // ---------------------------------------------------------------------------
 
+fn default_ui_preferences() -> UiPreferences {
+    UiPreferences {
+        ui: UiPreferenceUi {
+            theme: DEFAULT_UI_THEME.to_string(),
+            font_family: DEFAULT_UI_FONT_FAMILY.to_string(),
+            font_size: DEFAULT_UI_FONT_SIZE,
+        },
+        editor: UiPreferenceEditor {
+            font_family: DEFAULT_EDITOR_FONT_FAMILY.to_string(),
+            font_size: DEFAULT_EDITOR_FONT_SIZE,
+            line_height: DEFAULT_EDITOR_LINE_HEIGHT,
+        },
+    }
+}
+
+fn normalize_theme(theme: &str) -> String {
+    match theme {
+        "tairiki-light" | "tairiki-dark" | "system" | "macos-light" | "macos-dark" => {
+            theme.to_string()
+        }
+        "light" => "tairiki-light".to_string(),
+        "dark" => "tairiki-dark".to_string(),
+        _ => DEFAULT_UI_THEME.to_string(),
+    }
+}
+
+fn non_empty_or_default(value: &str, fallback: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn clamp_u8(value: u8, min: u8, max: u8, fallback: u8) -> u8 {
+    if value < min || value > max {
+        fallback
+    } else {
+        value
+    }
+}
+
+fn clamp_f64(value: f64, min: f64, max: f64, fallback: f64) -> f64 {
+    if !value.is_finite() || value < min || value > max {
+        fallback
+    } else {
+        value
+    }
+}
+
+fn normalize_ui_preferences(preferences: UiPreferences) -> UiPreferences {
+    UiPreferences {
+        ui: UiPreferenceUi {
+            theme: normalize_theme(&preferences.ui.theme),
+            font_family: non_empty_or_default(&preferences.ui.font_family, DEFAULT_UI_FONT_FAMILY),
+            font_size: clamp_u8(preferences.ui.font_size, 11, 16, DEFAULT_UI_FONT_SIZE),
+        },
+        editor: UiPreferenceEditor {
+            font_family: non_empty_or_default(
+                &preferences.editor.font_family,
+                DEFAULT_EDITOR_FONT_FAMILY,
+            ),
+            font_size: clamp_u8(
+                preferences.editor.font_size,
+                11,
+                18,
+                DEFAULT_EDITOR_FONT_SIZE,
+            ),
+            line_height: clamp_f64(
+                preferences.editor.line_height,
+                1.25,
+                1.8,
+                DEFAULT_EDITOR_LINE_HEIGHT,
+            ),
+        },
+    }
+}
+
+fn preferences_from_json(root: &Value) -> UiPreferences {
+    let defaults = default_ui_preferences();
+    let ui = root.get("ui").and_then(Value::as_object);
+    let editor = root.get("editor").and_then(Value::as_object);
+    let legacy_theme = root.get("uiTheme").and_then(Value::as_str);
+
+    normalize_ui_preferences(UiPreferences {
+        ui: UiPreferenceUi {
+            theme: ui
+                .and_then(|v| v.get("theme"))
+                .and_then(Value::as_str)
+                .or(legacy_theme)
+                .unwrap_or(&defaults.ui.theme)
+                .to_string(),
+            font_family: ui
+                .and_then(|v| v.get("fontFamily"))
+                .and_then(Value::as_str)
+                .unwrap_or(&defaults.ui.font_family)
+                .to_string(),
+            font_size: ui
+                .and_then(|v| v.get("fontSize"))
+                .and_then(Value::as_u64)
+                .and_then(|v| u8::try_from(v).ok())
+                .unwrap_or(defaults.ui.font_size),
+        },
+        editor: UiPreferenceEditor {
+            font_family: editor
+                .and_then(|v| v.get("fontFamily"))
+                .and_then(Value::as_str)
+                .unwrap_or(&defaults.editor.font_family)
+                .to_string(),
+            font_size: editor
+                .and_then(|v| v.get("fontSize"))
+                .and_then(Value::as_u64)
+                .and_then(|v| u8::try_from(v).ok())
+                .unwrap_or(defaults.editor.font_size),
+            line_height: editor
+                .and_then(|v| v.get("lineHeight"))
+                .and_then(Value::as_f64)
+                .unwrap_or(defaults.editor.line_height),
+        },
+    })
+}
+
+fn read_prefs_json(app: &AppHandle) -> Result<Option<Value>, String> {
+    let path = prefs_path(app);
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str::<Value>(&data)
+        .map(Some)
+        .map_err(|e| e.to_string())
+}
+
+fn write_json_atomic(path: &Path, value: &Value) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    let data = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, data).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp_path, path).map_err(|e| e.to_string())
+}
+
 fn load_prefs(app: &AppHandle) -> UserPrefs {
     let path = prefs_path(app);
     if path.exists() {
@@ -112,23 +295,24 @@ fn load_prefs(app: &AppHandle) -> UserPrefs {
             if let Ok(prefs) = serde_json::from_str::<UserPrefs>(&data) {
                 return prefs;
             }
+            eprintln!("Failed to parse prefs.json; using defaults");
         }
     }
-    let prefs = UserPrefs {
+    UserPrefs {
         usage_type_answered: false,
         usage_type: None,
         first_launch: Utc::now().to_rfc3339(),
         commercial_detected_at: None,
         ui_theme: None,
-    };
-    let _ = save_prefs(app, &prefs);
-    prefs
+        ui: None,
+        editor: None,
+    }
 }
 
 fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), String> {
     let path = prefs_path(app);
-    let data = serde_json::to_string_pretty(prefs).map_err(|e| e.to_string())?;
-    std::fs::write(&path, data).map_err(|e| e.to_string())
+    let value = serde_json::to_value(prefs).map_err(|e| e.to_string())?;
+    write_json_atomic(&path, &value)
 }
 
 // ---------------------------------------------------------------------------
@@ -149,8 +333,7 @@ fn verify_license_key(raw_key: &str) -> Result<LicensePayload, LicenseError> {
         .decode(parts[1])
         .map_err(|_| LicenseError::InvalidFormat)?;
 
-    let mut mac =
-        HmacSha256::new_from_slice(SIGNING_KEY).expect("HMAC accepts any key length");
+    let mut mac = HmacSha256::new_from_slice(SIGNING_KEY).expect("HMAC accepts any key length");
     mac.update(&payload_bytes);
     mac.verify_slice(&sig_bytes)
         .map_err(|_| LicenseError::InvalidSignature)?;
@@ -182,9 +365,9 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
         if let Ok(key_str) = std::fs::read_to_string(&key_path) {
             if let Ok(payload) = verify_license_key(key_str.trim()) {
                 let days_until_expiry = payload.expires_at.as_ref().and_then(|e| {
-                    chrono::DateTime::parse_from_rfc3339(e).ok().map(|exp| {
-                        (exp.with_timezone(&Utc) - Utc::now()).num_days()
-                    })
+                    chrono::DateTime::parse_from_rfc3339(e)
+                        .ok()
+                        .map(|exp| (exp.with_timezone(&Utc) - Utc::now()).num_days())
                 });
                 return LicenseStatus {
                     tier: LicenseTier::Commercial,
@@ -202,8 +385,7 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
     // Commercial usage detected?
     if let Some(detected_str) = &prefs.commercial_detected_at {
         if let Ok(detected) = chrono::DateTime::parse_from_rfc3339(detected_str) {
-            let grace_end = detected.with_timezone(&Utc)
-                + chrono::Duration::days(14);
+            let grace_end = detected.with_timezone(&Utc) + chrono::Duration::days(14);
             let grace_period_ends = Some(grace_end.to_rfc3339());
             let banner_visible = Utc::now() > grace_end && !banner_dismissed;
             return LicenseStatus {
@@ -332,11 +514,41 @@ pub fn open_license_url() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn set_ui_pref(app: AppHandle, key: String, value: String) -> Result<(), String> {
-    let mut prefs = load_prefs(&app);
-    match key.as_str() {
-        "ui.theme" => prefs.ui_theme = Some(value),
-        _ => return Err(format!("Unknown pref key: {key}")),
+pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, String> {
+    match read_prefs_json(&app) {
+        Ok(Some(value)) => Ok(preferences_from_json(&value)),
+        Ok(None) => Ok(default_ui_preferences()),
+        Err(error) => {
+            eprintln!("Failed to parse prefs.json: {error}; using UI preference defaults");
+            Ok(default_ui_preferences())
+        }
     }
-    save_prefs(&app, &prefs)
+}
+
+#[tauri::command]
+pub async fn set_ui_preferences(app: AppHandle, preferences: UiPreferences) -> Result<(), String> {
+    let preferences = normalize_ui_preferences(preferences);
+    let mut root = match read_prefs_json(&app) {
+        Ok(Some(Value::Object(map))) => map,
+        Ok(Some(_)) | Ok(None) => Map::new(),
+        Err(error) => {
+            eprintln!("Failed to parse prefs.json before writing UI preferences: {error}");
+            Map::new()
+        }
+    };
+
+    root.insert(
+        "ui".to_string(),
+        serde_json::to_value(&preferences.ui).map_err(|e| e.to_string())?,
+    );
+    root.insert(
+        "editor".to_string(),
+        serde_json::to_value(&preferences.editor).map_err(|e| e.to_string())?,
+    );
+    root.insert(
+        "uiTheme".to_string(),
+        Value::String(preferences.ui.theme.clone()),
+    );
+
+    write_json_atomic(&prefs_path(&app), &Value::Object(root))
 }

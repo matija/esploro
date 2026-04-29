@@ -1,3 +1,17 @@
+## Phase 07.4 — Persist Preferences In Tauri [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.4 as the next incomplete UI craft task.
+- src-tauri/src/commands/license.rs:
+  - Added typed `UiPreferences`/UI/editor preference structs with backend validation for theme, font family, font sizes, and editor line height.
+  - Added `get_ui_preferences` and `set_ui_preferences` Tauri commands.
+  - Preserved the legacy `uiTheme` key while writing the new nested `ui` and `editor` prefs.
+  - Switched prefs writes to an atomic temp-file then rename flow.
+  - Made malformed `prefs.json` fall back to defaults with a warning instead of blocking boot.
+- src-tauri/src/lib.rs:
+  - Registered the typed UI preference commands and removed the old loose `set_ui_pref` command registration.
+- src/store/index.ts:
+  - Updated theme persistence to merge with canonical backend preferences and write through `set_ui_preferences`.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 07.3 — UI Preference Model [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.3 as the next incomplete UI craft task.
 - src/features/settings/preferences.ts:
