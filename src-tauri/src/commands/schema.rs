@@ -36,6 +36,7 @@ pub struct ColumnDef {
     pub is_primary_key: bool,
     pub is_foreign_key: bool,
     pub foreign_key_ref: Option<String>,
+    pub is_enum: bool,
 }
 
 #[tauri::command]
@@ -221,7 +222,15 @@ pub async fn list_columns(
                  WHERE k2.column_name = c.column_name \
                    AND k2.table_schema = c.table_schema \
                    AND k2.table_name = c.table_name \
-               ) AS is_foreign_key \
+               ) AS is_foreign_key, \
+               EXISTS ( \
+                 SELECT 1 \
+                 FROM pg_type t \
+                 JOIN pg_namespace n ON n.oid = t.typnamespace \
+                 WHERE t.typname = c.udt_name \
+                   AND n.nspname = c.udt_schema \
+                   AND t.typtype = 'e' \
+               ) AS is_enum \
              FROM information_schema.columns c \
              WHERE c.table_schema = $1 AND c.table_name = $2 \
              ORDER BY c.ordinal_position",
@@ -240,6 +249,7 @@ pub async fn list_columns(
             is_primary_key: r.get(4),
             is_foreign_key: r.get(5),
             foreign_key_ref: None,
+            is_enum: r.get(6),
         })
         .collect();
 

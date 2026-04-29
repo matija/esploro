@@ -191,10 +191,127 @@ Tairiki Dark is derived from tairiki.nvim's dark variant: a near-black base with
 
 **Typography**
 
-- **UI font:** SF Pro Text — system default, no web font loading.
-- **Monospace font:** `ui-monospace, "SF Mono", Menlo` — used in the query editor, cell values, type badges, and connection URL inputs.
-- **Scale:** 11 px (tertiary), 12 px (secondary metadata), 13 px (body default), 15 px (section headers), 17 px (modal titles).
-- **Weight:** 400 for body, 500 for interactive labels, 600 for headings and active sidebar items.
+Design goal: every typographic decision should be indistinguishable from a native AppKit application. Sizes, weights, tracking, and rendering all mirror what macOS uses at equivalent information density. Postico and Xcode's sidebar are the reference points.
+
+_Font stacks_
+
+| Role | CSS value |
+|---|---|
+| UI text | `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif` |
+| Monospace | `ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace` |
+
+`-apple-system` automatically selects SF Pro Text (≤19 px) or SF Pro Display (≥20 px) and handles optical sizing. Never load a web font for UI text.
+
+_Font rendering_
+
+Apply globally on `<html>` or `<body>`:
+
+```css
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+```
+
+This matches Retina rendering in native apps. Never use `subpixel-antialiased` — it looks wrong on modern macOS.
+
+_Type scale_
+
+Each row maps directly to an `NSFont.systemFont(ofSize:weight:)` call at the equivalent pt size (1 pt = 1 px at logical resolution).
+
+| Token | Size | Line height | Weight | Usage |
+|---|---|---|---|---|
+| `--text-caption2` | 10 px | 12 px | 400 | Keyboard shortcut badges, overflow indicators |
+| `--text-caption` | 11 px | 13 px | 400 | Column type badges, status-bar details, group header labels |
+| `--text-footnote` | 12 px | 16 px | 400 | Secondary metadata: row counts, connection host, timestamps |
+| `--text-body` | 13 px | 18 px | 400 | Body default: sidebar labels, table cell values, input text |
+| `--text-subheadline` | 13 px | 18 px | 500 | Interactive labels, button text, tab labels, active sidebar items |
+| `--text-headline` | 15 px | 20 px | 600 | Panel section headers, column headers in the data grid |
+| `--text-title3` | 17 px | 22 px | 400 | Modal titles |
+| `--text-title2` | 20 px | 24 px | 600 | Empty-state primary headings |
+
+_Weights_
+
+| Name | Value | Equivalent |
+|---|---|---|
+| Regular | 400 | `NSFont.Weight.regular` |
+| Medium | 500 | `NSFont.Weight.medium` |
+| Semibold | 600 | `NSFont.Weight.semibold` |
+
+700 (bold) is never used in the UI — it has no macOS equivalent in the SF Pro system-font weight range that AppKit exposes.
+
+_Letter spacing_
+
+SF Pro embeds its own optical tracking. Do not add `letter-spacing` to body text or it will look over-spaced. The only exceptions:
+
+- **Uppercase sidebar group headers** (e.g., "CONNECTIONS"): `letter-spacing: 0.06em` — mirrors Finder and Mail sidebar group rows.
+- **ALL-CAPS column type badges**: `letter-spacing: 0.04em`.
+- No `letter-spacing` on any other element.
+
+_Tabular numbers in data grids_
+
+All table cell values, row counts, and pagination numbers must use tabular lining figures so numeric columns align:
+
+```css
+font-variant-numeric: tabular-nums;
+font-feature-settings: "tnum" 1;
+```
+
+Apply only to `.data-grid-cell` and numeric footer text; not globally (proportional figures look better in prose labels and sidebar items).
+
+_Sidebar typography_ (mirrors Finder / Xcode source navigator)
+
+| Element | Size | Weight | Transform | Tracking |
+|---|---|---|---|---|
+| Group header row label | 11 px | 500 | uppercase | 0.06 em |
+| Connection / folder row label | 13 px | 400 | none | none |
+| Active connection row label | 13 px | 500 | none | none |
+| Tree leaf node (table, view, function) | 13 px | 400 | none | none |
+
+_Query editor_
+
+- Font stack: `ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace`.
+- Base size: 13 px.
+- Line height: 1.5 (19.5 px) — matches Xcode's default editor line height.
+- Tab size: 2 spaces.
+
+_Inline monospace_ (JSON cell values, connection URL inputs, SQL snippets outside the editor)
+
+- Same monospace stack.
+- Size: 12 px (one step smaller than the editor to distinguish from editor context at a glance).
+- Always apply `font-variant-numeric: tabular-nums`.
+
+_CSS tokens_
+
+All type-scale values live in `src/styles/tokens.css` alongside color tokens. Components reference these; they never hardcode sizes.
+
+```css
+:root {
+  --text-caption2:    10px;
+  --text-caption:     11px;
+  --text-footnote:    12px;
+  --text-body:        13px;
+  --text-headline:    15px;
+  --text-title3:      17px;
+  --text-title2:      20px;
+
+  --leading-caption:  12px;
+  --leading-footnote: 16px;
+  --leading-body:     18px;
+  --leading-headline: 20px;
+  --leading-title3:   22px;
+
+  --weight-regular:   400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+}
+```
+
+_Prohibited_
+
+- Loading any web font for UI text.
+- `font-size` values in `rem` or `em` for the type scale — use `px` only (the root `font-size` must never be overridden).
+- `font-weight: bold` (700) anywhere in the UI.
+- `letter-spacing` on body, label, or cell text.
+- `text-transform: uppercase` except on sidebar group header labels.
 
 **Component appearances**
 
