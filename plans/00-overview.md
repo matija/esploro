@@ -1,6 +1,6 @@
 # Plans Overview
 
-Six phases, each independently shippable and reviewable. Each phase ends with a working, runnable binary.
+Seven phases, each independently shippable and reviewable. Each phase ends with a working, runnable binary.
 
 | Phase | Name | Outcome |
 |---|---|---|
@@ -10,6 +10,7 @@ Six phases, each independently shippable and reviewable. Each phase ends with a 
 | 04 | Table Viewer | Paginated grid; per-column filters; sort; copy |
 | 05 | SQL Query Editor | CodeMirror editor; run query; result grid; saved queries |
 | 06 | Licensing | License file verification; personal/commercial banner; activation flow |
+| 07 | UI Craft Reset | Yaak-level UI polish; detailed states; font customization in settings |
 
 ## Cross-cutting conventions
 
