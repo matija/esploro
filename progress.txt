@@ -1,3 +1,15 @@
+## Phase 2 — Connection List & Sidebar Polish [DONE]
+- PRD Phase 2 of the Tairiki theme implementation roadmap
+- src/features/connections/ConnectionList.tsx:
+  - Status dot: replaced hardcoded #34C759 fill with var(--ds-success) so it follows the active theme
+  - Sidebar focused item: swapped accent/10 ring highlight → bg-active background + 2px border-accent left border (per spec)
+  - Hover state: changed hover:bg-control → hover:bg-subtle on both connection rows and folder rows
+  - Folder chevron: added duration-150 ease-out to the rotation transition
+- src/components/TabBar.tsx:
+  - Active tab: added border-b-2 border-b-accent bottom indicator
+  - Inactive tabs: border-b-2 border-b-transparent to prevent layout shift on activation
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Keyboard Navigation — Connection List [DONE]
 - PRD required "Keyboard-navigable sidebar (arrow keys, Enter to open)"; schema tree had it, connection list did not
 - src/features/connections/ConnectionList.tsx:
