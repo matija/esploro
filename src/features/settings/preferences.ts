@@ -42,6 +42,8 @@ export const defaultUiPreferences: UiPreferences = {
   },
 };
 
+export const uiPreferencesBootstrapKey = "esploro-ui-preferences";
+
 type LegacyTheme = "light" | "dark";
 
 const legacyThemeMap: Record<LegacyTheme, UiTheme> = {
@@ -133,5 +135,41 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
       return "dark";
     case "system":
       return null;
+  }
+}
+
+export function applyUiPreferencesToDocument(preferences: UiPreferences): void {
+  if (typeof document === "undefined") return;
+
+  const normalized = normalizeUiPreferences(preferences);
+  const root = document.documentElement;
+  const domTheme = themeToDomAttribute(normalized.ui.theme);
+
+  if (domTheme === null) {
+    root.removeAttribute("data-theme");
+  } else {
+    root.setAttribute("data-theme", domTheme);
+  }
+
+  root.style.setProperty("--font-ui", normalized.ui.fontFamily);
+  root.style.setProperty("--font-ui-size", `${normalized.ui.fontSize}px`);
+  root.style.setProperty("--font-editor", normalized.editor.fontFamily);
+  root.style.setProperty("--font-editor-size", `${normalized.editor.fontSize}px`);
+  root.style.setProperty(
+    "--font-editor-line-height",
+    String(normalized.editor.lineHeight),
+  );
+}
+
+export function cacheUiPreferencesForBootstrap(preferences: UiPreferences): void {
+  if (typeof localStorage === "undefined") return;
+
+  try {
+    localStorage.setItem(
+      uiPreferencesBootstrapKey,
+      JSON.stringify(normalizeUiPreferences(preferences)),
+    );
+  } catch {
+    // A stale or missing bootstrap cache is non-fatal; Tauri prefs remain canonical.
   }
 }

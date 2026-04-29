@@ -6,18 +6,96 @@
     <title>Esploro</title>
     <script>
       (function () {
-        try {
+        var defaults = {
+          ui: {
+            theme: 'tairiki-light',
+            fontFamily:
+              '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
+            fontSize: 13,
+          },
+          editor: {
+            fontFamily:
+              'ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
+            fontSize: 13,
+            lineHeight: 1.5,
+          },
+        };
+        var themes = {
+          'tairiki-light': true,
+          'tairiki-dark': true,
+          system: true,
+          'macos-light': true,
+          'macos-dark': true,
+        };
+
+        function themeValue(value) {
+          if (themes[value]) return value;
+          if (value === 'light') return 'tairiki-light';
+          if (value === 'dark') return 'tairiki-dark';
+          return defaults.ui.theme;
+        }
+
+        function numberInRange(value, fallback, min, max) {
+          return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+            ? value
+            : fallback;
+        }
+
+        function stringValue(value, fallback) {
+          return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+        }
+
+        function normalize(value) {
+          var root = value && typeof value === 'object' ? value : {};
+          var ui = root.ui && typeof root.ui === 'object' ? root.ui : {};
+          var editor = root.editor && typeof root.editor === 'object' ? root.editor : {};
+          return {
+            ui: {
+              theme: themeValue(ui.theme),
+              fontFamily: stringValue(ui.fontFamily, defaults.ui.fontFamily),
+              fontSize: numberInRange(ui.fontSize, defaults.ui.fontSize, 11, 16),
+            },
+            editor: {
+              fontFamily: stringValue(editor.fontFamily, defaults.editor.fontFamily),
+              fontSize: numberInRange(editor.fontSize, defaults.editor.fontSize, 11, 18),
+              lineHeight: numberInRange(editor.lineHeight, defaults.editor.lineHeight, 1.25, 1.8),
+            },
+          };
+        }
+
+        function storedZustandTheme() {
           var stored = JSON.parse(localStorage.getItem('esploro-ui') || '{}');
-          var theme = stored && stored.state && stored.state.theme;
-          var resolved =
-            theme === 'tairiki-light' || theme === 'macos-light' || theme === 'light'
-              ? 'light'
-              : theme === 'tairiki-dark' || theme === 'macos-dark' || theme === 'dark'
-                ? 'dark'
-                : null;
-          if (resolved) {
-            document.documentElement.setAttribute('data-theme', resolved);
+          return stored && stored.state && stored.state.theme;
+        }
+
+        function resolvedDomTheme(theme) {
+          if (theme === 'tairiki-light' || theme === 'macos-light') return 'light';
+          if (theme === 'tairiki-dark' || theme === 'macos-dark') return 'dark';
+          return null;
+        }
+
+        function apply(preferences) {
+          var root = document.documentElement;
+          var domTheme = resolvedDomTheme(preferences.ui.theme);
+          if (domTheme) {
+            root.setAttribute('data-theme', domTheme);
+          } else {
+            root.removeAttribute('data-theme');
           }
+          root.style.setProperty('--font-ui', preferences.ui.fontFamily);
+          root.style.setProperty('--font-ui-size', preferences.ui.fontSize + 'px');
+          root.style.setProperty('--font-editor', preferences.editor.fontFamily);
+          root.style.setProperty('--font-editor-size', preferences.editor.fontSize + 'px');
+          root.style.setProperty('--font-editor-line-height', String(preferences.editor.lineHeight));
+        }
+
+        try {
+          var cached = JSON.parse(localStorage.getItem('esploro-ui-preferences') || 'null');
+          var preferences = normalize(cached);
+          if (!cached) {
+            preferences.ui.theme = themeValue(storedZustandTheme());
+          }
+          apply(preferences);
         } catch (e) {}
       })();
     </script>

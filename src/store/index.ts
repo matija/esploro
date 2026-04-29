@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionProfile } from "../features/connections/types";
 import {
+  applyUiPreferencesToDocument,
+  cacheUiPreferencesForBootstrap,
   defaultUiPreferences,
   normalizeUiPreferences,
   normalizeTheme,
@@ -37,6 +39,7 @@ interface AppState {
   setSidebarWidth: (width: number) => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  hydrateTheme: (theme: Theme) => void;
 
   // UI — ephemeral
   commandPaletteOpen: boolean;
@@ -80,16 +83,20 @@ export const useAppStore = create<AppState>()(
         set({ theme: nextTheme });
         invoke<UiPreferences>("get_ui_preferences")
           .catch(() => defaultUiPreferences)
-          .then((preferences) =>
-            invoke("set_ui_preferences", {
-              preferences: normalizeUiPreferences({
-                ...preferences,
-                ui: { ...preferences.ui, theme: nextTheme },
-              }),
-            }),
-          )
+          .then((preferences) => {
+            const nextPreferences = normalizeUiPreferences({
+              ...preferences,
+              ui: { ...preferences.ui, theme: nextTheme },
+            });
+            applyUiPreferencesToDocument(nextPreferences);
+            cacheUiPreferencesForBootstrap(nextPreferences);
+            return invoke("set_ui_preferences", {
+              preferences: nextPreferences,
+            });
+          })
           .catch(console.error);
       },
+      hydrateTheme: (theme) => set({ theme: normalizeTheme(theme) }),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

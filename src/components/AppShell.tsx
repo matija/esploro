@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -14,7 +15,15 @@ import {
   LICENSE_STATUS_KEY,
 } from "../features/license";
 import { AppearanceSettings } from "../features/settings";
-import { normalizeTheme, themeToDomAttribute } from "../features/settings/preferences";
+import {
+  applyUiPreferencesToDocument,
+  cacheUiPreferencesForBootstrap,
+  defaultUiPreferences,
+  normalizeTheme,
+  normalizeUiPreferences,
+  themeToDomAttribute,
+  type UiPreferences,
+} from "../features/settings/preferences";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -33,8 +42,17 @@ function WelcomeView() {
 }
 
 export function AppShell() {
-  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles, theme, setTheme } =
-    useAppStore();
+  const {
+    tabs,
+    activeTabId,
+    addTab,
+    closeTab,
+    activeSessions,
+    profiles,
+    theme,
+    setTheme,
+    hydrateTheme,
+  } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
 
@@ -52,6 +70,25 @@ export function AppShell() {
       root.setAttribute("data-theme", domTheme);
     }
   }, [theme, setTheme]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    invoke<UiPreferences>("get_ui_preferences")
+      .catch(() => defaultUiPreferences)
+      .then((preferences) => {
+        if (cancelled) return;
+        const normalizedPreferences = normalizeUiPreferences(preferences);
+        applyUiPreferencesToDocument(normalizedPreferences);
+        cacheUiPreferencesForBootstrap(normalizedPreferences);
+        hydrateTheme(normalizedPreferences.ui.theme);
+      })
+      .catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateTheme]);
 
   // Notify Rust of current connection count for commercial heuristic
   useEffect(() => {

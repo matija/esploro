@@ -1,3 +1,17 @@
+## Phase 07.5 — Apply Preferences Before First Paint [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.5 as the next incomplete UI craft task.
+- index.html:
+  - Replaced the theme-only bootstrap with a pre-React preference bootstrap.
+  - Reads `esploro-ui-preferences` from localStorage, normalizes theme/font values, and applies `data-theme` plus UI/editor CSS font variables before the app bundle loads.
+  - Preserves legacy Zustand theme fallback when the new bootstrap cache is absent.
+- src/features/settings/preferences.ts:
+  - Added shared helpers to apply normalized UI preferences to the document and cache a bootstrap snapshot.
+- src/components/AppShell.tsx:
+  - Loads canonical preferences from Tauri after React starts, reapplies them, updates the bootstrap cache, and hydrates the store theme without writing preferences back.
+- src/store/index.ts:
+  - Updates the bootstrap cache and document variables when theme changes are persisted.
+- Checks passed: npm run type-check, npm run lint, git diff --check.
+
 ## Phase 07.4 — Persist Preferences In Tauri [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.4 as the next incomplete UI craft task.
 - src-tauri/src/commands/license.rs:
