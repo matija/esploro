@@ -1,3 +1,24 @@
+## Phase 4 — Appearance Settings UI [DONE]
+- PRD Phase 4 of the Tairiki theme implementation roadmap
+- src-tauri/src/commands/license.rs:
+  - Added ui_theme: Option<String> field to UserPrefs (serde default = None)
+  - Added set_ui_pref(key, value) Tauri command: writes ui.theme to prefs.json
+- src-tauri/src/lib.rs: registered set_ui_pref command
+- index.html: inline anti-FOUC <script> reads esploro-ui localStorage synchronously
+  before React hydrates; sets data-theme="light"/"dark" to prevent flash of unstyled content
+- src/features/settings/AppearanceSettings.tsx (new):
+  - Segmented control with three options: Tairiki Light | Tairiki Dark | System
+  - Active option: bg-content shadow-sm text-label with accent-tinted icon
+  - Calls useAppStore setTheme on selection (which persists to both localStorage and prefs.json)
+- src/features/settings/index.ts (new): barrel export
+- src/components/AppShell.tsx:
+  - Settings tab now renders AppearanceSettings + divider + LicenseSettings in a shared p-8 max-w-lg container
+- src/features/license/LicenseSettings.tsx:
+  - Converted from standalone page (div with p-8 max-w-lg) to a <section> with sidebar-style h3 header
+- src/store/index.ts:
+  - setTheme now fire-and-forgets invoke("set_ui_pref", { key: "ui.theme", value }) to persist to prefs.json
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Phase 3 — CodeMirror Tairiki Theme [DONE]
 - PRD Phase 3 of the Tairiki theme implementation roadmap
 - src/styles/tokens.css:
