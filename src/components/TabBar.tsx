@@ -13,10 +13,10 @@ function TabItem({ tab, active }: { tab: Tab; active: boolean }) {
       className={cn(
         "flex items-center gap-1.5 px-3 h-full",
         "text-sm cursor-pointer select-none shrink-0",
-        "border-r border-separator",
+        "border-r border-separator border-b-2",
         active
-          ? "bg-content text-label"
-          : "text-secondary hover:text-label hover:bg-control transition-colors",
+          ? "bg-content text-label border-b-accent"
+          : "text-secondary hover:text-label hover:bg-control transition-colors border-b-transparent",
       )}
     >
       <span className="max-w-[140px] truncate">{tab.title}</span>

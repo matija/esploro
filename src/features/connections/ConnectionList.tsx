@@ -189,15 +189,16 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
           data-nav-key={`conn:${p.id}`}
           onClick={() => setFocusedKey(`conn:${p.id}`)}
           className={cn(
-            'group flex items-center gap-2 py-1.5 hover:bg-control transition-colors',
+            'group flex items-center gap-2 py-1.5 hover:bg-subtle transition-colors',
+            'border-l-2 border-transparent',
             indented ? 'pl-6 pr-3' : 'px-3',
-            isFocused && 'bg-accent/10 ring-1 ring-inset ring-accent/30',
+            isFocused && 'bg-active border-accent',
           )}
         >
           <span
             className="w-2 h-2 rounded-full shrink-0 border"
             style={{
-              backgroundColor: isActive ? '#34C759' : 'transparent',
+              backgroundColor: isActive ? 'var(--ds-success)' : 'transparent',
               borderColor: p.color ?? '#8E8E93',
             }}
           />
@@ -276,13 +277,14 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
               data-nav-key={`folder:${folder}`}
               onClick={() => { toggleFolder(folder); setFocusedKey(`folder:${folder}`); }}
               className={cn(
-                'w-full flex items-center gap-1.5 px-3 py-1 hover:bg-control transition-colors text-secondary',
-                isFocused && 'bg-accent/10 ring-1 ring-inset ring-accent/30',
+                'w-full flex items-center gap-1.5 px-3 py-1 hover:bg-subtle transition-colors text-secondary',
+                'border-l-2 border-transparent',
+                isFocused && 'bg-active border-accent',
               )}
             >
               <ChevronRight
                 size={11}
-                className={cn('shrink-0 transition-transform', !isCollapsed && 'rotate-90')}
+                className={cn('shrink-0 transition-transform duration-150 ease-out', !isCollapsed && 'rotate-90')}
               />
               <Folder size={11} className="shrink-0" />
               <span className="text-xs font-medium truncate">{folder}</span>
