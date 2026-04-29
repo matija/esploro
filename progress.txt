@@ -1,3 +1,23 @@
+## Keyboard Navigation — Connection List [DONE]
+- PRD required "Keyboard-navigable sidebar (arrow keys, Enter to open)"; schema tree had it, connection list did not
+- src/features/connections/ConnectionList.tsx:
+  - NavItem union type (connection | folder); navKey() helper
+  - focusedKey: string | null state; focusedIndex derived each render
+  - containerRef + CSS.escape querySelector to scroll focused row into view
+  - onKeyDown on outer div (tabIndex=0, outline-none):
+    - ArrowDown/ArrowUp: move focus through flat navItems list (folder-aware, respects collapsed)
+    - ArrowRight: expand collapsed folder; no-op otherwise
+    - ArrowLeft: collapse expanded folder; no-op otherwise
+    - Enter: connect/disconnect for connections, toggle collapse for folders
+  - Focused item rendered with bg-accent/10 + ring-1 ring-inset ring-accent/30 highlight
+  - Action buttons (connect/disconnect/edit/delete) reveal on focus as well as hover
+  - onBlur clears focus when focus leaves the container entirely
+  - Button onClick handlers now call e.stopPropagation() to avoid triggering container's click
+- src/features/schema/SchemaTree.tsx:
+  - Added e.stopPropagation() to all handled keys (ArrowDown/Up/Left/Right/Enter) so nested
+    schema tree events don't bubble up and trigger the parent connection list handler
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
 ## Connection Folders — Sidebar Grouping [DONE]
 - PRD required "Connections sidebar grouped by user-defined folders"; prior impl rendered all connections flat
 - src/features/connections/ConnectionList.tsx:
