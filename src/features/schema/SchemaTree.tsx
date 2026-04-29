@@ -615,6 +615,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     switch (e.key) {
       case "ArrowDown": {
         e.preventDefault();
+        e.stopPropagation();
         if (focusedIndex < 0) {
           setFocusedKey(navItems[0].key);
         } else {
@@ -626,6 +627,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
       case "ArrowUp": {
         e.preventDefault();
+        e.stopPropagation();
         if (focusedIndex <= 0) break;
         for (let i = focusedIndex - 1; i >= 0; i--) {
           if (isNavigable(items[i].node)) { setFocusedKey(items[i].key); break; }
@@ -634,6 +636,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
       case "ArrowRight": {
         e.preventDefault();
+        e.stopPropagation();
         if (focusedIndex < 0) break;
         const { node } = items[focusedIndex];
         const nkey = keyForNode(node);
@@ -642,6 +645,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
       case "ArrowLeft": {
         e.preventDefault();
+        e.stopPropagation();
         if (focusedIndex < 0) break;
         const { node } = items[focusedIndex];
         const nkey = keyForNode(node);
@@ -661,6 +665,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
       case "Enter": {
         e.preventDefault();
+        e.stopPropagation();
         if (focusedIndex < 0) break;
         const { node } = items[focusedIndex];
         if (node.kind === "table" || node.kind === "view") {
