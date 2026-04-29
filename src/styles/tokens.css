@@ -30,6 +30,8 @@
   --ds-syntax-number:    #0070c1;        /* blue — numeric columns */
   --ds-syntax-enum:      #df5926;        /* orange — enum / custom types */
   --ds-syntax-special:   #a31515;        /* red — booleans, special values */
+  --ds-syntax-operator:  #693988;        /* light_purple — operators, modifiers */
+  --ds-syntax-comment:   #cd0009;        /* comment red — italic comments */
 }
 
 /* ── Tairiki Dark ─────────────────────────────────────────────────────────── */
@@ -58,6 +60,8 @@
     --ds-syntax-number:    #81a2be;
     --ds-syntax-enum:      #de935f;
     --ds-syntax-special:   #cc6666;
+    --ds-syntax-operator:  #c397d8;
+    --ds-syntax-comment:   #a89984;
   }
 }
 
@@ -85,6 +89,8 @@
   --ds-syntax-number:    #81a2be;
   --ds-syntax-enum:      #de935f;
   --ds-syntax-special:   #cc6666;
+  --ds-syntax-operator:  #c397d8;
+  --ds-syntax-comment:   #a89984;
 }
 
 :root[data-theme="light"] {
@@ -111,4 +117,6 @@
   --ds-syntax-number:    #0070c1;
   --ds-syntax-enum:      #df5926;
   --ds-syntax-special:   #a31515;
+  --ds-syntax-operator:  #693988;
+  --ds-syntax-comment:   #cd0009;
 }

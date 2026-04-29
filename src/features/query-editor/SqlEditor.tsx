@@ -6,7 +6,7 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { lintKeymap, setDiagnostics } from "@codemirror/lint";
 import { sql, type SQLConfig } from "@codemirror/lang-sql";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { tairikiTheme } from "./tairikiTheme";
 import type { QueryError } from "./types";
 
 interface SqlEditorProps {
@@ -15,7 +15,6 @@ interface SqlEditorProps {
   onRun: (sql: string) => void;
   error: QueryError | null;
   schemaCompletions?: SQLConfig["schema"];
-  isDark?: boolean;
 }
 
 export function SqlEditor({
@@ -24,7 +23,6 @@ export function SqlEditor({
   onRun,
   error,
   schemaCompletions,
-  isDark,
 }: SqlEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -43,11 +41,10 @@ export function SqlEditor({
       closeBrackets(),
       autocompletion(),
       sql({ schema: schemaCompletions }),
-      ...(isDark ? [oneDark] : []),
+      tairikiTheme,
       EditorView.theme({
         "&": { fontFamily: "var(--font-mono, ui-monospace)", fontSize: "13px" },
         ".cm-content": { padding: "12px 0" },
-        ".cm-gutters": { border: "none" },
       }),
       keymap.of([
         {
@@ -69,7 +66,7 @@ export function SqlEditor({
         }
       }),
     ],
-    [isDark, schemaCompletions],
+    [schemaCompletions],
   );
 
   // Mount the editor once
