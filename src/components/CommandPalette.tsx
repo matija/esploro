@@ -128,14 +128,14 @@ export function CommandPalette() {
       label: "Theme: Light",
       icon: <Sun size={13} />,
       group: "Appearance",
-      onSelect: () => setTheme("light"),
+      onSelect: () => setTheme("tairiki-light"),
     },
     {
       id: "theme-dark",
       label: "Theme: Dark",
       icon: <Moon size={13} />,
       group: "Appearance",
-      onSelect: () => setTheme("dark"),
+      onSelect: () => setTheme("tairiki-dark"),
     },
     {
       id: "theme-system",

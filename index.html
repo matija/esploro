@@ -8,9 +8,15 @@
       (function () {
         try {
           var stored = JSON.parse(localStorage.getItem('esploro-ui') || '{}');
-          var t = stored && stored.state && stored.state.theme;
-          if (t === 'light' || t === 'dark') {
-            document.documentElement.setAttribute('data-theme', t);
+          var theme = stored && stored.state && stored.state.theme;
+          var resolved =
+            theme === 'tairiki-light' || theme === 'macos-light' || theme === 'light'
+              ? 'light'
+              : theme === 'tairiki-dark' || theme === 'macos-dark' || theme === 'dark'
+                ? 'dark'
+                : null;
+          if (resolved) {
+            document.documentElement.setAttribute('data-theme', resolved);
           }
         } catch (e) {}
       })();

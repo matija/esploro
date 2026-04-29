@@ -1,17 +1,17 @@
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { cn } from '../../lib/utils';
-import type { Theme } from '../../store';
+import type { UiTheme } from './preferences';
 
 interface ThemeOption {
-  value: Theme;
+  value: UiTheme;
   label: string;
   icon: React.ReactNode;
 }
 
 const OPTIONS: ThemeOption[] = [
-  { value: 'light', label: 'Tairiki Light', icon: <Sun size={13} /> },
-  { value: 'dark',  label: 'Tairiki Dark',  icon: <Moon size={13} /> },
+  { value: 'tairiki-light', label: 'Tairiki Light', icon: <Sun size={13} /> },
+  { value: 'tairiki-dark',  label: 'Tairiki Dark',  icon: <Moon size={13} /> },
   { value: 'system', label: 'System',       icon: <Monitor size={13} /> },
 ];
 

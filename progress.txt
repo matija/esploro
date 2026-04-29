@@ -1,3 +1,15 @@
+## Phase 07.3 — UI Preference Model [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.3 as the next incomplete UI craft task.
+- src/features/settings/preferences.ts:
+  - Added the shared `UiPreferences` model, canonical theme values, defaults, safe ranges, and normalization helpers for bad stored values.
+  - Added legacy `light`/`dark` theme normalization so existing localStorage snapshots still resolve correctly.
+- src/store/index.ts, src/features/settings/AppearanceSettings.tsx, src/components/CommandPalette.tsx:
+  - Switched theme typing and defaults to the shared preferences model.
+  - Updated theme actions to use canonical Tairiki theme values.
+- src/components/AppShell.tsx and index.html:
+  - Mapped canonical preferences back to the current `data-theme="light"|"dark"` contract at runtime and before React hydration.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.2 — Expanded Design Tokens [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.2 after the Phase 7.1 audit identified token expansion as the next task.
 - src/styles/tokens.css:

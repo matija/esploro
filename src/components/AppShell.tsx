@@ -14,6 +14,7 @@ import {
   LICENSE_STATUS_KEY,
 } from "../features/license";
 import { AppearanceSettings } from "../features/settings";
+import { normalizeTheme, themeToDomAttribute } from "../features/settings/preferences";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -32,18 +33,25 @@ function WelcomeView() {
 }
 
 export function AppShell() {
-  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles, theme } = useAppStore();
+  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles, theme, setTheme } =
+    useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const normalizedTheme = normalizeTheme(theme);
+    if (normalizedTheme !== theme) {
+      setTheme(normalizedTheme);
+    }
+
     const root = document.documentElement;
-    if (theme === "system") {
+    const domTheme = themeToDomAttribute(normalizedTheme);
+    if (domTheme === null) {
       root.removeAttribute("data-theme");
     } else {
-      root.setAttribute("data-theme", theme);
+      root.setAttribute("data-theme", domTheme);
     }
-  }, [theme]);
+  }, [theme, setTheme]);
 
   // Notify Rust of current connection count for commercial heuristic
   useEffect(() => {
