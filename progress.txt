@@ -1,3 +1,12 @@
+## Phase 07.6 — Build Appearance Settings [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.6 as the next incomplete UI craft task.
+- src/features/settings/AppearanceSettings.tsx:
+  - Replaced the simple theme picker with a crafted live preferences panel for theme, UI font, editor font, UI/editor font sizes, and editor line height.
+  - Added common font quick-picks, styled number/range controls, invalid input states, save/error status text, and reset-to-defaults confirmation when customized.
+  - Applies valid changes immediately through the shared preference helpers, persists them with `set_ui_preferences`, updates the bootstrap cache, and hydrates the store theme.
+  - Added a preview surface showing sidebar, SQL editor, table cell, badge, and status examples using the selected UI/editor font values.
+- Checks passed: npm run type-check, npm run lint, git diff --check.
+
 ## Phase 07.5 — Apply Preferences Before First Paint [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.5 as the next incomplete UI craft task.
 - index.html:
