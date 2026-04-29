@@ -48,11 +48,41 @@ Esploro should use a restrained macOS base with crafted details:
 - Soft layered surfaces instead of flat gray blocks.
 - Fine borders, hairlines, and separators that adapt to light and dark themes.
 - Compact controls with clear hierarchy.
-- Subtle accent color use for focus, selection, active tabs, query success, and schema object types.
+- Color is a first-class UI primitive, not decoration. Use the Tairiki theme colors to make state, hierarchy, and object identity stand out clearly.
+- Noticeable accent color use for focus, selection, active tabs, query success, warnings, errors, active connections, schema object types, badges, and status metadata.
 - Rich but quiet motion: fades, scale of 0.98 to 1, chevron rotation, row reveal, panel resize feedback.
 - No generic SaaS cards, heavy gradients, rounded blobs, or large marketing-style empty states.
 
-Yaak is the craft reference. Esploro should not copy Yaak directly, but it should match its level of attention: every row, badge, popover, splitter, shortcut hint, and state should look intentionally designed.
+Yaak is the craft reference for density, contrast, and polish. Esploro should not copy Yaak's palette. It must use the Tairiki theme as the visual source of truth while matching Yaak's level of attention: every row, badge, popover, splitter, shortcut hint, and state should look intentionally designed.
+
+## Color Direction
+
+Color must carry meaning throughout the app. The interface should be calmer than a game or marketing site, but it must not collapse into neutral gray chrome. Important states and structured data should be scannable at a glance.
+
+Use the Tairiki theme as the required palette foundation:
+
+- Tairiki light and Tairiki dark are the primary themes for the craft reset.
+- Do not introduce the Yaak screenshot palette as a theme or copy its exact hues.
+- All semantic colors must be expressed as Tairiki-backed tokens.
+- macOS/system themes may remain available later, but they must not weaken the Tairiki-first visual direction.
+
+Required first-class color usage:
+
+- Navigation: selected sidebar rows, active tabs, active panes, current connection, and command palette highlights must use visible accent treatments.
+- Status: success, warning, error, pending, disconnected, and loading states must have distinct colors plus shape or text differences for accessibility.
+- Database objects: databases, schemas, tables, views, functions, sequences, columns, keys, foreign keys, nullable fields, indexes, and constraints must have stable object colors.
+- Query work: run button state, execution duration, affected rows, result count, error location, diagnostics, and transaction state must use semantic color.
+- Data grid: null, empty string, boolean, JSON, date/time, numeric, modified, selected, filtered, and sorted cells must be visually distinguishable.
+- Editor: syntax highlighting, autocomplete, diagnostics, active line, selection, search matches, and bracket matching must use the Tairiki token system.
+- Settings: preview panels should demonstrate the color system with realistic sidebar, editor, grid, badge, and status examples.
+
+Color treatment rules:
+
+- Prefer colored text, icons, thin rails, badges, focus rings, selection fills, and low-opacity backgrounds over large saturated blocks.
+- Every color-coded state must still work in light and dark Tairiki themes.
+- Do not rely on color alone for destructive actions, errors, or connection health.
+- Avoid one-off component colors. If a useful color does not exist, add a semantic token before using it.
+- Preserve readability: body text stays high contrast, while color is used to emphasize structure and action.
 
 ## Information Architecture
 
@@ -200,14 +230,17 @@ Required token groups:
 - Surfaces: base, sidebar, raised, inset, overlay, selected, hover, pressed.
 - Borders: subtle, default, strong, focus, destructive.
 - Text: primary, secondary, tertiary, disabled, inverse, accent.
-- Schema accents: database, schema, table, view, function, sequence, column, key, nullable.
+- Semantic state: success, warning, danger, info, pending, disconnected, loading.
+- Schema accents: database, schema, table, view, function, sequence, column, key, foreign-key, nullable, index, constraint.
+- Data value accents: null, empty, boolean, json, date-time, number, text, modified, filtered, sorted.
+- Query accents: running, succeeded, failed, duration, row-count, transaction, diagnostic.
 - Editor syntax: keyword, function, string, type, constant, operator, comment, error.
 - Motion: fast, base, slow, easing-standard, easing-enter, easing-exit.
 - Radius: control, badge, popover, panel, modal.
 - Shadows: hairline, popover, modal, active-pane.
 - Fonts: UI family, editor family, UI size, editor size, editor line height.
 
-Components must not hardcode color, shadow, radius, motion, or font values when a token exists.
+Components must not hardcode color, shadow, radius, motion, or font values when a token exists. New component color needs must become semantic tokens first, backed by the Tairiki theme.
 
 ## Interaction Requirements
 
@@ -237,6 +270,8 @@ The UI craft pass is complete when:
 - A new user can create a connection from the empty state without guessing.
 - The app has no unstyled default browser controls in primary flows.
 - The sidebar, command palette, settings, query editor, and table viewer share one visual system.
+- Tairiki light and dark feel colorful and intentional, with visible semantic color across navigation, status, schema objects, the editor, and the data grid.
+- Color improves scanability without copying Yaak's palette or relying on color alone for critical meaning.
 - Font customization works, persists, survives restart, and affects CodeMirror.
 - Loading, empty, error, hover, focus, selected, disabled, and success states exist for all primary surfaces.
 - The app still passes `npm run type-check`, `npm run lint`, and the relevant Tauri build checks.
