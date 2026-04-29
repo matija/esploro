@@ -1,3 +1,23 @@
+## Phase 3 — CodeMirror Tairiki Theme [DONE]
+- PRD Phase 3 of the Tairiki theme implementation roadmap
+- src/styles/tokens.css:
+  - Added --ds-syntax-operator (light_purple: #693988 light / #c397d8 dark) to all three blocks
+  - Added --ds-syntax-comment (#cd0009 light / #a89984 dark) to all three blocks
+- src/features/query-editor/tairikiTheme.ts (new):
+  - Static CodeMirror Extension; no JS-side theme switching required
+  - EditorView.theme: editor chrome (bg, gutters, cursor, selection, active line,
+    bracket matching, search match, autocomplete tooltip) via CSS vars
+  - HighlightStyle: keywords/modifiers → syntax-keyword (purple), functions →
+    syntax-number (blue), strings → syntax-string (green), numbers → syntax-number,
+    types/namespaces → syntax-type (amber), constants → syntax-enum (orange),
+    operators/punctuation → syntax-operator (light_purple), comments → syntax-comment
+    (italic), booleans/null/regexp → syntax-special (red)
+  - Theme follows CSS custom properties automatically; no rebuild on theme switch
+- src/features/query-editor/SqlEditor.tsx:
+  - Removed oneDark import and isDark prop
+  - Replaced with tairikiTheme; removed .cm-gutters override (handled by tairikiTheme)
+- All CI checks pass (tsc --noEmit, eslint)
+
 ## Phase 2 — Connection List & Sidebar Polish [DONE]
 - PRD Phase 2 of the Tairiki theme implementation roadmap
 - src/features/connections/ConnectionList.tsx:
