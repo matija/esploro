@@ -1,3 +1,12 @@
+## Phase 07.1 — UI State Audit [DONE]
+- Read the active PRD and Phase 07 plan, then inspected the listed UI surfaces before making component changes.
+- Added `plans/07-ui-craft-audit.md` with current state coverage for:
+  - App shell, sidebar, sidebar sections, tabs, command palette
+  - Connection list, schema tree, table viewer, query editor, SQL editor, appearance settings
+  - Token/global CSS coverage
+- Identified the next task as Phase 7.2: expand the design token contract before deeper component polish.
+- Documentation-only change; no test run required.
+
 ## Phase 4 — Appearance Settings UI [DONE]
 - PRD Phase 4 of the Tairiki theme implementation roadmap
 - src-tauri/src/commands/license.rs:
