@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Esploro</title>
+    <script>
+      (function () {
+        try {
+          var stored = JSON.parse(localStorage.getItem('esploro-ui') || '{}');
+          var t = stored && stored.state && stored.state.theme;
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

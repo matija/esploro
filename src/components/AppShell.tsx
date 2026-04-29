@@ -13,6 +13,7 @@ import {
   licenseApi,
   LICENSE_STATUS_KEY,
 } from "../features/license";
+import { AppearanceSettings } from "../features/settings";
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
@@ -103,7 +104,11 @@ export function AppShell() {
             )}
             {activeTab?.type === "settings" && (
               <div className="flex h-full overflow-auto">
-                <LicenseSettings />
+                <div className="p-8 max-w-lg flex flex-col gap-10 w-full">
+                  <AppearanceSettings />
+                  <div className="border-t border-separator" />
+                  <LicenseSettings />
+                </div>
               </div>
             )}
           </main>

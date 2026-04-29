@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionProfile } from "../features/connections/types";
 
 export type TabType = "welcome" | "table" | "query" | "settings";
@@ -67,7 +68,10 @@ export const useAppStore = create<AppState>()(
       setSidebarWidth: (w) =>
         set({ sidebarWidth: Math.min(320, Math.max(180, w)) }),
       theme: "system",
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme });
+        invoke("set_ui_pref", { key: "ui.theme", value: theme }).catch(console.error);
+      },
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

@@ -56,6 +56,7 @@ pub fn run() {
             commands::license::dismiss_license_banner,
             commands::license::notify_connection_count,
             commands::license::open_license_url,
+            commands::license::set_ui_pref,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -20,8 +20,10 @@ export function LicenseSettings() {
   if (isLoading) return null;
 
   return (
-    <div className="p-8 max-w-lg">
-      <h2 className="text-lg font-semibold text-label mb-6">License</h2>
+    <section>
+      <h3 className="text-[11px] font-medium text-secondary uppercase tracking-[0.06em] mb-3">
+        License
+      </h3>
 
       {status?.tier === 'Commercial' ? (
         <div className="flex flex-col gap-3">
@@ -91,6 +93,6 @@ export function LicenseSettings() {
         open={activationOpen}
         onClose={() => setActivationOpen(false)}
       />
-    </div>
+    </section>
   );
 }

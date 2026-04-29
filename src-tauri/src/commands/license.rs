@@ -64,6 +64,8 @@ pub struct UserPrefs {
     pub usage_type: Option<String>,
     pub first_launch: String,
     pub commercial_detected_at: Option<String>,
+    #[serde(default)]
+    pub ui_theme: Option<String>, // "light" | "dark" | "system"
 }
 
 #[derive(Debug)]
@@ -117,6 +119,7 @@ fn load_prefs(app: &AppHandle) -> UserPrefs {
         usage_type: None,
         first_launch: Utc::now().to_rfc3339(),
         commercial_detected_at: None,
+        ui_theme: None,
     };
     let _ = save_prefs(app, &prefs);
     prefs
@@ -326,4 +329,14 @@ pub fn open_license_url() -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_ui_pref(app: AppHandle, key: String, value: String) -> Result<(), String> {
+    let mut prefs = load_prefs(&app);
+    match key.as_str() {
+        "ui.theme" => prefs.ui_theme = Some(value),
+        _ => return Err(format!("Unknown pref key: {key}")),
+    }
+    save_prefs(&app, &prefs)
 }
