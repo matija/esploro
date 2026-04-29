@@ -19,6 +19,7 @@ import {
   OP_LABELS,
   getTypeFamily,
   getOperatorsForFamily,
+  typeFamilyBadgeClass,
 } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -31,7 +32,7 @@ const HEADER_HEIGHT = 36;
 function CellValue({ value }: { value: string | null }) {
   if (value === null) {
     return (
-      <span className="text-secondary italic text-[10px] px-1.5 py-px rounded bg-control leading-none">
+      <span className="font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-wide">
         NULL
       </span>
     );
@@ -61,7 +62,7 @@ function ColumnHeaderCell({
       <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
         {col.name}
       </span>
-      <span className="text-[9px] text-secondary bg-control px-1 py-px rounded shrink-0">
+      <span className={cn("text-[9px] font-mono px-1 py-px rounded shrink-0", typeFamilyBadgeClass(getTypeFamily(col.dataType)))}>
         {col.dataType}
       </span>
       {sortDir === "asc" && <ChevronUp size={12} className="text-accent shrink-0" />}
@@ -508,7 +509,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     return (
                       <div
                         key={vr.key}
-                        className="flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-control/50 transition-colors"
+                        className={cn(
+                          "flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-subtle/60 transition-colors",
+                          vr.index % 2 === 1 && "bg-subtle/30",
+                        )}
                         style={{
                           position: "absolute",
                           top: vr.start,

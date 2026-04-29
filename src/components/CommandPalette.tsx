@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, Plug, Table2, FileCode, KeyRound } from "lucide-react";
+import { Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
@@ -26,6 +26,7 @@ export function CommandPalette() {
     connectSession,
     setPendingNewConnection,
     addTab,
+    setTheme,
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -121,6 +122,27 @@ export function CommandPalette() {
       icon: <KeyRound size={13} />,
       group: "Settings",
       onSelect: () => addTab({ type: "settings", title: "License" }),
+    },
+    {
+      id: "theme-light",
+      label: "Theme: Light",
+      icon: <Sun size={13} />,
+      group: "Appearance",
+      onSelect: () => setTheme("light"),
+    },
+    {
+      id: "theme-dark",
+      label: "Theme: Dark",
+      icon: <Moon size={13} />,
+      group: "Appearance",
+      onSelect: () => setTheme("dark"),
+    },
+    {
+      id: "theme-system",
+      label: "Theme: System",
+      icon: <Monitor size={13} />,
+      group: "Appearance",
+      onSelect: () => setTheme("system"),
     },
     {
       id: "new-connection",

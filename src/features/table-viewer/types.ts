@@ -43,7 +43,18 @@ export interface TableQueryResult {
   executionMs: number;
 }
 
-export type TypeFamily = "text" | "numeric" | "date" | "other";
+export type TypeFamily = "text" | "numeric" | "date" | "boolean" | "json" | "other";
+
+export function typeFamilyBadgeClass(family: TypeFamily): string {
+  switch (family) {
+    case "text":    return "text-syntax-string bg-syntax-string/10";
+    case "numeric": return "text-syntax-number bg-syntax-number/10";
+    case "date":    return "text-syntax-type bg-syntax-type/10";
+    case "boolean": return "text-syntax-special bg-syntax-special/10";
+    case "json":    return "text-syntax-enum bg-syntax-enum/10";
+    default:        return "text-secondary bg-control";
+  }
+}
 
 export const OP_LABELS: Record<FilterOperator, string> = {
   Eq: "=",
@@ -59,13 +70,13 @@ export const OP_LABELS: Record<FilterOperator, string> = {
 };
 
 export function getTypeFamily(udt: string): TypeFamily {
-  const textTypes = ["text", "varchar", "bpchar", "char", "name", "uuid", "citext"];
-  const numericTypes = ["int2", "int4", "int8", "float4", "float8", "numeric", "money"];
-  const dateTypes = ["date", "timestamp", "timestamptz", "timetz", "time", "interval"];
-  if (textTypes.includes(udt)) return "text";
-  if (numericTypes.includes(udt)) return "numeric";
-  if (dateTypes.includes(udt)) return "date";
-  return "other";
+  const t = udt.toLowerCase().replace(/\[\]$/, ""); // strip array suffix
+  if (["text", "varchar", "bpchar", "char", "name", "uuid", "citext"].includes(t)) return "text";
+  if (["int2", "int4", "int8", "float4", "float8", "numeric", "money", "oid", "serial", "bigserial"].includes(t)) return "numeric";
+  if (["date", "timestamp", "timestamptz", "timetz", "time", "interval"].includes(t)) return "date";
+  if (["bool", "boolean"].includes(t)) return "boolean";
+  if (["json", "jsonb"].includes(t)) return "json";
+  return "other"; // likely enum or custom type
 }
 
 export function getOperatorsForFamily(family: TypeFamily): FilterOperator[] {

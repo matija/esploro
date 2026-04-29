@@ -17,7 +17,7 @@ import { cn } from "../lib/utils";
 
 function WelcomeView() {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-3 text-secondary">
+    <div className="flex flex-col items-center justify-center flex-1 h-full gap-3 text-secondary">
       <span className="text-4xl">⌘</span>
       <p className="text-sm">
         Press <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-xs">⌘K</kbd> to open
@@ -31,9 +31,18 @@ function WelcomeView() {
 }
 
 export function AppShell() {
-  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles } = useAppStore();
+  const { tabs, activeTabId, addTab, closeTab, activeSessions, profiles, theme } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "system") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", theme);
+    }
+  }, [theme]);
 
   // Notify Rust of current connection count for commercial heuristic
   useEffect(() => {

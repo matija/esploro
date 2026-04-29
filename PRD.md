@@ -82,11 +82,206 @@ The name means *I explore* in Italian. The product is open source, free for pers
 
 - Sidebar + detail split view using `NSVisualEffectView`-style sidebar vibrancy (Tauri window config).
 - System font (SF Pro) throughout.
-- macOS semantic colors (label, secondary label, separator, control background, etc.) via CSS variables backed by `@media (prefers-color-scheme)`.
 - Traffic light buttons in the standard position.
 - Standard macOS toolbar above the detail area.
 - Keyboard-navigable sidebar (arrow keys, Enter to open).
 - ⌘K command palette: fuzzy search connections, tables, saved queries.
+- All colors sourced exclusively from CSS design tokens — no hardcoded values anywhere in components.
+
+### 6. Theme System
+
+Users can switch the application theme without restarting. The active theme is persisted in the UI prefs JSON file and applied before first paint (no flash of unstyled content).
+
+**Theme picker:** A dropdown or segmented control inside Settings (⌘,), under an "Appearance" section. No separate page required; the change applies live as the user selects.
+
+#### Built-in themes
+
+| Name | Description |
+|---|---|
+| **Tairiki Light** _(default)_ | Light theme derived from the [tairiki.nvim](https://github.com/deparr/tairiki.nvim) color scheme; described in full below |
+| **Tairiki Dark** | Dark companion theme derived from tairiki.nvim; described in full below |
+| **macOS Dark** | Follows `NSColor` semantic tokens and `prefers-color-scheme: dark`; vibrancy-native |
+| **macOS Light** | Follows `NSColor` semantic tokens and `prefers-color-scheme: light`; vibrancy-native |
+
+Additional community themes may be shipped in later versions. The token contract defined here is the extension point.
+
+#### Default theme: Tairiki Light
+
+Tairiki Light is a clean, high-contrast light theme. The palette originates from tairiki.nvim's light variant: a pure white base with deep navy primary text and saturated, VSCode-lineage syntax colors. The overall character is crisp and professional — readable in daylight, familiar to developers who use light IDEs.
+
+**Color palette**
+
+| Token | Value | Source | Usage |
+|---|---|---|---|
+| `--color-bg-base` | `#ffffff` | `bg` | Main content area background |
+| `--color-bg-sidebar` | `#f0f0f8` | `bg_light` | Sidebar, left panel |
+| `--color-bg-elevated` | `#f0f0f8` | `bg_light` | Modals, popovers, dropdowns |
+| `--color-bg-subtle` | `#e8e8e0` | `bg_light2` | Alternating row tint, hover states |
+| `--color-bg-active` | `#d8d8d0` | `bg_light3` | Selected sidebar item, focused row |
+| `--color-border` | `#d0d0c8` | between `bg_light2`/`bg_light3` | Dividers, panel borders |
+| `--color-border-strong` | `#b0b0a8` | — | Input outlines on focus |
+| `--color-text-primary` | `#001070` | `fg` | Primary labels, table cell values |
+| `--color-text-secondary` | `#797979` | `fg_dark2` | Metadata, column types, row counts |
+| `--color-text-tertiary` | `#595959` | `fg_dark3` | Placeholders, disabled labels |
+| `--color-text-inverse` | `#ffffff` | — | Text on accent-colored backgrounds |
+| `--color-accent` | `#0070c1` | `blue` | Primary buttons, focused rings, active indicators |
+| `--color-accent-hover` | `#005a9e` | darkened `blue` | Hover state for accent elements |
+| `--color-accent-subtle` | `#dceeff` | — | Accent tint background (badges, chips) |
+| `--color-success` | `#008000` | `green` | Connected indicator, success toasts |
+| `--color-warning` | `#7c5c20` | `yellow` | Commercial-use banner |
+| `--color-danger` | `#a31515` | `red` | Error states, destructive actions |
+| `--color-null` | `#797979` | `fg_dark2` | NULL pill text |
+| `--color-null-bg` | `#e8e8e0` | `bg_light2` | NULL pill background |
+
+**Syntax colors (CodeMirror editor — Tairiki Light)**
+
+| Role | Value | Source |
+|---|---|---|
+| Keywords | `#7929c8` | `purple` |
+| Functions | `#0070c1` | `blue` |
+| Strings | `#008000` | `green` |
+| Types | `#7c5c20` | `yellow` |
+| Constants | `#df5926` | `orange` |
+| Operators / modifiers | `#693988` | `light_purple` |
+| Special / tags | `#a31515` | `red` |
+| Comments | `#cd0009` | `comment` |
+
+#### Dark theme: Tairiki Dark
+
+Tairiki Dark is derived from tairiki.nvim's dark variant: a near-black base with muted, earthy accent colors in the Tomorrow Night tradition — blue, purple, green, orange. The mood is calm and focused; nothing fights for attention.
+
+**Color palette**
+
+| Token | Value | Source | Usage |
+|---|---|---|---|
+| `--color-bg-base` | `#151515` | `bg` | Main content area background |
+| `--color-bg-sidebar` | `#111111` | darker than `bg` | Sidebar, left panel |
+| `--color-bg-elevated` | `#1d1f21` | `bg_light` | Modals, popovers, dropdowns |
+| `--color-bg-subtle` | `#191b1d` | blend `bg`/`bg_light` | Alternating row tint, hover states |
+| `--color-bg-active` | `#282828` | `bg_light2` | Selected sidebar item, focused row |
+| `--color-border` | `#222222` | — | Dividers, panel borders |
+| `--color-border-strong` | `#3b3f4c` | `bg_light3` | Input outlines on focus |
+| `--color-text-primary` | `#c5c8c6` | `fg` | Primary labels, table cell values |
+| `--color-text-secondary` | `#969896` | `fg_dark2` | Metadata, column types, row counts |
+| `--color-text-tertiary` | `#696969` | `fg_dark3` | Placeholders, disabled labels |
+| `--color-text-inverse` | `#111111` | — | Text on accent-colored backgrounds |
+| `--color-accent` | `#81a2be` | `blue` | Primary buttons, focused rings, active indicators |
+| `--color-accent-hover` | `#99b8d0` | lightened `blue` | Hover state for accent elements |
+| `--color-accent-subtle` | `#1e2a35` | blend `blue`/`bg` | Accent tint background (badges, chips) |
+| `--color-success` | `#b5bd68` | `green` | Connected indicator, success toasts |
+| `--color-warning` | `#f0c674` | `yellow` | Commercial-use banner |
+| `--color-danger` | `#cc6666` | `red` | Error states, destructive actions |
+| `--color-null` | `#696969` | `fg_dark3` | NULL pill text |
+| `--color-null-bg` | `#1d1f21` | `bg_light` | NULL pill background |
+
+**Syntax colors (CodeMirror editor — Tairiki Dark)**
+
+| Role | Value | Source |
+|---|---|---|
+| Keywords | `#b294bb` | `purple` |
+| Functions | `#81a2be` | `blue` |
+| Strings | `#b5bd68` | `green` |
+| Types | `#f0c674` | `yellow` |
+| Constants | `#de935f` | `orange` |
+| Operators / modifiers | `#c397d8` | `light_purple` |
+| Special / tags | `#cc6666` | `red` |
+| Comments | `#a89984` | `comment` |
+
+#### Shared visual design (all themes)
+
+**Typography**
+
+- **UI font:** SF Pro Text — system default, no web font loading.
+- **Monospace font:** `ui-monospace, "SF Mono", Menlo` — used in the query editor, cell values, type badges, and connection URL inputs.
+- **Scale:** 11 px (tertiary), 12 px (secondary metadata), 13 px (body default), 15 px (section headers), 17 px (modal titles).
+- **Weight:** 400 for body, 500 for interactive labels, 600 for headings and active sidebar items.
+
+**Component appearances**
+
+- **Border radius:** 6 px for inputs and small controls; 8 px for cards and popovers; 10 px for modals; 4 px for inline badges/chips.
+- **Sidebar items:** 32 px tall, 8 px horizontal padding, left icon (16 px), label at 13 px/500 weight. Active item uses `--color-bg-active` background + `--color-accent` left border (2 px). Hover uses `--color-bg-subtle`.
+- **Connection status dot:** 8 px circle; `--color-success` when connected, `--color-text-tertiary` when idle.
+- **Folder rows:** Same height as connection rows; chevron rotates 90° on expand (150 ms ease-out).
+- **Tab bar:** 36 px tall, sits directly below the macOS toolbar. Active tab: bottom border in `--color-accent` (2 px). Inactive tabs: `--color-text-secondary` label.
+- **Buttons:** Primary — `--color-accent` fill, `--color-text-inverse` label, 6 px radius, 32 px height. Secondary — transparent fill, `--color-text-primary` label, `--color-border` outline. Danger — `--color-danger` fill.
+- **Inputs:** `--color-bg-elevated` fill, `--color-border` outline at rest, `--color-border-strong` + `--color-accent` ring on focus (2 px ring, 2 px offset).
+- **Data grid:** Header row — `--color-bg-subtle` background, `--color-text-secondary` labels, monospace type badge with `--color-accent-subtle` fill. Cell rows alternate between `--color-bg-base` and transparent. Selected row uses `--color-bg-active`. Null cells render a pill with `--color-null-bg`/`--color-null` colors.
+- **Scrollbars:** Overlay style, 4 px wide, `--color-border-strong` thumb, disappear after inactivity.
+- **Context menus and dropdowns:** `--color-bg-elevated` background, `--color-border` border, 8 px radius, 4 px padding. Focused item uses `--color-accent` background, `--color-text-inverse` label.
+- **Toasts / notifications:** Appear at bottom-right, 320 px wide, 8 px radius, `--color-bg-elevated` background. Icon + colored left border (4 px) indicates severity.
+
+**Spacing and layout**
+
+- Sidebar width: 240 px (resizable 180–360 px), persisted per session.
+- Content area padding: 16 px.
+- Table viewer toolbar (filter bar, pagination footer): 40 px height.
+- Query editor / result split: 50/50 default, draggable, persisted.
+
+#### macOS Dark and macOS Light themes
+
+These themes replace all `--color-*` tokens with macOS semantic equivalents (e.g., `--color-bg-base` → `NSColor.windowBackgroundColor`). Sidebar vibrancy (`NSVisualEffectView`) is enabled only in these two themes. They follow `prefers-color-scheme` automatically if the user has selected "Follow System" rather than pinning a specific macOS variant.
+
+#### Technical implementation notes
+
+- All tokens live in `src/styles/tokens.css`. Each theme is a CSS class on `<html>` (e.g., `theme-tairiki-light`, `theme-tairiki-dark`, `theme-macos-dark`, `theme-macos-light`). The default class (`theme-tairiki-light`) is applied synchronously in a `<script>` tag in `index.html` before React hydrates.
+- Theme preference stored in `$APP_DATA_DIR/prefs.json` under `ui.theme`. Loaded by a Tauri command at startup and injected into the window as `window.__ESPLORO_THEME__` before the JS bundle runs.
+- The Tauri command surface gains one new command: `set_ui_pref(key, value)` (generic, reused for other preferences).
+- No runtime CSS-in-JS; all theming is static CSS custom properties.
+
+---
+
+## Tairiki Theme — Implementation Roadmap
+
+The PRD defines the full Tairiki palette but the implementation has historically lagged behind. This section tracks what has been done and what remains.
+
+### Completed
+
+- **Token foundations** — `tokens.css` now holds the full Tairiki Light and Dark palette (22 tokens each: text, backgrounds, borders, accent, semantic, and syntax colors). All hardcoded generic alphas replaced with named Tairiki values (`#001070` navy primary, `#0070c1` accent, etc.).
+- **Tailwind utilities** — `@theme inline` in `index.css` exposes all tokens as utility classes including `text-syntax-string`, `bg-subtle`, `text-success`, `bg-syntax-keyword/10`, etc.
+- **Schema tree icon colors** — each node kind gets its Tairiki syntax color: database → accent blue, table → success green, view → keyword purple, function → enum orange, sequence → type amber.
+- **Column type badges** — column header badges in the table viewer use the syntax palette: text types → green, numeric → blue, timestamps → amber, booleans → red, json → orange.
+- **PK/FK/nullable badges** — `ColBadge` in the schema tree uses `bg-syntax-type/15 text-syntax-type` (PK) and `bg-syntax-number/15 text-syntax-number` (FK) instead of hardcoded `dark:` variants.
+- **NULL pill** — monospace, tracking-wide, `text-tertiary bg-control`, no italic.
+- **Alternating rows** — odd table rows get a `bg-subtle/30` tint.
+- **Theme picker** — Light / Dark / System commands in the command palette; theme persisted in localStorage.
+
+### Phase 2 — Connection list & sidebar polish
+
+- Connection status dot: use `--ds-success` (green) when connected, `--ds-tertiary` when idle.
+- Sidebar active item: `--ds-bg-active` background + 2 px `--ds-accent` left border (currently uses accent/10 ring only).
+- Folder chevron transition: 150 ms ease-out (already partially done, audit and standardize).
+- Tab bar active indicator: bottom border `--ds-accent` 2 px (verify against spec).
+
+### Phase 3 — CodeMirror Tairiki theme
+
+Replace the `oneDark` import in `SqlEditor.tsx` with a custom CodeMirror `HighlightStyle` + `EditorView.theme` that reads from the Tairiki palette:
+
+| Role | Light | Dark |
+|---|---|---|
+| Keywords | `#7929c8` | `#b294bb` |
+| Functions | `#0070c1` | `#81a2be` |
+| Strings | `#008000` | `#b5bd68` |
+| Types | `#7c5c20` | `#f0c674` |
+| Constants | `#df5926` | `#de935f` |
+| Operators | `#693988` | `#c397d8` |
+| Comments | `#cd0009` | `#a89984` |
+
+The theme object should be rebuilt reactively when the active theme changes (watch `data-theme` attribute on `<html>`).
+
+### Phase 4 — Appearance settings UI
+
+- Add an "Appearance" section to the settings tab (opened via License Settings tab for now, or add a dedicated Settings tab).
+- Segmented control: **Tairiki Light** | **Tairiki Dark** | **System**.
+- Persist via a Tauri command writing to `$APP_DATA_DIR/prefs.json` under `ui.theme`, not just `localStorage`.
+- Apply chosen theme synchronously in `index.html` via `<script>` before React hydrates (no flash of unstyled content).
+
+### Phase 5 — Extended token coverage
+
+- **Enum type detection**: teach `getTypeFamily` to identify Postgres enums (backend should flag `oid_kind = 'e'` in `list_columns` response) and render them as `text-syntax-enum bg-syntax-enum/10`.
+- **Context menus & dropdowns**: `bg-elevated` background (`--ds-sidebar-bg`), accent hover item with `text-inverse` label.
+- **Toasts/notifications**: bottom-right, `--ds-bg-subtle` background, colored 4 px left border by severity.
+- **Input focus ring**: `border-border-strong ring-2 ring-accent/30` on focus.
+- **Scrollbar thumb**: `--ds-border-strong`, 4 px overlay style, fade after inactivity.
 
 ---
 

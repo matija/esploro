@@ -21,10 +21,14 @@ export interface Tab {
   };
 }
 
+export type Theme = "system" | "light" | "dark";
+
 interface AppState {
   // UI — persisted
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
 
   // UI — ephemeral
   commandPaletteOpen: boolean;
@@ -62,6 +66,8 @@ export const useAppStore = create<AppState>()(
       sidebarWidth: 240,
       setSidebarWidth: (w) =>
         set({ sidebarWidth: Math.min(320, Math.max(180, w)) }),
+      theme: "system",
+      setTheme: (theme) => set({ theme }),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -125,6 +131,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         sidebarWidth: state.sidebarWidth,
         expandedNodes: state.expandedNodes,
+        theme: state.theme,
       }),
     },
   ),

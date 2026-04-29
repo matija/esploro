@@ -118,11 +118,9 @@ function ColBadge({
     <span
       className={cn(
         "px-[3px] py-px text-[8px] font-semibold rounded shrink-0 leading-tight",
-        color === "gold" &&
-          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-        color === "blue" &&
-          "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-        color === "gray" && "bg-separator text-secondary",
+        color === "gold" && "bg-syntax-type/15 text-syntax-type",
+        color === "blue" && "bg-syntax-number/15 text-syntax-number",
+        color === "gray" && "bg-control text-tertiary",
       )}
     >
       {label}
@@ -222,20 +220,13 @@ function TreeRow({
 
   const icon = (() => {
     switch (node.kind) {
-      case "database":
-        return <Database size={11} />;
-      case "schema":
-        return <Folder size={11} />;
-      case "table":
-        return <Table2 size={11} />;
-      case "view":
-        return <Eye size={11} />;
-      case "sequence":
-        return <Hash size={11} />;
-      case "function":
-        return <Zap size={11} />;
-      default:
-        return null;
+      case "database":  return <Database size={11} className="text-accent" />;
+      case "schema":    return <Folder size={11} className="text-secondary" />;
+      case "table":     return <Table2 size={11} className="text-success" />;
+      case "view":      return <Eye size={11} className="text-syntax-keyword" />;
+      case "sequence":  return <Hash size={11} className="text-syntax-type" />;
+      case "function":  return <Zap size={11} className="text-syntax-enum" />;
+      default:          return null;
     }
   })();
 
@@ -293,7 +284,7 @@ function TreeRow({
 
       {/* Icon */}
       {icon && (
-        <span className="text-secondary shrink-0 flex items-center">{icon}</span>
+        <span className="shrink-0 flex items-center">{icon}</span>
       )}
 
       {/* Label */}

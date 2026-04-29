@@ -1,21 +1,114 @@
+/* ── Tairiki Light (default) ─────────────────────────────────────────────── */
 :root {
-  --ds-label:           rgba(0, 0, 0, 0.85);
-  --ds-secondary:       rgba(0, 0, 0, 0.50);
-  --ds-separator:       rgba(0, 0, 0, 0.10);
-  --ds-sidebar-bg:      rgba(246, 246, 246, 0.72);
-  --ds-content-bg:      #ffffff;
-  --ds-control-bg:      rgba(0, 0, 0, 0.06);
-  --ds-accent:          #007AFF;
-  --ds-destructive:     #FF3B30;
+  /* Text */
+  --ds-label:            #001070;        /* Tairiki fg — deep navy primary text */
+  --ds-secondary:        #797979;        /* fg_dark2 */
+  --ds-tertiary:         #595959;        /* fg_dark3 — placeholders, disabled */
+  --ds-text-inverse:     #ffffff;        /* text on accent fills */
+  /* Backgrounds */
+  --ds-content-bg:       #ffffff;        /* main content area */
+  --ds-sidebar-bg:       #f0f0f8;        /* sidebar, left panel */
+  --ds-bg-subtle:        #e8e8e0;        /* alternating rows, hover states */
+  --ds-bg-active:        #d8d8d0;        /* selected item */
+  /* Borders */
+  --ds-separator:        #d0d0c8;        /* dividers */
+  --ds-border-strong:    #b0b0a8;        /* input focus ring */
+  /* Controls */
+  --ds-control-bg:       #ebebea;        /* inputs, badges, small surfaces */
+  /* Accent */
+  --ds-accent:           #0070c1;        /* Tairiki blue */
+  --ds-accent-hover:     #005a9e;
+  --ds-accent-subtle:    #dceeff;        /* accent tint for chips, badges */
+  /* Semantic */
+  --ds-success:          #008000;        /* connected indicator */
+  --ds-warning:          #7c5c20;        /* commercial banner */
+  --ds-destructive:      #a31515;        /* errors, delete */
+  /* Syntax — used for tree icons, type badges, column type coloring */
+  --ds-syntax-keyword:   #7929c8;        /* purple — SQL keywords */
+  --ds-syntax-type:      #7c5c20;        /* amber — type names, timestamps */
+  --ds-syntax-string:    #008000;        /* green — strings, text columns */
+  --ds-syntax-number:    #0070c1;        /* blue — numeric columns */
+  --ds-syntax-enum:      #df5926;        /* orange — enum / custom types */
+  --ds-syntax-special:   #a31515;        /* red — booleans, special values */
 }
 
+/* ── Tairiki Dark ─────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --ds-label:          rgba(255, 255, 255, 0.85);
-    --ds-secondary:      rgba(255, 255, 255, 0.50);
-    --ds-separator:      rgba(255, 255, 255, 0.10);
-    --ds-sidebar-bg:     rgba(30, 30, 30, 0.72);
-    --ds-content-bg:     #1e1e1e;
-    --ds-control-bg:     rgba(255, 255, 255, 0.06);
+  :root:not([data-theme="light"]) {
+    --ds-label:            #c5c8c6;
+    --ds-secondary:        #969896;
+    --ds-tertiary:         #696969;
+    --ds-text-inverse:     #111111;
+    --ds-content-bg:       #151515;
+    --ds-sidebar-bg:       #111111;
+    --ds-bg-subtle:        #191b1d;
+    --ds-bg-active:        #282828;
+    --ds-separator:        #222222;
+    --ds-border-strong:    #3b3f4c;
+    --ds-control-bg:       rgba(255, 255, 255, 0.06);
+    --ds-accent:           #81a2be;
+    --ds-accent-hover:     #99b8d0;
+    --ds-accent-subtle:    #1e2a35;
+    --ds-success:          #b5bd68;
+    --ds-warning:          #f0c674;
+    --ds-destructive:      #cc6666;
+    --ds-syntax-keyword:   #b294bb;
+    --ds-syntax-type:      #f0c674;
+    --ds-syntax-string:    #b5bd68;
+    --ds-syntax-number:    #81a2be;
+    --ds-syntax-enum:      #de935f;
+    --ds-syntax-special:   #cc6666;
   }
+}
+
+:root[data-theme="dark"] {
+  --ds-label:            #c5c8c6;
+  --ds-secondary:        #969896;
+  --ds-tertiary:         #696969;
+  --ds-text-inverse:     #111111;
+  --ds-content-bg:       #151515;
+  --ds-sidebar-bg:       #111111;
+  --ds-bg-subtle:        #191b1d;
+  --ds-bg-active:        #282828;
+  --ds-separator:        #222222;
+  --ds-border-strong:    #3b3f4c;
+  --ds-control-bg:       rgba(255, 255, 255, 0.06);
+  --ds-accent:           #81a2be;
+  --ds-accent-hover:     #99b8d0;
+  --ds-accent-subtle:    #1e2a35;
+  --ds-success:          #b5bd68;
+  --ds-warning:          #f0c674;
+  --ds-destructive:      #cc6666;
+  --ds-syntax-keyword:   #b294bb;
+  --ds-syntax-type:      #f0c674;
+  --ds-syntax-string:    #b5bd68;
+  --ds-syntax-number:    #81a2be;
+  --ds-syntax-enum:      #de935f;
+  --ds-syntax-special:   #cc6666;
+}
+
+:root[data-theme="light"] {
+  --ds-label:            #001070;
+  --ds-secondary:        #797979;
+  --ds-tertiary:         #595959;
+  --ds-text-inverse:     #ffffff;
+  --ds-content-bg:       #ffffff;
+  --ds-sidebar-bg:       #f0f0f8;
+  --ds-bg-subtle:        #e8e8e0;
+  --ds-bg-active:        #d8d8d0;
+  --ds-separator:        #d0d0c8;
+  --ds-border-strong:    #b0b0a8;
+  --ds-control-bg:       #ebebea;
+  --ds-accent:           #0070c1;
+  --ds-accent-hover:     #005a9e;
+  --ds-accent-subtle:    #dceeff;
+  --ds-success:          #008000;
+  --ds-warning:          #7c5c20;
+  --ds-destructive:      #a31515;
+  --ds-syntax-keyword:   #7929c8;
+  --ds-syntax-type:      #7c5c20;
+  --ds-syntax-string:    #008000;
+  --ds-syntax-number:    #0070c1;
+  --ds-syntax-enum:      #df5926;
+  --ds-syntax-special:   #a31515;
 }

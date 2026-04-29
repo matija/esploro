@@ -2,15 +2,30 @@
 @import "./tokens.css";
 
 @theme inline {
-  --color-label:       var(--ds-label);
-  --color-secondary:   var(--ds-secondary);
-  --color-separator:   var(--ds-separator);
-  --color-sidebar:     var(--ds-sidebar-bg);
-  --color-content:     var(--ds-content-bg);
-  --color-control:     var(--ds-control-bg);
-  --color-accent:      var(--ds-accent);
-  --color-destructive: var(--ds-destructive);
-  --font-ui:  -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  /* Base tokens */
+  --color-label:            var(--ds-label);
+  --color-secondary:        var(--ds-secondary);
+  --color-tertiary:         var(--ds-tertiary);
+  --color-separator:        var(--ds-separator);
+  --color-border-strong:    var(--ds-border-strong);
+  --color-sidebar:          var(--ds-sidebar-bg);
+  --color-content:          var(--ds-content-bg);
+  --color-subtle:           var(--ds-bg-subtle);
+  --color-active:           var(--ds-bg-active);
+  --color-control:          var(--ds-control-bg);
+  --color-accent:           var(--ds-accent);
+  --color-accent-subtle:    var(--ds-accent-subtle);
+  --color-destructive:      var(--ds-destructive);
+  --color-success:          var(--ds-success);
+  --color-warning:          var(--ds-warning);
+  /* Syntax palette — type badges, tree icons, CodeMirror */
+  --color-syntax-keyword:   var(--ds-syntax-keyword);
+  --color-syntax-type:      var(--ds-syntax-type);
+  --color-syntax-string:    var(--ds-syntax-string);
+  --color-syntax-number:    var(--ds-syntax-number);
+  --color-syntax-enum:      var(--ds-syntax-enum);
+  --color-syntax-special:   var(--ds-syntax-special);
+  --font-ui:   -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   --font-mono: "SF Mono", "Menlo", monospace;
 }
 
