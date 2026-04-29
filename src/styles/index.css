@@ -25,8 +25,7 @@
   --color-syntax-number:    var(--ds-syntax-number);
   --color-syntax-enum:      var(--ds-syntax-enum);
   --color-syntax-special:   var(--ds-syntax-special);
-  --font-ui:   -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  --font-mono: "SF Mono", "Menlo", monospace;
+  --font-mono: var(--font-editor);
 }
 
 *, *::before, *::after {
@@ -43,13 +42,14 @@ body,
 
 body {
   font-family: var(--font-ui);
+  font-size: var(--font-ui-size);
   -webkit-font-smoothing: antialiased;
-  color: var(--ds-label);
-  background: var(--ds-content-bg);
+  color: var(--text-primary);
+  background: var(--surface-base);
 }
 
 /* Disable default outline; use custom focus styles */
 :focus-visible {
-  outline: 2px solid var(--ds-accent);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }

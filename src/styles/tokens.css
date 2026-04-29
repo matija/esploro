@@ -120,3 +120,80 @@
   --ds-syntax-operator:  #693988;
   --ds-syntax-comment:   #cd0009;
 }
+
+/* ── Craft token contract ────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --surface-base:         var(--ds-content-bg);
+  --surface-sidebar:      var(--ds-sidebar-bg);
+  --surface-raised:       var(--ds-content-bg);
+  --surface-inset:        var(--ds-bg-subtle);
+  --surface-overlay:      color-mix(in srgb, var(--ds-content-bg) 96%, transparent);
+  --surface-hover:        var(--ds-bg-subtle);
+  --surface-pressed:      var(--ds-bg-active);
+  --surface-selected:     var(--ds-bg-active);
+
+  /* Borders */
+  --border-subtle:        color-mix(in srgb, var(--ds-separator) 55%, transparent);
+  --border-default:       var(--ds-separator);
+  --border-strong:        var(--ds-border-strong);
+  --border-focus:         var(--ds-accent);
+  --border-danger:        var(--ds-destructive);
+
+  /* Text */
+  --text-primary:         var(--ds-label);
+  --text-secondary:       var(--ds-secondary);
+  --text-tertiary:        var(--ds-tertiary);
+  --text-disabled:        color-mix(in srgb, var(--ds-tertiary) 62%, transparent);
+  --text-inverse:         var(--ds-text-inverse);
+  --text-accent:          var(--ds-accent);
+
+  /* Schema accents */
+  --schema-database:      var(--ds-accent);
+  --schema-schema:        var(--ds-syntax-keyword);
+  --schema-table:         var(--ds-syntax-string);
+  --schema-view:          var(--ds-syntax-number);
+  --schema-function:      var(--ds-syntax-type);
+  --schema-sequence:      var(--ds-syntax-enum);
+  --schema-column:        var(--ds-secondary);
+  --schema-key:           var(--ds-warning);
+  --schema-nullable:      var(--ds-tertiary);
+
+  /* Editor syntax */
+  --editor-syntax-keyword:  var(--ds-syntax-keyword);
+  --editor-syntax-function: var(--ds-syntax-number);
+  --editor-syntax-string:   var(--ds-syntax-string);
+  --editor-syntax-type:     var(--ds-syntax-type);
+  --editor-syntax-constant: var(--ds-syntax-enum);
+  --editor-syntax-operator: var(--ds-syntax-operator);
+  --editor-syntax-comment:  var(--ds-syntax-comment);
+  --editor-syntax-error:    var(--ds-destructive);
+
+  /* Motion */
+  --motion-fast:          100ms;
+  --motion-base:          150ms;
+  --motion-slow:          220ms;
+  --ease-standard:        cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter:           cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit:            cubic-bezier(0.7, 0, 0.84, 0);
+
+  /* Radius */
+  --radius-control:       6px;
+  --radius-badge:         4px;
+  --radius-popover:       8px;
+  --radius-panel:         10px;
+  --radius-modal:         12px;
+
+  /* Shadows */
+  --shadow-hairline:      inset 0 0 0 1px var(--border-subtle);
+  --shadow-popover:       0 12px 30px color-mix(in srgb, #000 18%, transparent);
+  --shadow-modal:         0 20px 60px color-mix(in srgb, #000 24%, transparent);
+  --shadow-active-pane:   0 0 0 1px var(--border-focus), 0 0 0 4px color-mix(in srgb, var(--ds-accent) 16%, transparent);
+
+  /* Fonts */
+  --font-ui:              -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-editor:          ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
+  --font-ui-size:         13px;
+  --font-editor-size:     13px;
+  --font-editor-line-height: 1.5;
+}

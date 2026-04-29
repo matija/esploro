@@ -1,3 +1,15 @@
+## Phase 07.2 — Expanded Design Tokens [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.2 after the Phase 7.1 audit identified token expansion as the next task.
+- src/styles/tokens.css:
+  - Added craft-level token contract for surfaces, borders, text, schema accents, editor syntax, motion, radius, shadows, and fonts.
+  - Kept the new tokens mapped to the existing Tairiki `--ds-*` values so light, dark, and system-driven theme changes continue to flow through one palette.
+- src/styles/index.css:
+  - Mapped Tailwind `font-mono` to the new `--font-editor` runtime variable.
+  - Switched body font size, color, background, and focus outline to the new runtime token aliases.
+- src/features/query-editor/SqlEditor.tsx:
+  - Updated CodeMirror font family, font size, and line height to read from the new editor font tokens.
+- Checks passed: npm run type-check, npm run lint, git diff --check.
+
 ## Phase 07.1 — UI State Audit [DONE]
 - Read the active PRD and Phase 07 plan, then inspected the listed UI surfaces before making component changes.
 - Added `plans/07-ui-craft-audit.md` with current state coverage for:

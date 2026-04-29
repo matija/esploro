@@ -43,7 +43,11 @@ export function SqlEditor({
       sql({ schema: schemaCompletions }),
       tairikiTheme,
       EditorView.theme({
-        "&": { fontFamily: "var(--font-mono, ui-monospace)", fontSize: "13px" },
+        "&": {
+          fontFamily: "var(--font-editor, ui-monospace)",
+          fontSize: "var(--font-editor-size, 13px)",
+          lineHeight: "var(--font-editor-line-height, 1.5)",
+        },
         ".cm-content": { padding: "12px 0" },
       }),
       keymap.of([
@@ -136,4 +140,3 @@ export function SqlEditor({
     />
   );
 }
-
