@@ -1,3 +1,31 @@
+## Phase 14 — Wire Grid Row Density Setting [DONE]
+- Connected the Data Grid row density setting (compact/comfortable/spacious) to the table viewer and query editor result grids.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Replaced hardcoded `ROW_HEIGHT = 33` with a `ROW_HEIGHT_BY_DENSITY` map (compact: 33, comfortable: 44, spacious: 56).
+  - Reads `gridRowDensity` from the store and derives `rowHeight` dynamically.
+  - Virtualizer `estimateSize`, row container height, and cell height all use the dynamic value.
+  - Skeleton grid retains the compact height as a sensible loading default.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Replaced hardcoded `ROW_HEIGHT = 33` with the same `ROW_HEIGHT_BY_DENSITY` map.
+  - `ResultGrid` reads `gridRowDensity` from the store directly and applies it to the virtualizer, row containers, and cells.
+- Checks passed: npm run type-check, npm run lint.
+
+## Phase 13 — Status Bar Enhancement [DONE]
+- Implemented the PRD status bar requirement: "Left: active connection and database. Center: background work, if any. Right: last query duration, row count, or license state."
+- src/store/index.ts:
+  - Added `LastAction` interface (label, durationMs, rowCount, timestamp).
+  - Added `lastAction` state and `setLastAction` action to the store.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - After query execution, reports total duration and row count to `setLastAction`.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - After table data loads, reports execution time and total row count to `setLastAction`.
+- src/components/AppShell.tsx:
+  - StatusBar now has three sections: left (connection + database), center (background task count from loading tabs), right (last action duration + row count).
+  - Center section shows "N tasks running" with a spinner when any tab has `isLoading` set.
+  - Right section shows row count and execution time from the last query or table load.
+  - Added Loader2 icon import for the spinner.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 12 — Table Viewer Column Header Key/Nullable Indicators [DONE]
 - Implemented the PRD table viewer requirement: "Headers show column name, type badge, sort state, filter state, and nullable/key indicators."
 - src-tauri/src/commands/data.rs:

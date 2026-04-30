@@ -26,8 +26,13 @@ import type { QueryResult, ResultColumn } from "./types";
 import { cn } from "../../lib/utils";
 
 const COL_WIDTH = 180;
-const ROW_HEIGHT = 33;
 const HEADER_HEIGHT = 36;
+
+const ROW_HEIGHT_BY_DENSITY = {
+  compact: 33,
+  comfortable: 44,
+  spacious: 56,
+} as const;
 const RESULT_HEIGHT_KEY = "esploro-query-result-height";
 
 type RunState = "idle" | "pending" | "success" | "error";
@@ -56,6 +61,8 @@ function ResultGrid({
   columns: ResultColumn[];
   rows: (string | null)[][];
 }) {
+  const { gridRowDensity } = useAppStore();
+  const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
   const bodyRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
@@ -64,7 +71,7 @@ function ResultGrid({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => bodyRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 10,
   });
 
@@ -141,7 +148,7 @@ function ResultGrid({
                 style={{
                   position: "absolute",
                   top: vrow.start,
-                  height: ROW_HEIGHT,
+                  height: rowHeight,
                   width: totalWidth,
                   display: "flex",
                 }}
@@ -160,7 +167,7 @@ function ResultGrid({
                         selectedCell?.col === ci &&
                         "ring-1 ring-inset ring-accent",
                     )}
-                    style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: ROW_HEIGHT }}
+                    style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: rowHeight }}
                   >
                     <CellValue value={rowData?.[ci] ?? null} />
                   </div>

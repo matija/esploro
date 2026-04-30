@@ -26,8 +26,13 @@ import {
 import { cn } from "../../lib/utils";
 
 const COL_WIDTH = 180;
-const ROW_HEIGHT = 33;
 const HEADER_HEIGHT = 36;
+
+const ROW_HEIGHT_BY_DENSITY = {
+  compact: 33,
+  comfortable: 44,
+  spacious: 56,
+} as const;
 
 // ─── CellValue ────────────────────────────────────────────────────────────────
 
@@ -149,7 +154,7 @@ function SkeletonGrid() {
               "flex divide-x divide-separator/50 border-b border-separator/50",
               ri % 2 === 1 && "bg-subtle/30",
             )}
-            style={{ height: ROW_HEIGHT }}
+            style={{ height: ROW_HEIGHT_BY_DENSITY.compact }}
           >
             {SKELETON_COL_WIDTHS.map((_, ci) => (
               <div
@@ -399,7 +404,8 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading, gridPageSize, setLastAction } = useAppStore();
+  const { setTabLoading, gridPageSize, gridRowDensity, setLastAction } = useAppStore();
+  const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -517,7 +523,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => bodyRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 10,
   });
 
@@ -764,7 +770,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                         style={{
                           position: "absolute",
                           top: vr.start,
-                          height: ROW_HEIGHT,
+                          height: rowHeight,
                           width: "100%",
                         }}
                       >
@@ -784,7 +790,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               style={{
                                 width: COL_WIDTH,
                                 minWidth: COL_WIDTH,
-                                height: ROW_HEIGHT,
+                                height: rowHeight,
                               }}
                               onClick={() =>
                                 setSelectedCell({ row: vr.index, col: ci })
