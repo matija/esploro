@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { FileText, Folder, MoreHorizontal, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, Folder, MoreHorizontal, Trash2 } from "lucide-react";
 import { savedQueriesApi } from "./api";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
@@ -47,7 +47,14 @@ export function SavedQueriesSection() {
 
   if (queries.length === 0) {
     return (
-      <div className="px-3 py-2 text-xs text-secondary">No saved queries</div>
+      <div className="px-3 py-3 text-center">
+        <p className="text-xs text-secondary leading-snug">
+          No saved queries yet.
+        </p>
+        <p className="text-[11px] text-tertiary mt-0.5 leading-snug">
+          Run a query and press Save (⌘S).
+        </p>
+      </div>
     );
   }
 
@@ -93,10 +100,14 @@ function FolderGroup({
     <div>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-1.5 px-3 py-1 text-xs text-label hover:bg-control transition-colors"
+        className="flex w-full items-center gap-1.5 px-3 py-1 text-xs text-secondary hover:bg-hover transition-colors"
       >
-        <Folder size={11} className="text-secondary shrink-0" />
-        <span className="truncate flex-1 text-left">{name}</span>
+        <ChevronRight
+          size={11}
+          className={cn('shrink-0 transition-transform duration-150 ease-out', open && 'rotate-90')}
+        />
+        <Folder size={11} className="shrink-0" />
+        <span className="truncate flex-1 text-left text-label">{name}</span>
       </button>
       {open &&
         items.map((q) => (
@@ -128,8 +139,8 @@ function QueryRow({
   return (
     <DropdownMenu.Root>
       <div
-        className="group flex items-center gap-1.5 px-3 py-1 text-xs text-label hover:bg-control transition-colors cursor-default select-none"
-        style={{ paddingLeft: 12 + depth * 12 }}
+        className="group flex items-center gap-1.5 py-1 text-xs text-label hover:bg-hover transition-colors cursor-default select-none"
+        style={{ paddingLeft: 12 + depth * 12, paddingRight: 8 }}
         onDoubleClick={onOpen}
         onClick={onOpen}
       >
@@ -138,9 +149,13 @@ function QueryRow({
         <DropdownMenu.Trigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-control transition-opacity"
+            className={cn(
+              'opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity',
+              'hover:bg-pressed text-secondary hover:text-label',
+              'focus-visible:opacity-100 focus-visible:outline-none',
+            )}
           >
-            <MoreHorizontal size={11} className="text-secondary" />
+            <MoreHorizontal size={11} />
           </button>
         </DropdownMenu.Trigger>
       </div>
@@ -149,13 +164,13 @@ function QueryRow({
         <DropdownMenu.Content
           className={cn(
             "z-50 min-w-[140px] rounded-lg overflow-hidden",
-            "bg-content border border-separator shadow-lg py-1",
+            "bg-raised border border-separator shadow-lg py-1",
           )}
           sideOffset={4}
         >
           <DropdownMenu.Item
             onSelect={onDelete}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-control cursor-default outline-none"
+            className="flex items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-hover cursor-default outline-none"
           >
             <Trash2 size={11} />
             Delete

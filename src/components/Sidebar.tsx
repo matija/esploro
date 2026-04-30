@@ -109,6 +109,7 @@ export function Sidebar() {
               profiles={profiles}
               onEdit={openEdit}
               onRefresh={loadProfiles}
+              onNewConnection={openCreate}
               renderExpansion={(connectionId, sessionId) => (
                 <SchemaTree sessionId={sessionId} connectionId={connectionId} />
               )}

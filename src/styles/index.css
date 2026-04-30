@@ -12,6 +12,10 @@
   --color-content:          var(--ds-content-bg);
   --color-subtle:           var(--ds-bg-subtle);
   --color-active:           var(--ds-bg-active);
+  --color-hover:            var(--surface-hover);
+  --color-pressed:          var(--surface-pressed);
+  --color-raised:           var(--surface-raised);
+  --color-selected:         var(--surface-selected);
   --color-control:          var(--ds-control-bg);
   --color-accent:           var(--ds-accent);
   --color-accent-subtle:    var(--ds-accent-subtle);

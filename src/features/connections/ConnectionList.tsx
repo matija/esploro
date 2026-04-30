@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plug, PlugZap, Pencil, Trash2, ChevronRight, Folder } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plug, PlugZap, Pencil, Trash2, ChevronRight, Folder, Plus, Loader2, ServerCrash } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { connectionsApi } from './api';
 import type { ConnectionProfile } from './types';
@@ -9,6 +10,7 @@ interface Props {
   profiles: ConnectionProfile[];
   onEdit: (profile: ConnectionProfile) => void;
   onRefresh: () => void;
+  onNewConnection?: () => void;
   renderExpansion?: (connectionId: string, sessionId: string) => React.ReactNode;
 }
 
@@ -20,7 +22,216 @@ function navKey(item: NavItem): string {
   return item.kind === 'connection' ? `conn:${item.profile.id}` : `folder:${item.name}`;
 }
 
-export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }: Props) {
+// ─── Context menu ─────────────────────────────────────────────────────────────
+
+type ContextMenuState = {
+  profile: ConnectionProfile;
+  isActive: boolean;
+  x: number;
+  y: number;
+};
+
+function ConnectionContextMenu({
+  menu,
+  onClose,
+  onConnect,
+  onDisconnect,
+  onEdit,
+  onDelete,
+}: {
+  menu: ContextMenuState;
+  onClose: () => void;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  useEffect(() => {
+    const onMouseDown = () => onClose();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className={cn(
+        'fixed z-50 min-w-[180px] rounded-lg overflow-hidden',
+        'bg-raised border border-separator shadow-lg py-1',
+      )}
+      style={{ left: menu.x, top: menu.y }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {menu.isActive ? (
+        <button
+          onClick={onDisconnect}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
+        >
+          <PlugZap size={11} className="text-secondary" />
+          Disconnect
+        </button>
+      ) : (
+        <button
+          onClick={onConnect}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
+        >
+          <Plug size={11} className="text-success" />
+          Connect
+        </button>
+      )}
+      <button
+        onClick={onEdit}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
+      >
+        <Pencil size={11} className="text-secondary" />
+        Edit…
+      </button>
+      <div className="my-1 border-t border-separator" />
+      <button
+        onClick={onDelete}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-hover transition-colors"
+      >
+        <Trash2 size={11} />
+        Delete
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── Connection row ───────────────────────────────────────────────────────────
+
+function ConnectionRow({
+  profile,
+  isActive,
+  isConnecting,
+  isFocused,
+  indented,
+  onFocus,
+  onConnect,
+  onDisconnect,
+  onEdit,
+  onDelete,
+}: {
+  profile: ConnectionProfile;
+  isActive: boolean;
+  isConnecting: boolean;
+  isFocused: boolean;
+  indented: boolean;
+  onFocus: () => void;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const hostLabel = profile.socketPath
+    ? 'socket'
+    : `${profile.host ?? 'localhost'}:${profile.port}`;
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ profile, isActive, x: e.clientX, y: e.clientY });
+  };
+
+  return (
+    <>
+      <div
+        data-nav-key={`conn:${profile.id}`}
+        onClick={onFocus}
+        onContextMenu={handleContextMenu}
+        className={cn(
+          'group flex items-start gap-2 py-1.5 transition-colors',
+          'border-l-2 border-transparent',
+          indented ? 'pl-6 pr-2' : 'px-2 pr-2',
+          isFocused
+            ? 'bg-selected border-l-accent'
+            : 'hover:bg-hover',
+        )}
+      >
+        {/* Status dot */}
+        <div className="mt-[3px] shrink-0 relative">
+          {isConnecting ? (
+            <Loader2 size={10} className="text-accent animate-spin" />
+          ) : (
+            <span
+              className="block w-2 h-2 rounded-full border"
+              style={{
+                backgroundColor: isActive ? 'var(--ds-success)' : 'transparent',
+                borderColor: profile.color ?? 'var(--border-default)',
+              }}
+            />
+          )}
+        </div>
+
+        {/* Name + meta */}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-label truncate leading-[1.4]">
+            {profile.displayName}
+          </div>
+          <div className="text-[10px] text-tertiary truncate leading-[1.4]">
+            {profile.username}@{hostLabel}/{profile.database}
+          </div>
+        </div>
+
+        {/* Hover actions */}
+        <div
+          className={cn(
+            'flex items-center gap-0.5 mt-[1px] transition-opacity shrink-0',
+            'opacity-0 group-hover:opacity-100',
+            (isActive || isFocused) && 'opacity-100',
+          )}
+        >
+          {isActive ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
+              title="Disconnect"
+              className="p-1 rounded hover:bg-pressed text-secondary hover:text-label transition-colors"
+            >
+              <PlugZap size={11} />
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onConnect(); }}
+              disabled={isConnecting}
+              title="Connect"
+              className="p-1 rounded hover:bg-pressed text-secondary hover:text-success transition-colors disabled:opacity-40"
+            >
+              <Plug size={11} />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            title="Edit"
+            className="p-1 rounded hover:bg-pressed text-secondary hover:text-label transition-colors"
+          >
+            <Pencil size={11} />
+          </button>
+        </div>
+      </div>
+
+      {contextMenu && (
+        <ConnectionContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onConnect={() => { onConnect(); setContextMenu(null); }}
+          onDisconnect={() => { onDisconnect(); setContextMenu(null); }}
+          onEdit={() => { onEdit(); setContextMenu(null); }}
+          onDelete={() => { onDelete(); setContextMenu(null); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, renderExpansion }: Props) {
   const { activeSessions, connectSession, disconnectSession } = useAppStore();
 
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
@@ -49,7 +260,6 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
   }
   const folderNames = Array.from(folderMap.keys()).sort();
 
-  // Flat list of navigable items (respects collapsed folders)
   const navItems: NavItem[] = [];
   for (const p of ungrouped) navItems.push({ kind: 'connection', profile: p });
   for (const folder of folderNames) {
@@ -173,81 +383,32 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
 
   if (profiles.length === 0) {
     return (
-      <div className="px-3 py-2 text-sm text-secondary">No connections yet</div>
-    );
-  }
-
-  function renderConnection(p: ConnectionProfile, indented = false) {
-    const isActive = activeConnectionIds.has(p.id);
-    const isConnecting = !!connecting[p.id];
-    const sessionId = activeSessions[p.id];
-    const isFocused = focusedKey === `conn:${p.id}`;
-
-    return (
-      <div key={p.id}>
+      <div className="px-4 py-4 flex flex-col items-center gap-3 text-center">
         <div
-          data-nav-key={`conn:${p.id}`}
-          onClick={() => setFocusedKey(`conn:${p.id}`)}
-          className={cn(
-            'group flex items-center gap-2 py-1.5 hover:bg-subtle transition-colors',
-            'border-l-2 border-transparent',
-            indented ? 'pl-6 pr-3' : 'px-3',
-            isFocused && 'bg-active border-accent',
-          )}
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
         >
-          <span
-            className="w-2 h-2 rounded-full shrink-0 border"
-            style={{
-              backgroundColor: isActive ? 'var(--ds-success)' : 'transparent',
-              borderColor: p.color ?? '#8E8E93',
-            }}
-          />
-
-          <span className="flex-1 text-sm text-label truncate">{p.displayName}</span>
-
-          <div
+          <ServerCrash size={17} className="text-accent" />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-label">No connections</p>
+          <p className="text-[11px] text-tertiary mt-0.5 leading-snug">
+            Add a PostgreSQL database to get started
+          </p>
+        </div>
+        {onNewConnection && (
+          <button
+            onClick={onNewConnection}
             className={cn(
-              'flex items-center gap-0.5 transition-opacity',
-              'opacity-0 group-hover:opacity-100',
-              (isActive || isFocused) && 'opacity-100',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md',
+              'text-xs font-medium bg-accent text-white',
+              'hover:opacity-90 active:opacity-80 transition-opacity',
             )}
           >
-            {isActive ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleDisconnect(p.id); }}
-                title="Disconnect"
-                className="p-1 rounded hover:bg-separator text-secondary hover:text-label transition-colors"
-              >
-                <PlugZap size={12} />
-              </button>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleConnect(p.id); }}
-                disabled={isConnecting}
-                title="Connect"
-                className="p-1 rounded hover:bg-separator text-secondary hover:text-label transition-colors disabled:opacity-50"
-              >
-                <Plug size={12} />
-              </button>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); onEdit(p); }}
-              title="Edit"
-              className="p-1 rounded hover:bg-separator text-secondary hover:text-label transition-colors"
-            >
-              <Pencil size={12} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
-              title="Delete"
-              className="p-1 rounded hover:bg-separator text-secondary hover:text-destructive transition-colors"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-        </div>
-
-        {isActive && sessionId && renderExpansion?.(p.id, sessionId)}
+            <Plus size={11} />
+            New Connection
+          </button>
+        )}
       </div>
     );
   }
@@ -264,7 +425,27 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
         }
       }}
     >
-      {ungrouped.map((p) => renderConnection(p))}
+      {ungrouped.map((p) => {
+        const isActive = activeConnectionIds.has(p.id);
+        const sessionId = activeSessions[p.id];
+        return (
+          <div key={p.id}>
+            <ConnectionRow
+              profile={p}
+              isActive={isActive}
+              isConnecting={!!connecting[p.id]}
+              isFocused={focusedKey === `conn:${p.id}`}
+              indented={false}
+              onFocus={() => setFocusedKey(`conn:${p.id}`)}
+              onConnect={() => handleConnect(p.id)}
+              onDisconnect={() => handleDisconnect(p.id)}
+              onEdit={() => onEdit(p)}
+              onDelete={() => handleDelete(p.id)}
+            />
+            {isActive && sessionId && renderExpansion?.(p.id, sessionId)}
+          </div>
+        );
+      })}
 
       {folderNames.map((folder) => {
         const isCollapsed = collapsedFolders.has(folder);
@@ -277,9 +458,9 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
               data-nav-key={`folder:${folder}`}
               onClick={() => { toggleFolder(folder); setFocusedKey(`folder:${folder}`); }}
               className={cn(
-                'w-full flex items-center gap-1.5 px-3 py-1 hover:bg-subtle transition-colors text-secondary',
+                'w-full flex items-center gap-1.5 px-2 py-1 transition-colors text-secondary',
                 'border-l-2 border-transparent',
-                isFocused && 'bg-active border-accent',
+                isFocused ? 'bg-selected border-l-accent' : 'hover:bg-hover',
               )}
             >
               <ChevronRight
@@ -289,7 +470,27 @@ export function ConnectionList({ profiles, onEdit, onRefresh, renderExpansion }:
               <Folder size={11} className="shrink-0" />
               <span className="text-xs font-medium truncate">{folder}</span>
             </button>
-            {!isCollapsed && children.map((p) => renderConnection(p, true))}
+            {!isCollapsed && children.map((p) => {
+              const isActive = activeConnectionIds.has(p.id);
+              const sessionId = activeSessions[p.id];
+              return (
+                <div key={p.id}>
+                  <ConnectionRow
+                    profile={p}
+                    isActive={isActive}
+                    isConnecting={!!connecting[p.id]}
+                    isFocused={focusedKey === `conn:${p.id}`}
+                    indented
+                    onFocus={() => setFocusedKey(`conn:${p.id}`)}
+                    onConnect={() => handleConnect(p.id)}
+                    onDisconnect={() => handleDisconnect(p.id)}
+                    onEdit={() => onEdit(p)}
+                    onDelete={() => handleDelete(p.id)}
+                  />
+                  {isActive && sessionId && renderExpansion?.(p.id, sessionId)}
+                </div>
+              );
+            })}
           </div>
         );
       })}

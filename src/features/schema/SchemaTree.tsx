@@ -153,12 +153,19 @@ function TreeRow({
   };
 
   if (node.kind === "loading") {
+    const widths = [52, 72, 60];
     return (
       <div
-        className="flex items-center py-[3px] text-xs text-secondary animate-pulse"
-        style={{ paddingLeft: node.depth * 10 + 8 }}
+        className="flex flex-col gap-[5px] py-1"
+        style={{ paddingLeft: node.depth * 10 + 18 }}
       >
-        Loading…
+        {widths.map((w, i) => (
+          <div
+            key={i}
+            className="h-[7px] rounded animate-pulse bg-control"
+            style={{ width: w }}
+          />
+        ))}
       </div>
     );
   }
@@ -166,10 +173,11 @@ function TreeRow({
   if (node.kind === "error") {
     return (
       <div
-        className="flex items-center py-[3px] text-xs text-destructive"
-        style={{ paddingLeft: node.depth * 10 + 8 }}
+        className="flex items-center gap-1.5 py-[3px] text-xs text-destructive"
+        style={{ paddingLeft: node.depth * 10 + 8, paddingRight: 8 }}
       >
-        {node.message}
+        <span className="shrink-0 w-[10px]" />
+        <span className="truncate">{node.message}</span>
       </div>
     );
   }
