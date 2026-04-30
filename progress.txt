@@ -1,3 +1,26 @@
+## Phase 07.13 — Add Menus And Micro-Interactions [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.13 as the next incomplete UI craft task.
+- src/store/index.ts:
+  - Added `closeOtherTabs(id)` — closes all tabs except the given one.
+  - Added `closeTabsToRight(id)` — closes all tabs after the given one; active tab updated if it was among the closed ones.
+- src/components/TabBar.tsx:
+  - `TabContextMenu` component: renders via `createPortal` on right-click; items are Close Tab, Close Others (disabled when no others), Close to Right (disabled if last tab), and Copy Title. Closes on Escape or mousedown outside.
+  - `TabItem` now accepts `onContextMenu` prop; hover transition uses `duration-[var(--motion-fast)]`.
+  - `TabBar` manages context menu state and renders `TabContextMenu`.
+- src/features/connections/ConnectionList.tsx:
+  - `ConnectionContextMenu` gains `onDuplicate` prop; renders a "Duplicate" item (Copy icon) between Edit and the destructive separator.
+  - `ConnectionRow` gains `onDuplicate` prop; wired to `handleDuplicate` in the parent.
+  - `handleDuplicate` calls `connectionsApi.create` with the same profile fields, display name suffixed with "(copy)", and empty password; refreshes the list on success.
+- src/features/query-editor/SavedQueriesSection.tsx:
+  - `QueryRow` now receives the full `SavedQuery` object plus `onRename` and `onDuplicate` callbacks.
+  - Inline rename: "Rename" in dropdown sets `isRenaming` state; text span becomes a styled input pre-filled with the current name; Enter or blur commits, Escape cancels.
+  - "Duplicate" calls `savedQueriesApi.save` with name suffix "(copy)" and the same sql/folder; result invalidates the saved-queries cache.
+  - Dropdown now shows Open, Rename, Duplicate, (separator), Delete.
+  - Hover/disclosure transitions use `duration-[var(--motion-fast)]` and `duration-[var(--motion-base)]` tokens.
+- src/styles/index.css:
+  - Added `@media (prefers-reduced-motion: reduce)` block: collapses all animation durations to `0.01ms` and iteration counts to 1, respecting OS-level motion preference.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.12 — Polish Query Editor [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.12 as the next incomplete UI craft task.
 - src/features/query-editor/QueryEditorTab.tsx:
