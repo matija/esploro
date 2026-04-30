@@ -1,3 +1,14 @@
+## Phase 07.11 — Polish Table Viewer [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.11 as the next incomplete UI craft task.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - `CellValue` is now type-aware: NULL pill, empty-string `''` pill, boolean badge (green for true, muted for false), JSON monospace truncated preview, date/time tabular-nums, numeric tabular-nums right-aligned, long text truncated with title tooltip.
+  - `SkeletonGrid` component: animated skeleton header + 8 staggered rows shown during initial load instead of a plain spinner; uses fixed widths with per-cell animation delay for a realistic stagger.
+  - `ColumnHeaderCell` now shows a Filter icon and faint accent tint when a filter is active on that column.
+  - `CellContextMenu` replaces the old `RowContextMenu`: right-clicking any cell shows Copy Value, Copy Column Name, separator, Copy Row as JSON, Copy Row as CSV; clicking also selects the cell before the menu opens.
+  - Distinct empty states: empty table (Database icon + "This table is empty" + subtext) vs filtered-empty (Filter icon + active filter count + "Clear filters" button).
+  - Footer shows execution time only when > 0ms; row counts formatted with `toLocaleString`.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.10 — Polish Command Palette [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.10 as the next incomplete UI craft task.
 - src/components/CommandPalette.tsx:
