@@ -399,7 +399,7 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading, gridPageSize } = useAppStore();
+  const { setTabLoading, gridPageSize, setLastAction } = useAppStore();
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -472,6 +472,17 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   useEffect(() => {
     setTabLoading(tab.id, isLoading || isFetching);
   }, [isLoading, isFetching, tab.id, setTabLoading]);
+
+  // Report last action to status bar
+  useEffect(() => {
+    if (!data || isLoading) return;
+    setLastAction({
+      label: ctx?.table ? `${ctx.table}` : "Table loaded",
+      durationMs: data.executionMs,
+      rowCount: data.totalCount,
+      timestamp: Date.now(),
+    });
+  }, [data, isLoading, ctx?.table, setLastAction]);
 
   useEffect(() => () => setTabLoading(tab.id, false), [tab.id, setTabLoading]);
 

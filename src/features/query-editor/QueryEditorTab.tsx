@@ -431,7 +431,7 @@ function RunButton({
 // ─── QueryEditorTab ───────────────────────────────────────────────────────────
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
-  const { profiles, activeSessions, setTabDirty } = useAppStore();
+  const { profiles, activeSessions, setTabDirty, setLastAction } = useAppStore();
   const rqClient = useQueryClient();
 
   const [sql, setSql] = useState(tab.queryContext?.sql ?? "");
@@ -514,6 +514,14 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
       const firstError = data.find((r) => r.error != null)?.error ?? null;
       setError(firstError);
       setRunStateBriefly(firstError ? "error" : "success");
+      const totalMs = data.reduce((sum, r) => sum + r.executionMs, 0);
+      const totalRows = data.reduce((sum, r) => sum + r.rows.length, 0);
+      setLastAction({
+        label: firstError ? "Query error" : "Query executed",
+        durationMs: totalMs,
+        rowCount: totalRows,
+        timestamp: Date.now(),
+      });
     },
     onError: (e: Error) => {
       setError({ message: e.message, position: null, code: null });

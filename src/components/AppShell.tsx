@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Database } from "lucide-react";
+import { Database, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
@@ -58,7 +58,7 @@ function WelcomeView() {
 }
 
 function StatusBar() {
-  const { tabs, activeTabId, profiles, activeSessions } = useAppStore();
+  const { tabs, activeTabId, profiles, activeSessions, lastAction } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const sessionId =
@@ -74,9 +74,12 @@ function StatusBar() {
   const profile = connId ? profiles.find((p) => p.id === connId) : null;
   const database = activeTab?.tableContext?.database;
 
+  const loadingTabs = tabs.filter((t) => t.isLoading);
+
   return (
     <div className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[11px] text-tertiary shrink-0 select-none">
-      <div className="flex items-center gap-1.5 min-w-0">
+      {/* Left: connection + database */}
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
         {profile ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
@@ -92,6 +95,30 @@ function StatusBar() {
           <span>No connection</span>
         )}
       </div>
+
+      {/* Center: background work */}
+      {loadingTabs.length > 0 && (
+        <div className="flex items-center gap-1.5 px-3 text-secondary">
+          <Loader2 size={10} className="animate-spin text-accent" />
+          <span className="tabular-nums">
+            {loadingTabs.length === 1
+              ? "1 task running"
+              : `${loadingTabs.length} tasks running`}
+          </span>
+        </div>
+      )}
+
+      {/* Right: last action info */}
+      {lastAction && (
+        <div className="flex items-center gap-2 shrink-0 tabular-nums">
+          {lastAction.rowCount != null && (
+            <span>
+              {lastAction.rowCount.toLocaleString()} row{lastAction.rowCount !== 1 ? "s" : ""}
+            </span>
+          )}
+          <span>{lastAction.durationMs.toLocaleString()} ms</span>
+        </div>
+      )}
     </div>
   );
 }

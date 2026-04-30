@@ -17,6 +17,13 @@ import {
 
 export type TabType = "welcome" | "table" | "query" | "settings";
 
+export interface LastAction {
+  label: string;
+  durationMs: number;
+  rowCount?: number;
+  timestamp: number;
+}
+
 export interface Tab {
   id: string;
   type: TabType;
@@ -68,6 +75,9 @@ interface AppState {
   // UI — ephemeral
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
+
+  lastAction: LastAction | null;
+  setLastAction: (action: LastAction) => void;
 
   // Tabs — ephemeral
   tabs: Tab[];
@@ -195,6 +205,9 @@ export const useAppStore = create<AppState>()(
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+
+      lastAction: null,
+      setLastAction: (action) => set({ lastAction: action }),
 
       // Tabs
       tabs: [WELCOME_TAB],
