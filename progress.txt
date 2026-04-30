@@ -1,3 +1,14 @@
+## Phase 07.7 — Update CodeMirror Theme [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.7 as the next incomplete UI craft task.
+- src/features/query-editor/tairikiTheme.ts:
+  - Moved font variables (--font-editor, --font-editor-size, --font-editor-line-height) into the base `&` selector so the theme is self-contained.
+  - Replaced all --ds-* raw palette references with phase-7.2 craft tokens: --surface-base/sidebar/hover, --border-subtle/default, --text-primary/tertiary/inverse, --editor-syntax-* for highlight style.
+  - Added autocomplete popup polish: per-item font/size, detail color, consistent padding, shadow-popover, radius-popover.
+  - Added lint/diagnostic styling: wavy underlines for error/warning ranges, colored left-border panels.
+- src/features/query-editor/SqlEditor.tsx:
+  - Removed duplicate inline EditorView.theme font override (now handled by tairikiTheme).
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.6 — Build Appearance Settings [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.6 as the next incomplete UI craft task.
 - src/features/settings/AppearanceSettings.tsx:
