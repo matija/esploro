@@ -166,6 +166,7 @@
   --schema-sequence:      var(--ds-syntax-enum);
   --schema-column:        var(--ds-secondary);
   --schema-key:           var(--ds-warning);
+  --schema-foreign-key:   var(--ds-syntax-keyword);
   --schema-nullable:      var(--ds-tertiary);
 
   /* Data value accents */

@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, KeyRound, Link } from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { tableApi } from "./api";
@@ -195,9 +195,18 @@ function ColumnHeaderCell({
       style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
       onClick={onClick}
     >
+      {col.isPrimaryKey && (
+        <KeyRound size={10} className="text-schema-key shrink-0" title="Primary key" />
+      )}
+      {col.isForeignKey && !col.isPrimaryKey && (
+        <Link size={10} className="text-schema-foreign-key shrink-0" title="Foreign key" />
+      )}
       <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
         {col.name}
       </span>
+      {col.isNullable && (
+        <span className="text-[8px] font-mono text-tertiary shrink-0" title="Nullable">?</span>
+      )}
       {isFiltered && (
         <Filter size={9} className="text-accent shrink-0" />
       )}

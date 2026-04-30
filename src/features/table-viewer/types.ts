@@ -32,6 +32,9 @@ export interface TableQueryRequest {
 export interface ResultColumn {
   name: string;
   dataType: string;
+  isNullable: boolean;
+  isPrimaryKey: boolean;
+  isForeignKey: boolean;
 }
 
 export interface TableQueryResult {

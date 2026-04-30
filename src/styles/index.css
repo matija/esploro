@@ -38,6 +38,7 @@
   --color-schema-sequence:  var(--schema-sequence);
   --color-schema-column:    var(--schema-column);
   --color-schema-key:       var(--schema-key);
+  --color-schema-foreign-key: var(--schema-foreign-key);
   --color-schema-nullable:  var(--schema-nullable);
   /* Query state colors */
   --color-query-running:    var(--query-running);

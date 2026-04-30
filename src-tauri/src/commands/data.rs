@@ -93,6 +93,9 @@ pub struct TableQueryResult {
 pub struct ResultColumn {
     pub name: String,
     pub data_type: String,
+    pub is_nullable: bool,
+    pub is_primary_key: bool,
+    pub is_foreign_key: bool,
 }
 
 #[tauri::command]
@@ -115,12 +118,13 @@ pub async fn query_table(
 
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    // Fetch column metadata — used to build ::text-cast SELECT and type-aware filter casts
+    // Fetch column metadata with nullable, PK, and FK info
     let col_rows = client
         .query(
-            "SELECT column_name, udt_name FROM information_schema.columns \
-             WHERE table_schema = $1 AND table_name = $2 \
-             ORDER BY ordinal_position",
+            "SELECT c.column_name, c.udt_name, c.is_nullable \
+             FROM information_schema.columns c \
+             WHERE c.table_schema = $1 AND c.table_name = $2 \
+             ORDER BY c.ordinal_position",
             &[&request.schema, &request.table],
         )
         .await
@@ -133,11 +137,47 @@ pub async fn query_table(
         ));
     }
 
+    let pk_cols: std::collections::HashSet<String> = client
+        .query(
+            "SELECT a.attname \
+             FROM pg_index i \
+             JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) \
+             WHERE i.indrelid = (quote_ident($1) || '.' || quote_ident($2))::regclass \
+               AND i.indisprimary",
+            &[&request.schema, &request.table],
+        )
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| r.get::<_, String>(0))
+        .collect();
+
+    let fk_cols: std::collections::HashSet<String> = client
+        .query(
+            "SELECT DISTINCT a.attname \
+             FROM pg_constraint con \
+             JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ANY(con.conkey) \
+             WHERE con.conrelid = (quote_ident($1) || '.' || quote_ident($2))::regclass \
+               AND con.contype = 'f'",
+            &[&request.schema, &request.table],
+        )
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|r| r.get::<_, String>(0))
+        .collect();
+
     let result_columns: Vec<ResultColumn> = col_rows
         .iter()
-        .map(|r| ResultColumn {
-            name: r.get(0),
-            data_type: r.get(1),
+        .map(|r| {
+            let name: String = r.get(0);
+            ResultColumn {
+                is_nullable: r.get::<_, String>(2) == "YES",
+                is_primary_key: pk_cols.contains(&name),
+                is_foreign_key: fk_cols.contains(&name),
+                data_type: r.get(1),
+                name,
+            }
         })
         .collect();
 
@@ -326,6 +366,9 @@ pub async fn execute_sql(
                                     .map(|i| ResultColumn {
                                         name: row.columns()[i].name().to_string(),
                                         data_type: String::new(),
+                                        is_nullable: false,
+                                        is_primary_key: false,
+                                        is_foreign_key: false,
                                     })
                                     .collect();
                             }
