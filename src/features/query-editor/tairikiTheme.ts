@@ -5,20 +5,24 @@ import type { Extension } from "@codemirror/state";
 
 const tairikiEditorTheme = EditorView.theme({
   "&": {
-    color: "var(--ds-label)",
-    backgroundColor: "var(--ds-content-bg)",
+    fontFamily: "var(--font-editor)",
+    fontSize: "var(--font-editor-size)",
+    lineHeight: "var(--font-editor-line-height)",
+    color: "var(--text-primary)",
+    backgroundColor: "var(--surface-base)",
   },
   ".cm-content": {
-    caretColor: "var(--ds-label)",
+    caretColor: "var(--text-primary)",
+    padding: "12px 0",
   },
   ".cm-cursor, .cm-dropCursor": {
-    borderLeftColor: "var(--ds-label)",
+    borderLeftColor: "var(--text-primary)",
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "var(--ds-accent-subtle)",
+    backgroundColor: "color-mix(in srgb, var(--ds-accent) 24%, transparent)",
   },
   ".cm-activeLine": {
-    backgroundColor: "color-mix(in srgb, var(--ds-bg-subtle) 40%, transparent)",
+    backgroundColor: "var(--surface-hover)",
   },
   ".cm-selectionMatch": {
     backgroundColor: "color-mix(in srgb, var(--ds-accent) 15%, transparent)",
@@ -27,17 +31,19 @@ const tairikiEditorTheme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--ds-accent) 20%, transparent)",
   },
   ".cm-gutters": {
-    backgroundColor: "var(--ds-content-bg)",
-    color: "var(--ds-secondary)",
-    border: "none",
+    fontFamily: "var(--font-editor)",
+    fontSize: "var(--font-editor-size)",
+    backgroundColor: "var(--surface-base)",
+    color: "var(--text-tertiary)",
+    borderRight: "1px solid var(--border-subtle)",
   },
   ".cm-activeLineGutter": {
-    backgroundColor: "color-mix(in srgb, var(--ds-bg-subtle) 40%, transparent)",
+    backgroundColor: "var(--surface-hover)",
   },
   ".cm-foldPlaceholder": {
     backgroundColor: "transparent",
     border: "none",
-    color: "var(--ds-secondary)",
+    color: "var(--text-tertiary)",
   },
   ".cm-searchMatch": {
     backgroundColor: "color-mix(in srgb, var(--ds-warning) 30%, transparent)",
@@ -47,61 +53,102 @@ const tairikiEditorTheme = EditorView.theme({
     backgroundColor: "color-mix(in srgb, var(--ds-warning) 50%, transparent)",
   },
   ".cm-panels": {
-    backgroundColor: "var(--ds-sidebar-bg)",
-    color: "var(--ds-label)",
+    backgroundColor: "var(--surface-sidebar)",
+    color: "var(--text-primary)",
+    fontFamily: "var(--font-ui)",
+    fontSize: "var(--font-ui-size)",
   },
-  ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--ds-separator)" },
-  ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--ds-separator)" },
+  ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border-default)" },
+  ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--border-default)" },
   ".cm-tooltip": {
-    backgroundColor: "var(--ds-sidebar-bg)",
-    border: "1px solid var(--ds-separator)",
-    borderRadius: "6px",
+    backgroundColor: "var(--surface-sidebar)",
+    border: "1px solid var(--border-default)",
+    borderRadius: "var(--radius-popover)",
+    boxShadow: "var(--shadow-popover)",
+    fontFamily: "var(--font-editor)",
+    fontSize: "var(--font-editor-size)",
   },
   ".cm-tooltip .cm-tooltip-arrow:after": {
-    borderTopColor: "var(--ds-sidebar-bg)",
-    borderBottomColor: "var(--ds-sidebar-bg)",
+    borderTopColor: "var(--surface-sidebar)",
+    borderBottomColor: "var(--surface-sidebar)",
   },
   ".cm-tooltip-autocomplete": {
+    "& > ul": {
+      fontFamily: "var(--font-editor)",
+      fontSize: "var(--font-editor-size)",
+    },
+    "& > ul > li": {
+      padding: "3px 8px",
+    },
     "& > ul > li[aria-selected]": {
       backgroundColor: "var(--ds-accent)",
-      color: "var(--ds-text-inverse)",
+      color: "var(--text-inverse)",
     },
+  },
+  ".cm-completionLabel": {
+    color: "var(--text-primary)",
+  },
+  ".cm-completionDetail": {
+    color: "var(--text-tertiary)",
+    fontStyle: "normal",
+  },
+  ".cm-diagnostic": {
+    padding: "3px 6px",
+    borderLeft: "3px solid transparent",
+    fontFamily: "var(--font-editor)",
+    fontSize: "var(--font-editor-size)",
+  },
+  ".cm-diagnostic-error": {
+    borderLeftColor: "var(--ds-destructive)",
+    backgroundColor: "color-mix(in srgb, var(--ds-destructive) 8%, transparent)",
+  },
+  ".cm-diagnostic-warning": {
+    borderLeftColor: "var(--ds-warning)",
+    backgroundColor: "color-mix(in srgb, var(--ds-warning) 8%, transparent)",
+  },
+  ".cm-lintRange-error": {
+    backgroundImage: "none",
+    textDecoration: "underline wavy var(--ds-destructive)",
+  },
+  ".cm-lintRange-warning": {
+    backgroundImage: "none",
+    textDecoration: "underline wavy var(--ds-warning)",
   },
 });
 
 const tairikiHighlightStyle = HighlightStyle.define([
   {
     tag: [tags.keyword, tags.operatorKeyword, tags.modifier, tags.definitionKeyword, tags.controlKeyword],
-    color: "var(--ds-syntax-keyword)",
+    color: "var(--editor-syntax-keyword)",
     fontWeight: "500",
   },
   {
     tag: [tags.function(tags.variableName), tags.function(tags.definition(tags.variableName)), tags.labelName],
-    color: "var(--ds-syntax-number)",
+    color: "var(--editor-syntax-function)",
   },
   {
     tag: [tags.string, tags.special(tags.string), tags.character, tags.attributeValue],
-    color: "var(--ds-syntax-string)",
+    color: "var(--editor-syntax-string)",
   },
   {
     tag: [tags.number, tags.integer, tags.float],
-    color: "var(--ds-syntax-number)",
+    color: "var(--editor-syntax-function)",
   },
   {
     tag: [tags.typeName, tags.className, tags.typeOperator, tags.namespace],
-    color: "var(--ds-syntax-type)",
+    color: "var(--editor-syntax-type)",
   },
   {
     tag: [tags.constant(tags.name), tags.standard(tags.name)],
-    color: "var(--ds-syntax-enum)",
+    color: "var(--editor-syntax-constant)",
   },
   {
     tag: [tags.operator, tags.punctuation, tags.separator, tags.bracket, tags.angleBracket, tags.squareBracket, tags.paren],
-    color: "var(--ds-syntax-operator)",
+    color: "var(--editor-syntax-operator)",
   },
   {
     tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
-    color: "var(--ds-syntax-comment)",
+    color: "var(--editor-syntax-comment)",
     fontStyle: "italic",
   },
   {
@@ -114,12 +161,12 @@ const tairikiHighlightStyle = HighlightStyle.define([
   },
   {
     tag: tags.invalid,
-    color: "var(--ds-destructive)",
+    color: "var(--editor-syntax-error)",
     textDecoration: "underline wavy",
   },
   {
     tag: [tags.variableName, tags.propertyName, tags.attributeName],
-    color: "var(--ds-label)",
+    color: "var(--text-primary)",
   },
 ]);
 
