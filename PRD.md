@@ -276,6 +276,58 @@ The UI craft pass is complete when:
 - Loading, empty, error, hover, focus, selected, disabled, and success states exist for all primary surfaces.
 - The app still passes `npm run type-check`, `npm run lint`, and the relevant Tauri build checks.
 
+## App Icon
+
+Esploro's app icon should feel at home in the macOS Dock: crafted, confident, and recognizable at every size.
+
+### Icon Concept
+
+Use the **Binoculars** glyph from [Phosphor Icons](https://phosphoricons.com/) (the `bold` or `fill` weight) as the primary symbol. The binoculars metaphor fits the product — exploring and inspecting data from a distance.
+
+### macOS Icon Specification
+
+macOS app icons follow Apple's squircle container with a continuous-curvature rounded rectangle (superellipse, corner radius ≈ 22.37% of the icon size). The design must:
+
+- Render well at 16 × 16 through 1024 × 1024.
+- Look at home alongside system apps (Finder, Terminal, Xcode) in the Dock.
+- Use a solid, slightly textured or subtly gradient background in the Tairiki accent tone — not a flat gray and not a photo-realistic 3D render.
+- Place the binoculars glyph centered, in white or near-white, at roughly 58–62% of the icon canvas width.
+- Optionally add a thin 1 px inner stroke inside the squircle border at low opacity to give depth without going skeuomorphic.
+
+### Required Sizes
+
+Tauri bundles icons from `src-tauri/icons/`. The following files are required:
+
+| File | Size |
+|---|---|
+| `icon.icns` | macOS multi-resolution bundle |
+| `icon.ico` | Windows (not primary target but Tauri expects it) |
+| `icon.png` | 512 × 512 fallback |
+| `32x32.png` | Small Dock / menu bar |
+| `128x128.png` | Launchpad |
+| `128x128@2x.png` | Retina Launchpad |
+
+### Production Process
+
+1. Start from the Phosphor SVG source for `Binoculars` at the `bold` or `fill` weight (download from phosphoricons.com or the npm package `phosphor-icons`).
+2. Design the squircle container in Figma or Sketch: set fill to the Tairiki accent color (use the `--color-accent` token value), apply an inner shadow at 5% opacity for subtle depth.
+3. Place the binoculars glyph as a white shape, centered, at ~60% icon canvas width.
+4. Export at 1024 × 1024 as a PNG master.
+5. Use the Tauri CLI helper or `iconutil` to generate all required sizes and the `.icns` bundle:
+   ```sh
+   # Tauri shortcut (generates all sizes from a 1024x1024 PNG):
+   npx tauri icon src-tauri/icons/icon-master.png
+   ```
+6. Commit all generated files under `src-tauri/icons/`.
+7. Verify in `tauri.conf.json` that `bundle.icon` references the correct paths.
+
+### Acceptance
+
+- Icon is crisp and recognizable at 32 × 32 in the Dock.
+- Icon does not look like a default Tauri placeholder.
+- No pixelation or aliasing at any standard macOS display density.
+- Icon renders correctly in light and dark menubar (macOS auto-adapts from the `.icns` bundle).
+
 ## Implementation Plan
 
 The execution plan lives in `plans/07-ui-craft.md`.
