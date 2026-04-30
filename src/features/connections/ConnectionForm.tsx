@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -11,6 +11,7 @@ interface Props {
   onClose: () => void;
   /** Present when editing an existing connection */
   profile?: ConnectionProfile;
+  initialUrl?: string;
   onSaved: () => void;
 }
 
@@ -56,7 +57,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
-export function ConnectionForm({ open, onClose, profile, onSaved }: Props) {
+export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: Props) {
   const isEdit = !!profile;
 
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
@@ -77,14 +78,47 @@ export function ConnectionForm({ open, onClose, profile, onSaved }: Props) {
   const [testState, setTestState] = useState<TestState>('idle');
   const [saving, setSaving] = useState(false);
 
-  function applyUrl() {
-    if (!urlInput.trim()) return;
-    const parsed = parsePostgresUrl(urlInput.trim());
+  function applyParsedUrl(rawUrl: string) {
+    if (!rawUrl.trim()) return;
+    const parsed = parsePostgresUrl(rawUrl.trim());
     if (parsed.host) { setHost(parsed.host); setConnType('host'); }
     if (parsed.port) setPort(String(parsed.port));
     if (parsed.database) setDatabase(parsed.database);
     if (parsed.username) setUsername(parsed.username);
+    if (parsed.password) setPassword(parsed.password);
+    if (parsed.database) {
+      setDisplayName((current) => current.trim() ? current : parsed.database!);
+    }
   }
+
+  function applyUrl() {
+    applyParsedUrl(urlInput);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+
+    setDisplayName(profile?.displayName ?? '');
+    setColor(profile?.color ?? DEFAULT_COLORS[0]);
+    setFolder(profile?.folder ?? '');
+    setConnType(profile?.socketPath ? 'socket' : 'host');
+    setHost(profile?.host ?? 'localhost');
+    setPort(String(profile?.port ?? 5432));
+    setSocketPath(profile?.socketPath ?? '');
+    setDatabase(profile?.database ?? '');
+    setUsername(profile?.username ?? '');
+    setPassword('');
+    setSslMode(profile?.sslMode ?? 'prefer');
+    setUrlInput(initialUrl ?? '');
+    setErrors({});
+    setTestState('idle');
+    setSaving(false);
+
+    if (!profile && initialUrl) {
+      applyParsedUrl(initialUrl);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, profile?.id, initialUrl]);
 
   function buildInput(): ConnectionInput {
     return {

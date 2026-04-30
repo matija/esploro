@@ -1,3 +1,16 @@
+## Phase 11 — Connection Empty-State Paste URL [DONE]
+- Implemented the next incomplete PRD sidebar empty-state gap: users with no saved connections now get a Paste URL shortcut next to New Connection.
+- src/features/connections/ConnectionList.tsx:
+  - Added a secondary Paste URL action to the no-connections empty state with a clipboard icon and hover/pressed states.
+- src/components/Sidebar.tsx:
+  - Reads the clipboard on Paste URL, opens the new connection sheet, and passes the clipboard contents as the initial connection URL.
+- src/features/connections/ConnectionForm.tsx:
+  - Accepts an initial URL, preloads it into the quick-connect field, and applies parsed host, port, database, username, password, and a default display name.
+  - Resets sheet state on open so create/edit/paste flows do not leak previous form values.
+- src/features/connections/api.ts:
+  - Extended PostgreSQL URL parsing to include the password.
+- Checks passed: npm run type-check, npm run lint, git diff --check.
+
 ## Phase 10 — Schema Load Error Rows [DONE]
 - Implemented the next incomplete PRD sidebar state gap: schema tree lazy-load failures now render inline where the loading row would appear.
 - src/features/schema/SchemaTree.tsx:

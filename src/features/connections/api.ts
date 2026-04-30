@@ -20,7 +20,11 @@ export const connectionsApi = {
   disconnect: (sessionId: string) => invoke<void>('disconnect', { sessionId }),
 };
 
-export function parsePostgresUrl(url: string): Partial<ConnectionInput> {
+export type ParsedPostgresUrl = Partial<ConnectionInput> & {
+  password?: string;
+};
+
+export function parsePostgresUrl(url: string): ParsedPostgresUrl {
   try {
     const u = new URL(url);
     if (u.protocol !== 'postgres:' && u.protocol !== 'postgresql:') return {};
@@ -29,6 +33,7 @@ export function parsePostgresUrl(url: string): Partial<ConnectionInput> {
       port: u.port ? parseInt(u.port) : 5432,
       database: u.pathname.slice(1) || undefined,
       username: u.username ? decodeURIComponent(u.username) : undefined,
+      password: u.password ? decodeURIComponent(u.password) : undefined,
     };
   } catch {
     return {};

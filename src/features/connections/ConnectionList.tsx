@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plug, PlugZap, Pencil, Trash2, Copy, ChevronRight, Folder, Plus, Loader2, ServerCrash } from 'lucide-react';
+import { Plug, PlugZap, Pencil, Trash2, Copy, ChevronRight, Folder, Plus, Loader2, ServerCrash, ClipboardPaste } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { connectionsApi } from './api';
 import type { ConnectionProfile, ConnectionInput } from './types';
@@ -11,6 +11,7 @@ interface Props {
   onEdit: (profile: ConnectionProfile) => void;
   onRefresh: () => void;
   onNewConnection?: () => void;
+  onPasteConnectionUrl?: () => void;
   renderExpansion?: (connectionId: string, sessionId: string) => React.ReactNode;
 }
 
@@ -243,7 +244,7 @@ function ConnectionRow({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, renderExpansion }: Props) {
+export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, onPasteConnectionUrl, renderExpansion }: Props) {
   const { activeSessions, connectSession, disconnectSession } = useAppStore();
 
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
@@ -428,19 +429,34 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, r
             Add a PostgreSQL database to get started
           </p>
         </div>
-        {onNewConnection && (
-          <button
-            onClick={onNewConnection}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md',
-              'text-xs font-medium bg-accent text-white',
-              'hover:opacity-90 active:opacity-80 transition-opacity',
-            )}
-          >
-            <Plus size={11} />
-            New Connection
-          </button>
-        )}
+        <div className="flex flex-col gap-1.5">
+          {onNewConnection && (
+            <button
+              onClick={onNewConnection}
+              className={cn(
+                'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md',
+                'text-xs font-medium bg-accent text-white',
+                'hover:opacity-90 active:opacity-80 transition-opacity',
+              )}
+            >
+              <Plus size={11} />
+              New Connection
+            </button>
+          )}
+          {onPasteConnectionUrl && (
+            <button
+              onClick={onPasteConnectionUrl}
+              className={cn(
+                'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md',
+                'text-xs font-medium text-secondary bg-control',
+                'hover:bg-hover hover:text-label active:bg-pressed transition-colors',
+              )}
+            >
+              <ClipboardPaste size={11} />
+              Paste URL
+            </button>
+          )}
+        </div>
       </div>
     );
   }

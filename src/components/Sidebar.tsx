@@ -24,6 +24,7 @@ export function Sidebar() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ConnectionProfile | undefined>();
+  const [initialConnectionUrl, setInitialConnectionUrl] = useState<string | undefined>();
 
   async function loadProfiles() {
     try {
@@ -49,11 +50,24 @@ export function Sidebar() {
 
   function openCreate() {
     setEditingProfile(undefined);
+    setInitialConnectionUrl(undefined);
     setFormOpen(true);
   }
 
   function openEdit(profile: ConnectionProfile) {
     setEditingProfile(profile);
+    setInitialConnectionUrl(undefined);
+    setFormOpen(true);
+  }
+
+  async function openCreateFromClipboard() {
+    setEditingProfile(undefined);
+    try {
+      setInitialConnectionUrl(await navigator.clipboard.readText());
+    } catch (e) {
+      console.error("Failed to read connection URL from clipboard", e);
+      setInitialConnectionUrl(undefined);
+    }
     setFormOpen(true);
   }
 
@@ -110,6 +124,7 @@ export function Sidebar() {
               onEdit={openEdit}
               onRefresh={loadProfiles}
               onNewConnection={openCreate}
+              onPasteConnectionUrl={openCreateFromClipboard}
               renderExpansion={(connectionId, sessionId) => (
                 <SchemaTree sessionId={sessionId} connectionId={connectionId} />
               )}
@@ -136,6 +151,7 @@ export function Sidebar() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         profile={editingProfile}
+        initialUrl={initialConnectionUrl}
         onSaved={loadProfiles}
       />
     </>
