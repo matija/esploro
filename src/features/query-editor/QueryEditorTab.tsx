@@ -8,7 +8,16 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Play, Save, Loader2, AlertCircle, ChevronDown } from "lucide-react";
+import {
+  Play,
+  Save,
+  Loader2,
+  AlertCircle,
+  ChevronDown,
+  Check,
+  X,
+  Terminal,
+} from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { queryEditorApi, savedQueriesApi } from "./api";
@@ -19,6 +28,9 @@ import { cn } from "../../lib/utils";
 const COL_WIDTH = 180;
 const ROW_HEIGHT = 33;
 const HEADER_HEIGHT = 36;
+const RESULT_HEIGHT_KEY = "esploro-query-result-height";
+
+type RunState = "idle" | "pending" | "success" | "error";
 
 // ─── CellValue ────────────────────────────────────────────────────────────────
 
@@ -162,6 +174,19 @@ function ResultGrid({
   );
 }
 
+// ─── EmptyResultState ─────────────────────────────────────────────────────────
+
+function EmptyResultState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-2 select-none pointer-events-none">
+      <Terminal size={28} className="text-secondary opacity-40" />
+      <p className="text-xs text-secondary opacity-60">
+        Press <kbd className="font-mono bg-control px-1 py-px rounded text-[10px]">⌘↵</kbd> to run the query
+      </p>
+    </div>
+  );
+}
+
 // ─── ResultPanel ──────────────────────────────────────────────────────────────
 
 function ResultPanel({ results }: { results: QueryResult[] }) {
@@ -186,13 +211,18 @@ function ResultSection({
   total: number;
 }) {
   const hasGrid = result.columns.length > 0 && result.rows.length > 0;
+  const hasColumns = result.columns.length > 0;
   const label = total > 1 ? `Result ${index + 1}` : "Result";
 
   return (
     <div className={cn("flex flex-col", hasGrid ? "min-h-[200px] flex-1" : "shrink-0")}>
       {/* Section header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-sidebar border-b border-separator shrink-0">
-        <span className="text-xs font-semibold text-label">{label}</span>
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-sidebar border-b border-separator shrink-0">
+        {total > 1 && (
+          <span className="text-[10px] font-semibold text-secondary uppercase tracking-wide">
+            {label}
+          </span>
+        )}
         {result.error ? (
           <span className="flex items-center gap-1 text-xs text-red-500">
             <AlertCircle size={11} />
@@ -200,7 +230,7 @@ function ResultSection({
           </span>
         ) : (
           <>
-            {result.columns.length > 0 && (
+            {hasColumns && (
               <span className="text-xs text-secondary">
                 {result.rows.length.toLocaleString()} row
                 {result.rows.length !== 1 ? "s" : ""}
@@ -211,7 +241,9 @@ function ResultSection({
                 {result.rowsAffected} row{result.rowsAffected !== 1 ? "s" : ""} affected
               </span>
             )}
-            <span className="ml-auto text-xs text-secondary">{result.executionMs}ms</span>
+            <span className="ml-auto text-[10px] text-secondary tabular-nums">
+              {result.executionMs}ms
+            </span>
           </>
         )}
       </div>
@@ -222,9 +254,34 @@ function ResultSection({
         </div>
       )}
 
-      {!hasGrid && !result.error && result.rowsAffected == null && (
+      {/* Empty rows state (query returned columns but no rows) */}
+      {hasColumns && !hasGrid && !result.error && (
+        <div className="flex items-center justify-center py-6 text-xs text-secondary italic">
+          No rows returned.
+        </div>
+      )}
+
+      {!hasColumns && !result.error && result.rowsAffected == null && (
         <div className="px-3 py-2 text-xs text-secondary italic">No rows returned.</div>
       )}
+    </div>
+  );
+}
+
+// ─── ErrorSummary ─────────────────────────────────────────────────────────────
+
+function ErrorSummary({ error }: { error: import("./types").QueryError }) {
+  return (
+    <div className="flex items-start gap-2 px-3 py-2 bg-red-500/8 border-t border-red-500/20 shrink-0">
+      <AlertCircle size={13} className="text-red-500 shrink-0 mt-px" />
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-xs font-medium text-red-500 leading-snug">
+          {error.message}
+        </span>
+        {error.code && (
+          <span className="text-[10px] text-red-400/70 font-mono">{error.code}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -313,6 +370,64 @@ function SaveDialog({
   );
 }
 
+// ─── RunButton ────────────────────────────────────────────────────────────────
+
+function RunButton({
+  runState,
+  disabled,
+  onClick,
+}: {
+  runState: RunState;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const config = {
+    idle: {
+      icon: <Play size={12} />,
+      label: "Run",
+      hint: "⌘↵",
+      cls: "bg-accent hover:opacity-90 text-white",
+    },
+    pending: {
+      icon: <Loader2 size={12} className="animate-spin" />,
+      label: "Running",
+      hint: null,
+      cls: "bg-accent/70 text-white cursor-wait",
+    },
+    success: {
+      icon: <Check size={12} />,
+      label: "Done",
+      hint: null,
+      cls: "bg-green-600 text-white",
+    },
+    error: {
+      icon: <X size={12} />,
+      label: "Error",
+      hint: null,
+      cls: "bg-red-600 text-white",
+    },
+  }[runState];
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || runState === "pending"}
+      className={cn(
+        "flex items-center gap-1.5 px-3 py-1 text-xs rounded transition-all duration-150",
+        "disabled:opacity-50",
+        config.cls,
+      )}
+      title="Run query (⌘↵)"
+    >
+      {config.icon}
+      <span>{config.label}</span>
+      {config.hint && (
+        <kbd className="ml-0.5 text-[9px] opacity-60 font-mono">{config.hint}</kbd>
+      )}
+    </button>
+  );
+}
+
 // ─── QueryEditorTab ───────────────────────────────────────────────────────────
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
@@ -322,17 +437,26 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const [sql, setSql] = useState(tab.queryContext?.sql ?? "");
   const [results, setResults] = useState<QueryResult[]>([]);
   const [error, setError] = useState<import("./types").QueryError | null>(null);
+  const [runState, setRunState] = useState<RunState>("idle");
   const [saveOpen, setSaveOpen] = useState(false);
-  const [resultHeight, setResultHeight] = useState(260);
+  const [hasEverRun, setHasEverRun] = useState(false);
+
+  const persistedHeight = () => {
+    const stored = localStorage.getItem(RESULT_HEIGHT_KEY);
+    const n = stored ? parseInt(stored, 10) : NaN;
+    return isNaN(n) ? 260 : Math.max(80, Math.min(600, n));
+  };
+
+  const [resultHeight, setResultHeight] = useState(persistedHeight);
   const isDragging = useRef(false);
   const dragStart = useRef(0);
   const dragStartH = useRef(0);
   const savedSql = useRef(tab.queryContext?.sql ?? "");
+  const runStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pick the session to run against
   const sessionId = useMemo(() => {
     if (tab.sessionId) return tab.sessionId;
-    // Fall back to any active session
     return Object.values(activeSessions)[0] ?? null;
   }, [tab.sessionId, activeSessions]);
 
@@ -374,6 +498,12 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
     return Object.keys(schema).length > 0 ? schema : undefined;
   }, [sessionId, rqClient]);
 
+  const setRunStateBriefly = useCallback((state: "success" | "error") => {
+    setRunState(state);
+    if (runStateTimerRef.current) clearTimeout(runStateTimerRef.current);
+    runStateTimerRef.current = setTimeout(() => setRunState("idle"), 1500);
+  }, []);
+
   const runMutation = useMutation({
     mutationFn: async (sqlText: string) => {
       if (!sessionId) throw new Error("No active connection");
@@ -383,15 +513,19 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
       setResults(data);
       const firstError = data.find((r) => r.error != null)?.error ?? null;
       setError(firstError);
+      setRunStateBriefly(firstError ? "error" : "success");
     },
     onError: (e: Error) => {
       setError({ message: e.message, position: null, code: null });
+      setRunStateBriefly("error");
     },
   });
 
   const handleRun = useCallback(
     (sqlText: string) => {
       setError(null);
+      setRunState("pending");
+      setHasEverRun(true);
       runMutation.mutate(sqlText);
     },
     [runMutation],
@@ -420,6 +554,11 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   // Clear dirty on unmount
   useEffect(() => () => setTabDirty(tab.id, false), [tab.id, setTabDirty]);
 
+  // Clear run state timer on unmount
+  useEffect(() => () => {
+    if (runStateTimerRef.current) clearTimeout(runStateTimerRef.current);
+  }, []);
+
   // ⌘S keyboard shortcut
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -444,9 +583,18 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging.current) return;
       const delta = dragStart.current - e.clientY;
-      setResultHeight(Math.max(80, Math.min(600, dragStartH.current + delta)));
+      const next = Math.max(80, Math.min(600, dragStartH.current + delta));
+      setResultHeight(next);
     };
-    const onMouseUp = () => { isDragging.current = false; };
+    const onMouseUp = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        setResultHeight((h) => {
+          localStorage.setItem(RESULT_HEIGHT_KEY, String(h));
+          return h;
+        });
+      }
+    };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     return () => {
@@ -456,58 +604,61 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   }, []);
 
   const hasResults = results.length > 0;
+  const isDirty = sql !== savedSql.current;
+  const showResultPane = hasResults || hasEverRun;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-sidebar border-b border-separator shrink-0">
+      <div className="flex items-center gap-2 px-3 h-9 bg-sidebar border-b border-separator shrink-0">
         {/* Connection badge */}
-        <div className="flex items-center gap-1 text-xs text-secondary bg-control px-2 py-1 rounded">
-          <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", sessionId ? "bg-green-500" : "bg-secondary")} />
-          {connectionLabel}
-          <ChevronDown size={10} className="ml-0.5" />
+        <div className="flex items-center gap-1.5 text-xs text-secondary bg-control px-2 py-1 rounded max-w-[180px]">
+          <span
+            className={cn(
+              "w-1.5 h-1.5 rounded-full shrink-0",
+              sessionId ? "bg-green-500" : "bg-secondary opacity-40",
+            )}
+          />
+          <span className="truncate">{connectionLabel}</span>
+          <ChevronDown size={9} className="ml-0.5 shrink-0 opacity-60" />
         </div>
 
         <div className="flex-1" />
 
-        {/* Time badge */}
-        {hasResults && !runMutation.isPending && (
-          <span className="text-xs text-secondary">
-            {results.reduce((sum, r) => sum + r.executionMs, 0)}ms total
+        {/* Total execution time */}
+        {hasResults && runState === "idle" && (
+          <span className="text-[10px] text-secondary tabular-nums">
+            {results.reduce((sum, r) => sum + r.executionMs, 0).toLocaleString()}ms
           </span>
         )}
 
-        {/* Save */}
+        {/* Save button */}
         <button
           onClick={() => setSaveOpen(true)}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-secondary rounded hover:bg-control transition-colors"
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors",
+            isDirty
+              ? "text-accent hover:bg-accent/10"
+              : "text-secondary hover:bg-control",
+          )}
           title="Save query (⌘S)"
         >
-          <Save size={13} />
-          Save
+          <Save size={12} />
+          <span>Save</span>
+          {isDirty && <span className="w-1 h-1 rounded-full bg-accent shrink-0" />}
+          <kbd className="text-[9px] opacity-50 font-mono ml-0.5">⌘S</kbd>
         </button>
 
-        {/* Run */}
-        <button
+        {/* Run button */}
+        <RunButton
+          runState={runState}
+          disabled={!sessionId}
           onClick={() => handleRun(sql)}
-          disabled={runMutation.isPending || !sessionId}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs bg-accent text-white rounded hover:opacity-90 disabled:opacity-50 transition-opacity"
-          title="Run query (⌘↵)"
-        >
-          {runMutation.isPending ? (
-            <Loader2 size={13} className="animate-spin" />
-          ) : (
-            <Play size={13} />
-          )}
-          Run
-        </button>
+        />
       </div>
 
       {/* Editor area */}
-      <div
-        className="flex-1 overflow-hidden"
-        style={{ minHeight: 0 }}
-      >
+      <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         <SqlEditor
           value={sql}
           onChange={setSql}
@@ -517,29 +668,31 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
         />
       </div>
 
-      {/* Drag handle */}
-      {hasResults && (
+      {/* Error summary (shown above result pane when query errored) */}
+      {error && (
+        <ErrorSummary error={error} />
+      )}
+
+      {/* Drag handle — only visible when result pane is shown */}
+      {showResultPane && (
         <div
           onMouseDown={onDragHandleMouseDown}
           className="h-1 bg-separator hover:bg-accent/40 cursor-row-resize shrink-0 transition-colors"
+          title="Drag to resize"
         />
       )}
 
       {/* Result panel */}
-      {hasResults && (
+      {showResultPane && (
         <div
           className="border-t border-separator shrink-0 overflow-hidden"
           style={{ height: resultHeight }}
         >
-          <ResultPanel results={results} />
-        </div>
-      )}
-
-      {/* Error banner (when no result rows but there's a top-level error) */}
-      {error && results.length === 0 && (
-        <div className="px-3 py-2 bg-red-500/10 border-t border-red-500/20 text-xs text-red-500 flex items-center gap-1.5 shrink-0">
-          <AlertCircle size={12} />
-          {error.message}
+          {hasResults ? (
+            <ResultPanel results={results} />
+          ) : (
+            <EmptyResultState />
+          )}
         </div>
       )}
 
