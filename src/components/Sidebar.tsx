@@ -124,8 +124,9 @@ export function Sidebar() {
         <div
           onMouseDown={onMouseDown}
           className={cn(
-            "absolute top-0 right-0 w-1 h-full cursor-col-resize z-10",
-            isResizing && "bg-accent/30",
+            "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-10",
+            "transition-colors duration-100",
+            isResizing ? "bg-accent/40" : "hover:bg-accent/20",
           )}
         />
       </aside>

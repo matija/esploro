@@ -316,7 +316,7 @@ function SaveDialog({
 // ─── QueryEditorTab ───────────────────────────────────────────────────────────
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
-  const { profiles, activeSessions } = useAppStore();
+  const { profiles, activeSessions, setTabDirty } = useAppStore();
   const rqClient = useQueryClient();
 
   const [sql, setSql] = useState(tab.queryContext?.sql ?? "");
@@ -327,6 +327,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const isDragging = useRef(false);
   const dragStart = useRef(0);
   const dragStartH = useRef(0);
+  const savedSql = useRef(tab.queryContext?.sql ?? "");
 
   // Pick the session to run against
   const sessionId = useMemo(() => {
@@ -401,13 +402,23 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
       try {
         const id = await savedQueriesApi.save({ name, folder: folder || undefined, sql });
         await rqClient.invalidateQueries({ queryKey: ["saved-queries"] });
+        savedSql.current = sql;
+        setTabDirty(tab.id, false);
         console.log("Saved query", id);
       } catch (e) {
         console.error("Failed to save query", e);
       }
     },
-    [sql, rqClient],
+    [sql, rqClient, tab.id, setTabDirty],
   );
+
+  // Track dirty state vs saved SQL
+  useEffect(() => {
+    setTabDirty(tab.id, sql !== savedSql.current);
+  }, [sql, tab.id, setTabDirty]);
+
+  // Clear dirty on unmount
+  useEffect(() => () => setTabDirty(tab.id, false), [tab.id, setTabDirty]);
 
   // ⌘S keyboard shortcut
   useEffect(() => {

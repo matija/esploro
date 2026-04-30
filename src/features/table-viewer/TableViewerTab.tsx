@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 import type { Tab } from "../../store";
+import { useAppStore } from "../../store";
 import { tableApi } from "./api";
 import {
   type FilterOperator,
@@ -206,6 +207,7 @@ function RowContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
+  const { setTabLoading } = useAppStore();
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -273,6 +275,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     enabled,
     placeholderData: (prev) => prev,
   });
+
+  // Sync loading state into tab strip
+  useEffect(() => {
+    setTabLoading(tab.id, isLoading || isFetching);
+  }, [isLoading, isFetching, tab.id, setTabLoading]);
+
+  useEffect(() => () => setTabLoading(tab.id, false), [tab.id, setTabLoading]);
 
   // ── Sorting ────────────────────────────────────────────────────────────────
 

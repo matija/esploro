@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Database } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
@@ -27,16 +28,71 @@ import {
 import { cn } from "../lib/utils";
 
 function WelcomeView() {
+  const { activeSessions } = useAppStore();
+  const hasSession = Object.keys(activeSessions).length > 0;
+
   return (
-    <div className="flex flex-col items-center justify-center flex-1 h-full gap-3 text-secondary">
-      <span className="text-4xl">⌘</span>
-      <p className="text-sm">
-        Press <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-xs">⌘K</kbd> to open
-        the command palette
-      </p>
-      <p className="text-xs">
-        or <kbd className="font-mono bg-control px-1.5 py-0.5 rounded">⌘T</kbd> to open a new tab
-      </p>
+    <div className="flex flex-col items-center justify-center flex-1 h-full gap-4 text-secondary select-none">
+      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+        <Database size={20} className="text-accent" />
+      </div>
+      <div className="text-center space-y-2">
+        <p className="text-sm font-medium text-label">
+          {hasSession ? "Open something to get started" : "Connect to a database"}
+        </p>
+        <p className="text-xs text-tertiary leading-relaxed">
+          Press{" "}
+          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[11px]">
+            ⌘K
+          </kbd>{" "}
+          to search tables and commands
+          <br />
+          or{" "}
+          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[11px]">
+            ⌘T
+          </kbd>{" "}
+          to open a new query
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StatusBar() {
+  const { tabs, activeTabId, profiles, activeSessions } = useAppStore();
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+
+  const sessionId =
+    activeTab?.sessionId ??
+    (activeTab?.tableContext
+      ? Object.values(activeSessions)[0]
+      : Object.values(activeSessions)[0]);
+
+  const connEntry = sessionId
+    ? Object.entries(activeSessions).find(([, s]) => s === sessionId)
+    : null;
+  const connId = connEntry?.[0];
+  const profile = connId ? profiles.find((p) => p.id === connId) : null;
+  const database = activeTab?.tableContext?.database;
+
+  return (
+    <div className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[11px] text-tertiary shrink-0 select-none">
+      <div className="flex items-center gap-1.5 min-w-0">
+        {profile ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
+            <span className="text-secondary truncate">{profile.displayName}</span>
+            {database && (
+              <>
+                <span className="opacity-40 mx-0.5">/</span>
+                <span className="truncate">{database}</span>
+              </>
+            )}
+          </>
+        ) : (
+          <span>No connection</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -159,6 +215,7 @@ export function AppShell() {
           </main>
 
           <LicenseBanner />
+          <StatusBar />
         </div>
       </div>
 

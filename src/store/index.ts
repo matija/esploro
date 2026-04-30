@@ -29,6 +29,8 @@ export interface Tab {
     sql: string;
     savedQueryId?: string;
   };
+  isDirty?: boolean;
+  isLoading?: boolean;
 }
 
 export type Theme = UiTheme;
@@ -51,6 +53,8 @@ interface AppState {
   addTab: (tab: Omit<Tab, "id">) => string;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
+  setTabDirty: (id: string, isDirty: boolean) => void;
+  setTabLoading: (id: string, isLoading: boolean) => void;
 
   // Connections
   profiles: ConnectionProfile[];
@@ -125,6 +129,16 @@ export const useAppStore = create<AppState>()(
         }),
 
       setActiveTab: (id) => set({ activeTabId: id }),
+
+      setTabDirty: (id, isDirty) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) => (t.id === id ? { ...t, isDirty } : t)),
+        })),
+
+      setTabLoading: (id, isLoading) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) => (t.id === id ? { ...t, isLoading } : t)),
+        })),
 
       // Connections
       profiles: [],
