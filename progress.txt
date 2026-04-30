@@ -1,3 +1,25 @@
+## Phase 12 — Table Viewer Column Header Key/Nullable Indicators [DONE]
+- Implemented the PRD table viewer requirement: "Headers show column name, type badge, sort state, filter state, and nullable/key indicators."
+- src-tauri/src/commands/data.rs:
+  - Extended `ResultColumn` struct with `is_nullable`, `is_primary_key`, `is_foreign_key` fields.
+  - `query_table` now fetches `is_nullable` from `information_schema.columns`.
+  - Added PK lookup via `pg_index` + `pg_attribute` (collected into a HashSet).
+  - Added FK lookup via `pg_constraint` + `pg_attribute` for foreign key columns.
+  - `execute_sql` path defaults the new fields to false (no column metadata available from simple_query).
+- src/features/table-viewer/types.ts:
+  - Added `isNullable`, `isPrimaryKey`, `isForeignKey` to `ResultColumn`.
+- src/features/query-editor/types.ts:
+  - Added matching fields to the query editor's `ResultColumn` for type consistency.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - `ColumnHeaderCell` now shows a KeyRound icon (schema-key color) for primary key columns.
+  - Shows a Link icon (schema-foreign-key color) for foreign key columns.
+  - Shows a `?` indicator (tertiary color) for nullable columns.
+- src/styles/tokens.css:
+  - Added `--schema-foreign-key` token mapped to `--ds-syntax-keyword` (purple).
+- src/styles/index.css:
+  - Added `--color-schema-foreign-key` Tailwind mapping.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 11 — Connection Empty-State Paste URL [DONE]
 - Implemented the next incomplete PRD sidebar empty-state gap: users with no saved connections now get a Paste URL shortcut next to New Connection.
 - src/features/connections/ConnectionList.tsx:
