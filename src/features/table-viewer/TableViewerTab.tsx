@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, KeyRound, Link } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, KeyRound, Link, AlertCircle, RotateCw } from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { tableApi } from "./api";
@@ -447,7 +447,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const enabled = !!sessionId && !!ctx;
 
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: [
       "table-viewer",
       sessionId,
@@ -675,8 +675,29 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
         {/* Error */}
         {!isLoading && error && (
-          <div className="flex items-center justify-center flex-1 text-destructive text-sm px-6 text-center">
-            {String(error)}
+          <div className="flex flex-col items-center justify-center flex-1 gap-3 px-6 py-12">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-query-failed/10">
+              <AlertCircle size={20} className="text-query-failed" />
+            </div>
+            <div className="text-center space-y-1 max-w-md">
+              <p className="text-sm font-medium text-label">
+                Failed to load table data
+              </p>
+              <p className="text-xs text-secondary leading-relaxed">
+                {error instanceof Error ? error.message : String(error)}
+              </p>
+            </div>
+            <button
+              onClick={() => void refetch()}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] text-xs",
+                "bg-control text-secondary shadow-[var(--shadow-hairline)]",
+                "hover:bg-subtle hover:text-label active:bg-active transition-colors duration-[var(--motion-fast)]",
+              )}
+            >
+              <RotateCw size={12} />
+              Retry
+            </button>
           </div>
         )}
 
