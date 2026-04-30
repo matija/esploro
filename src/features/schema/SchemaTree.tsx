@@ -353,7 +353,7 @@ function nodeDepth(node: TreeNode): number {
 }
 
 export function SchemaTree({ sessionId, connectionId }: Props) {
-  const { expandedNodes, toggleNode, addTab } = useAppStore();
+  const { expandedNodes, toggleNode, addTab, addRecentObject } = useAppStore();
   const isExp = (key: string) => !!expandedNodes[key];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -767,21 +767,38 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
             connectionId,
           },
         });
+        addRecentObject({
+          type: node.kind as "table" | "view",
+          title: `${node.schema}.${node.name}`,
+          schema: node.schema,
+          table: node.name,
+          database: node.database,
+          connectionId,
+          sessionId,
+        });
       } else if (action === "open-query") {
         const qualifiedName = `"${node.schema}"."${node.name}"`;
+        const sql = `SELECT * FROM ${qualifiedName} LIMIT 100;\n`;
         addTab({
           type: "query",
           title: `Query ${node.name}`,
           sessionId,
-          queryContext: {
-            sql: `SELECT * FROM ${qualifiedName} LIMIT 100;\n`,
-          },
+          queryContext: { sql },
           tableContext: {
             database: node.database,
             schema: node.schema,
             table: node.name,
             connectionId,
           },
+        });
+        addRecentObject({
+          type: node.kind as "table" | "view",
+          title: `${node.schema}.${node.name}`,
+          schema: node.schema,
+          table: node.name,
+          database: node.database,
+          connectionId,
+          sessionId,
         });
       }
     } else if (node.kind === "column") {
@@ -804,6 +821,15 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           table: node.name,
           connectionId,
         },
+      });
+      addRecentObject({
+        type: node.kind as "table" | "view",
+        title: `${node.schema}.${node.name}`,
+        schema: node.schema,
+        table: node.name,
+        database: node.database,
+        connectionId,
+        sessionId,
       });
     }
   }

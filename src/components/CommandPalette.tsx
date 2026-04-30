@@ -52,6 +52,7 @@ export function CommandPalette() {
     connectSession,
     setPendingNewConnection,
     addTab,
+    addRecentObject,
     setTheme,
   } = useAppStore();
   const [query, setQuery] = useState("");
@@ -111,6 +112,15 @@ export function CommandPalette() {
               sessionId,
               tableContext: { database: db, schema, table: table.name, connectionId },
             });
+            addRecentObject({
+              type: "table",
+              title: `${schema}.${table.name}`,
+              schema,
+              table: table.name,
+              database: db,
+              connectionId,
+              sessionId,
+            });
           },
         });
       }
@@ -142,6 +152,13 @@ export function CommandPalette() {
         title: sq.name,
         sessionId,
         queryContext: { sql: sq.sql, savedQueryId: sq.id },
+      });
+      addRecentObject({
+        type: "query",
+        title: sq.name,
+        savedQueryId: sq.id,
+        sql: sq.sql,
+        sessionId,
       });
     },
   }));

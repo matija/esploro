@@ -17,6 +17,21 @@ import {
 
 export type TabType = "welcome" | "table" | "query" | "settings";
 
+export interface RecentObject {
+  type: "table" | "view" | "query";
+  title: string;
+  schema?: string;
+  table?: string;
+  database?: string;
+  connectionId?: string;
+  sessionId?: string;
+  savedQueryId?: string;
+  sql?: string;
+  timestamp: number;
+}
+
+const MAX_RECENT_OBJECTS = 12;
+
 export interface LastAction {
   label: string;
   durationMs: number;
@@ -100,6 +115,11 @@ interface AppState {
   /** Set to true by CommandPalette; Sidebar consumes and resets it */
   pendingNewConnection: boolean;
   setPendingNewConnection: (v: boolean) => void;
+
+  // Recent objects — persisted
+  recentObjects: RecentObject[];
+  addRecentObject: (obj: Omit<RecentObject, "timestamp">) => void;
+  clearRecentObjects: () => void;
 
   // Schema browser — persisted: node key -> true
   expandedNodes: Record<string, true>;
@@ -277,6 +297,19 @@ export const useAppStore = create<AppState>()(
       pendingNewConnection: false,
       setPendingNewConnection: (v) => set({ pendingNewConnection: v }),
 
+      // Recent objects
+      recentObjects: [],
+      addRecentObject: (obj) =>
+        set((s) => {
+          const entry: RecentObject = { ...obj, timestamp: Date.now() };
+          const deduped = s.recentObjects.filter(
+            (r) =>
+              !(r.type === entry.type && r.title === entry.title && r.connectionId === entry.connectionId),
+          );
+          return { recentObjects: [entry, ...deduped].slice(0, MAX_RECENT_OBJECTS) };
+        }),
+      clearRecentObjects: () => set({ recentObjects: [] }),
+
       // Schema browser
       expandedNodes: {},
       toggleNode: (key) =>
@@ -295,6 +328,7 @@ export const useAppStore = create<AppState>()(
         sidebarWidth: state.sidebarWidth,
         expandedNodes: state.expandedNodes,
         theme: state.theme,
+        recentObjects: state.recentObjects,
       }),
     },
   ),

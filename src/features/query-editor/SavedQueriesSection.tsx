@@ -8,7 +8,7 @@ import { cn } from "../../lib/utils";
 import type { SavedQuery } from "./types";
 
 export function SavedQueriesSection() {
-  const { addTab, activeSessions } = useAppStore();
+  const { addTab, activeSessions, addRecentObject } = useAppStore();
   const qc = useQueryClient();
 
   const { data: queries = [] } = useQuery({
@@ -42,8 +42,15 @@ export function SavedQueriesSection() {
         sessionId,
         queryContext: { sql, savedQueryId: id },
       });
+      addRecentObject({
+        type: "query",
+        title: name,
+        savedQueryId: id,
+        sql,
+        sessionId,
+      });
     },
-    [addTab, activeSessions],
+    [addTab, activeSessions, addRecentObject],
   );
 
   // Group by folder

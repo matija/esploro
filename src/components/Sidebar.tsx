@@ -7,6 +7,7 @@ import { connectionsApi } from "../features/connections";
 import type { ConnectionProfile } from "../features/connections";
 import { SchemaTree } from "../features/schema";
 import { SavedQueriesSection } from "../features/query-editor";
+import { RecentObjectsSection } from "../features/sidebar/RecentObjectsSection";
 import { cn } from "../lib/utils";
 
 export function Sidebar() {
@@ -133,6 +134,10 @@ export function Sidebar() {
 
           <SidebarSection title="Saved Queries">
             <SavedQueriesSection />
+          </SidebarSection>
+
+          <SidebarSection title="Recent">
+            <RecentObjectsSection />
           </SidebarSection>
         </div>
 
