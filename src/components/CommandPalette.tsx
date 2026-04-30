@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor } from "lucide-react";
+import {
+  Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor,
+  Settings, Loader2, Zap,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
@@ -9,12 +12,35 @@ import { fuzzyScore } from "../lib/fuzzy";
 import type { SchemaObjects } from "../features/schema";
 import type { SavedQuery } from "../features/query-editor";
 
-interface Command {
+type CommandGroup = "Connections" | "Schema" | "Queries" | "Commands" | "Settings";
+
+const GROUP_ORDER: CommandGroup[] = ["Commands", "Connections", "Schema", "Queries", "Settings"];
+
+interface CommandResult {
   id: string;
-  label: string;
+  group: CommandGroup;
   icon?: React.ReactNode;
-  group?: string;
-  onSelect: () => void;
+  title: string;
+  subtitle?: string;
+  shortcut?: string;
+  action: () => void;
+}
+
+type RenderItem =
+  | { type: "header"; group: CommandGroup }
+  | { type: "item"; cmd: CommandResult; idx: number };
+
+function buildRenderList(commands: CommandResult[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let lastGroup: CommandGroup | null = null;
+  commands.forEach((cmd, idx) => {
+    if (cmd.group !== lastGroup) {
+      items.push({ type: "header", group: cmd.group });
+      lastGroup = cmd.group;
+    }
+    items.push({ type: "item", cmd, idx });
+  });
+  return items;
 }
 
 export function CommandPalette() {
@@ -35,13 +61,26 @@ export function CommandPalette() {
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const queryClient = useQueryClient();
 
+  // Check if any schema queries are in-flight
+  const isSchemaLoading =
+    Object.keys(activeSessions).length > 0 &&
+    queryClient
+      .getQueryCache()
+      .getAll()
+      .some(
+        (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === "objects" &&
+          q.state.fetchStatus === "fetching",
+      );
+
   // Build table commands from React Query cache (loaded schemas only)
-  const tableCommands: Command[] = [];
+  const tableCommands: CommandResult[] = [];
   for (const [connectionId, sessionId] of Object.entries(activeSessions)) {
     const profile = profiles.find((p) => p.id === connectionId);
     const profileName = profile?.displayName ?? connectionId;
+    const host = profile ? `${profile.host ?? "localhost"}:${profile.port}` : "";
 
-    // Collect all cached object results for this session
     const cache = queryClient.getQueryCache();
     const objectQueries = cache
       .getAll()
@@ -61,10 +100,11 @@ export function CommandPalette() {
       for (const table of data.tables) {
         tableCommands.push({
           id: `table-${connectionId}-${db}-${schema}-${table.name}`,
-          label: `${schema}.${table.name}`,
+          group: "Schema",
           icon: <Table2 size={13} />,
-          group: profileName,
-          onSelect: () => {
+          title: `${schema}.${table.name}`,
+          subtitle: `${profileName} · ${host}`,
+          action: () => {
             addTab({
               type: "table",
               title: `${schema}.${table.name}`,
@@ -77,7 +117,7 @@ export function CommandPalette() {
     }
   }
 
-  // Saved query commands from React Query cache
+  // Saved query commands
   const savedQueryData =
     queryClient
       .getQueryCache()
@@ -89,12 +129,13 @@ export function CommandPalette() {
           q.state.status === "success",
       )?.state.data as SavedQuery[] | undefined;
 
-  const savedQueryCommands: Command[] = (savedQueryData ?? []).map((sq) => ({
+  const savedQueryCommands: CommandResult[] = (savedQueryData ?? []).map((sq) => ({
     id: `saved-query-${sq.id}`,
-    label: `Open: ${sq.name}`,
+    group: "Queries",
     icon: <FileCode size={13} />,
-    group: "Saved Queries",
-    onSelect: () => {
+    title: sq.name,
+    subtitle: sq.folder ?? undefined,
+    action: () => {
       const sessionId = Object.values(activeSessions)[0];
       addTab({
         type: "query",
@@ -105,77 +146,112 @@ export function CommandPalette() {
     },
   }));
 
-  const allCommands: Command[] = [
+  const connectionCommands: CommandResult[] = profiles.map((p) => ({
+    id: `connect-${p.id}`,
+    group: "Connections",
+    icon: <Plug size={13} />,
+    title: p.displayName,
+    subtitle: `${p.username}@${p.host ?? "localhost"}:${p.port}/${p.database}`,
+    action: async () => {
+      try {
+        const sessionId = await connectionsApi.connect(p.id);
+        connectSession(p.id, sessionId);
+      } catch (e) {
+        console.error("Connect failed", e);
+      }
+    },
+  }));
+
+  const coreCommands: CommandResult[] = [
     {
       id: "new-query",
-      label: "New Query",
+      group: "Commands",
       icon: <FileCode size={13} />,
-      group: "Queries",
-      onSelect: () => {
+      title: "New Query",
+      shortcut: "⌘T",
+      action: () => {
         const sessionId = Object.values(activeSessions)[0];
         addTab({ type: "query", title: "Query", sessionId });
       },
     },
     {
-      id: "open-license",
-      label: "License Settings",
-      icon: <KeyRound size={13} />,
+      id: "new-connection",
+      group: "Connections",
+      icon: <Plus size={13} />,
+      title: "New Connection",
+      action: () => setPendingNewConnection(true),
+    },
+    {
+      id: "open-appearance",
       group: "Settings",
-      onSelect: () => addTab({ type: "settings", title: "License" }),
+      icon: <Settings size={13} />,
+      title: "Appearance Settings",
+      action: () => addTab({ type: "settings", title: "Appearance" }),
+    },
+    {
+      id: "open-license",
+      group: "Settings",
+      icon: <KeyRound size={13} />,
+      title: "License Settings",
+      action: () => addTab({ type: "settings", title: "License" }),
     },
     {
       id: "theme-light",
-      label: "Theme: Light",
+      group: "Settings",
       icon: <Sun size={13} />,
-      group: "Appearance",
-      onSelect: () => setTheme("tairiki-light"),
+      title: "Theme: Tairiki Light",
+      action: () => setTheme("tairiki-light"),
     },
     {
       id: "theme-dark",
-      label: "Theme: Dark",
+      group: "Settings",
       icon: <Moon size={13} />,
-      group: "Appearance",
-      onSelect: () => setTheme("tairiki-dark"),
+      title: "Theme: Tairiki Dark",
+      action: () => setTheme("tairiki-dark"),
     },
     {
       id: "theme-system",
-      label: "Theme: System",
+      group: "Settings",
       icon: <Monitor size={13} />,
-      group: "Appearance",
-      onSelect: () => setTheme("system"),
+      title: "Theme: System",
+      action: () => setTheme("system"),
     },
-    {
-      id: "new-connection",
-      label: "New Connection",
-      icon: <Plus size={13} />,
-      group: "Connections",
-      onSelect: () => setPendingNewConnection(true),
-    },
-    ...profiles.map((p) => ({
-      id: `connect-${p.id}`,
-      label: `Connect to ${p.displayName}`,
-      icon: <Plug size={13} />,
-      group: "Connections",
-      onSelect: async () => {
-        try {
-          const sessionId = await connectionsApi.connect(p.id);
-          connectSession(p.id, sessionId);
-        } catch (e) {
-          console.error("Connect failed", e);
-        }
-      },
-    })),
+  ];
+
+  const allCommands: CommandResult[] = [
+    ...coreCommands,
+    ...connectionCommands,
     ...tableCommands,
     ...savedQueryCommands,
   ];
 
-  const filtered = query.trim()
+  // Default commands shown when query is empty (curated, no tables)
+  const defaultCommands: CommandResult[] = [
+    ...coreCommands.filter((c) => c.id === "new-query"),
+    ...connectionCommands,
+    ...coreCommands.filter((c) => c.id === "new-connection"),
+    ...savedQueryCommands.slice(0, 6),
+    ...coreCommands.filter((c) => c.id !== "new-query" && c.id !== "new-connection"),
+  ].reduce<CommandResult[]>((acc, cmd) => {
+    if (!acc.find((c) => c.id === cmd.id)) acc.push(cmd);
+    return acc;
+  }, []);
+
+  // Sort default commands by GROUP_ORDER
+  const sortedDefaultCommands = [...defaultCommands].sort(
+    (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group),
+  );
+
+  const filtered: CommandResult[] = query.trim()
     ? allCommands
-        .map((c) => ({ cmd: c, score: fuzzyScore(c.label, query.trim()) }))
+        .map((c) => ({ cmd: c, score: fuzzyScore(c.title, query.trim()) }))
         .filter(({ score }) => score > 0)
-        .sort((a, b) => b.score - a.score)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return GROUP_ORDER.indexOf(a.cmd.group) - GROUP_ORDER.indexOf(b.cmd.group);
+        })
         .map(({ cmd }) => cmd)
-    : allCommands;
+    : sortedDefaultCommands;
 
   // Reset selection when results change
   useEffect(() => {
@@ -189,8 +265,8 @@ export function CommandPalette() {
   }, [selectedIdx]);
 
   const handleSelect = useCallback(
-    (cmd: Command) => {
-      cmd.onSelect();
+    (cmd: CommandResult) => {
+      cmd.action();
       setCommandPaletteOpen(false);
     },
     [setCommandPaletteOpen],
@@ -214,15 +290,18 @@ export function CommandPalette() {
     if (!commandPaletteOpen) setQuery("");
   }, [commandPaletteOpen]);
 
+  const renderItems = buildRenderList(filtered);
+
   return (
     <Dialog.Root open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-[20%] -translate-x-1/2 z-50",
-            "w-[560px] max-w-[90vw] rounded-xl overflow-hidden",
-            "bg-content border border-separator shadow-2xl",
+            "fixed left-1/2 top-[18%] -translate-x-1/2 z-50",
+            "w-[580px] max-w-[92vw] rounded-xl overflow-hidden",
+            "bg-[var(--surface-overlay,var(--color-bg-base))] border border-[var(--border-default,var(--color-border))]",
+            "shadow-[var(--shadow-popover,0_12px_30px_rgba(0,0,0,0.18))]",
           )}
           aria-label="Command palette"
           onOpenAutoFocus={(e) => {
@@ -231,8 +310,8 @@ export function CommandPalette() {
           }}
         >
           {/* Search input */}
-          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-separator">
-            <Search size={15} className="text-secondary shrink-0" />
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[var(--border-subtle,var(--color-border))]">
+            <Search size={15} className="text-[var(--text-secondary,var(--color-text-secondary))] shrink-0" />
             <input
               ref={inputRef}
               value={query}
@@ -240,51 +319,162 @@ export function CommandPalette() {
               onKeyDown={handleKeyDown}
               placeholder="Search commands, tables, connections…"
               className={cn(
-                "flex-1 bg-transparent text-label text-sm outline-none",
-                "placeholder:text-secondary",
+                "flex-1 bg-transparent text-[var(--text-primary,var(--color-text-primary))] text-sm outline-none",
+                "placeholder:text-[var(--text-tertiary,var(--color-text-secondary))]",
               )}
             />
-            <kbd className="text-[10px] text-secondary bg-control px-1.5 py-0.5 rounded font-mono shrink-0">
+            {isSchemaLoading && (
+              <Loader2 size={12} className="text-[var(--text-tertiary,var(--color-text-secondary))] animate-spin shrink-0" />
+            )}
+            <kbd className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))] bg-[var(--surface-inset,var(--color-bg-subtle))] px-1.5 py-0.5 rounded font-mono shrink-0 border border-[var(--border-subtle,var(--color-border))]">
               ESC
             </kbd>
           </div>
 
           {/* Results */}
-          <div ref={listRef} className="max-h-72 overflow-y-auto py-2">
+          <div ref={listRef} className="max-h-80 overflow-y-auto py-1.5">
             {filtered.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm text-secondary">
-                {query ? "No results" : "No commands available"}
-              </div>
+              <NoResults
+                query={query}
+                onNewQuery={() => {
+                  const sessionId = Object.values(activeSessions)[0];
+                  addTab({ type: "query", title: "Query", sessionId });
+                  setCommandPaletteOpen(false);
+                }}
+                onNewConnection={() => {
+                  setPendingNewConnection(true);
+                  setCommandPaletteOpen(false);
+                }}
+              />
             ) : (
-              filtered.map((cmd, i) => (
-                <button
-                  key={cmd.id}
-                  ref={(el) => { itemRefs.current[i] = el; }}
-                  onClick={() => handleSelect(cmd)}
-                  onMouseEnter={() => setSelectedIdx(i)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 px-4 py-2 text-sm",
-                    "text-label transition-colors text-left",
-                    i === selectedIdx ? "bg-accent/10" : "hover:bg-control",
-                  )}
-                >
-                  {cmd.icon && (
-                    <span className={cn("shrink-0", i === selectedIdx ? "text-accent" : "text-secondary")}>
-                      {cmd.icon}
+              renderItems.map((item, renderIdx) => {
+                if (item.type === "header") {
+                  return (
+                    <GroupHeader key={`header-${item.group}-${renderIdx}`} label={item.group} />
+                  );
+                }
+                const { cmd, idx } = item;
+                const isSelected = idx === selectedIdx;
+                return (
+                  <button
+                    key={cmd.id}
+                    ref={(el) => { itemRefs.current[idx] = el; }}
+                    onClick={() => handleSelect(cmd)}
+                    onMouseEnter={() => setSelectedIdx(idx)}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-left",
+                      "transition-colors duration-[var(--motion-fast,100ms)]",
+                      "focus:outline-none",
+                      isSelected
+                        ? "bg-[var(--color-accent,#4a7cf6)]/10"
+                        : "hover:bg-[var(--surface-hover,var(--color-bg-subtle))]",
+                    )}
+                  >
+                    {cmd.icon && (
+                      <span
+                        className={cn(
+                          "shrink-0 w-5 flex items-center justify-center",
+                          isSelected
+                            ? "text-[var(--color-accent,#4a7cf6)]"
+                            : "text-[var(--text-tertiary,var(--color-text-secondary))]",
+                        )}
+                      >
+                        {cmd.icon}
+                      </span>
+                    )}
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[var(--text-primary,var(--color-text-primary))] truncate leading-tight">
+                        {cmd.title}
+                      </span>
+                      {cmd.subtitle && (
+                        <span className="block text-xs text-[var(--text-tertiary,var(--color-text-secondary))] truncate mt-0.5 leading-tight">
+                          {cmd.subtitle}
+                        </span>
+                      )}
                     </span>
-                  )}
-                  {cmd.label}
-                  {cmd.group && (
-                    <span className="ml-auto text-xs text-secondary">
-                      {cmd.group}
-                    </span>
-                  )}
-                </button>
-              ))
+                    {cmd.shortcut && (
+                      <kbd className="ml-auto shrink-0 text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))] font-mono">
+                        {cmd.shortcut}
+                      </kbd>
+                    )}
+                  </button>
+                );
+              })
             )}
+          </div>
+
+          {/* Footer hint */}
+          <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--border-subtle,var(--color-border))]">
+            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+              <kbd className="font-mono">↑↓</kbd> navigate
+            </span>
+            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+              <kbd className="font-mono">↵</kbd> select
+            </span>
+            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+              <kbd className="font-mono">ESC</kbd> close
+            </span>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+function GroupHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 pt-3 pb-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary,var(--color-text-secondary))] leading-none">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-[var(--border-subtle,var(--color-border))]" />
+    </div>
+  );
+}
+
+function NoResults({
+  query,
+  onNewQuery,
+  onNewConnection,
+}: {
+  query: string;
+  onNewQuery: () => void;
+  onNewConnection: () => void;
+}) {
+  return (
+    <div className="px-4 py-5 flex flex-col items-center gap-4">
+      <div className="text-center">
+        <p className="text-sm text-[var(--text-secondary,var(--color-text-secondary))]">
+          No results for <span className="font-medium text-[var(--text-primary,var(--color-text-primary))]">&ldquo;{query}&rdquo;</span>
+        </p>
+        <p className="text-xs text-[var(--text-tertiary,var(--color-text-secondary))] mt-1">
+          Try a connection name, table, or command.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onNewQuery}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control,6px)] text-xs",
+            "bg-[var(--surface-inset,var(--color-bg-subtle))] border border-[var(--border-default,var(--color-border))]",
+            "text-[var(--text-primary,var(--color-text-primary))] hover:bg-[var(--surface-hover,var(--color-bg-active))] transition-colors",
+          )}
+        >
+          <Zap size={11} />
+          New Query
+        </button>
+        <button
+          onClick={onNewConnection}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control,6px)] text-xs",
+            "bg-[var(--surface-inset,var(--color-bg-subtle))] border border-[var(--border-default,var(--color-border))]",
+            "text-[var(--text-primary,var(--color-text-primary))] hover:bg-[var(--surface-hover,var(--color-bg-active))] transition-colors",
+          )}
+        >
+          <Plus size={11} />
+          New Connection
+        </button>
+      </div>
+    </div>
   );
 }
