@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plug, PlugZap, Pencil, Trash2, ChevronRight, Folder, Plus, Loader2, ServerCrash } from 'lucide-react';
+import { Plug, PlugZap, Pencil, Trash2, Copy, ChevronRight, Folder, Plus, Loader2, ServerCrash } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { connectionsApi } from './api';
-import type { ConnectionProfile } from './types';
+import type { ConnectionProfile, ConnectionInput } from './types';
 import { useAppStore } from '../../store';
 
 interface Props {
@@ -37,6 +37,7 @@ function ConnectionContextMenu({
   onConnect,
   onDisconnect,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   menu: ContextMenuState;
@@ -44,6 +45,7 @@ function ConnectionContextMenu({
   onConnect: () => void;
   onDisconnect: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   useEffect(() => {
@@ -90,6 +92,13 @@ function ConnectionContextMenu({
         <Pencil size={11} className="text-secondary" />
         Edit…
       </button>
+      <button
+        onClick={onDuplicate}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
+      >
+        <Copy size={11} className="text-secondary" />
+        Duplicate
+      </button>
       <div className="my-1 border-t border-separator" />
       <button
         onClick={onDelete}
@@ -115,6 +124,7 @@ function ConnectionRow({
   onConnect,
   onDisconnect,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   profile: ConnectionProfile;
@@ -126,6 +136,7 @@ function ConnectionRow({
   onConnect: () => void;
   onDisconnect: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -222,6 +233,7 @@ function ConnectionRow({
           onConnect={() => { onConnect(); setContextMenu(null); }}
           onDisconnect={() => { onDisconnect(); setContextMenu(null); }}
           onEdit={() => { onEdit(); setContextMenu(null); }}
+          onDuplicate={() => { onDuplicate(); setContextMenu(null); }}
           onDelete={() => { onDelete(); setContextMenu(null); }}
         />
       )}
@@ -303,6 +315,26 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, r
       disconnectSession(id);
     } catch (e) {
       console.error('Disconnect failed', e);
+    }
+  }
+
+  async function handleDuplicate(profile: ConnectionProfile) {
+    const input: ConnectionInput = {
+      displayName: `${profile.displayName} (copy)`,
+      color: profile.color,
+      folder: profile.folder,
+      host: profile.host,
+      port: profile.port,
+      socketPath: profile.socketPath,
+      database: profile.database,
+      username: profile.username,
+      sslMode: profile.sslMode,
+    };
+    try {
+      await connectionsApi.create(input, '');
+      onRefresh();
+    } catch (e) {
+      console.error('Duplicate failed', e);
     }
   }
 
@@ -440,6 +472,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, r
               onConnect={() => handleConnect(p.id)}
               onDisconnect={() => handleDisconnect(p.id)}
               onEdit={() => onEdit(p)}
+              onDuplicate={() => handleDuplicate(p)}
               onDelete={() => handleDelete(p.id)}
             />
             {isActive && sessionId && renderExpansion?.(p.id, sessionId)}
@@ -485,6 +518,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, r
                     onConnect={() => handleConnect(p.id)}
                     onDisconnect={() => handleDisconnect(p.id)}
                     onEdit={() => onEdit(p)}
+                    onDuplicate={() => handleDuplicate(p)}
                     onDelete={() => handleDelete(p.id)}
                   />
                   {isActive && sessionId && renderExpansion?.(p.id, sessionId)}

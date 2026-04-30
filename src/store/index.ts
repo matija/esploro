@@ -55,6 +55,8 @@ interface AppState {
   setActiveTab: (id: string) => void;
   setTabDirty: (id: string, isDirty: boolean) => void;
   setTabLoading: (id: string, isLoading: boolean) => void;
+  closeOtherTabs: (id: string) => void;
+  closeTabsToRight: (id: string) => void;
 
   // Connections
   profiles: ConnectionProfile[];
@@ -139,6 +141,22 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           tabs: s.tabs.map((t) => (t.id === id ? { ...t, isLoading } : t)),
         })),
+
+      closeOtherTabs: (id) =>
+        set((s) => {
+          const tabs = s.tabs.filter((t) => t.id === id);
+          if (tabs.length === 0) return s;
+          return { tabs, activeTabId: id };
+        }),
+
+      closeTabsToRight: (id) =>
+        set((s) => {
+          const idx = s.tabs.findIndex((t) => t.id === id);
+          if (idx < 0) return s;
+          const tabs = s.tabs.slice(0, idx + 1);
+          const activeTabId = tabs.some((t) => t.id === s.activeTabId) ? s.activeTabId : id;
+          return { tabs, activeTabId };
+        }),
 
       // Connections
       profiles: [],
