@@ -1,3 +1,26 @@
+## Phase 07.9 — Polish Sidebar [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.9 as the next incomplete UI craft task.
+- src/features/connections/ConnectionList.tsx:
+  - Extracted `ConnectionRow` sub-component for cleaner structure.
+  - Added proper empty state: icon, heading, subtext, and "New Connection" CTA button (wired via new `onNewConnection` prop).
+  - Added secondary metadata line per connection row: `user@host:port/db`.
+  - Added `Loader2` spinner replacing status dot while connecting.
+  - Added right-click context menu (`ConnectionContextMenu`) via `createPortal`: connect/disconnect, edit, delete with separator.
+  - Hover/selected states use new `bg-hover` / `bg-selected` / `bg-pressed` tokens.
+- src/components/Sidebar.tsx:
+  - Passes `onNewConnection={openCreate}` to `ConnectionList`.
+- src/features/schema/SchemaTree.tsx:
+  - Replaced "Loading…" text rows with animated skeleton bars (3 staggered widths, `animate-pulse`).
+  - Improved error row with consistent icon-area spacing.
+- src/features/query-editor/SavedQueriesSection.tsx:
+  - Empty state now shows two-line hint ("Run a query and press Save (⌘S)").
+  - `FolderGroup` rows now show a chevron with disclosure animation.
+  - `QueryRow` hover and menu-trigger styles use `bg-hover` / `bg-pressed` tokens.
+  - Dropdown content uses `bg-raised` token.
+- src/styles/index.css:
+  - Added `--color-hover`, `--color-pressed`, `--color-raised`, `--color-selected` to `@theme inline` mapped from surface tokens.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.8 — Polish App Shell [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.8 as the next incomplete UI craft task.
 - src/store/index.ts:
