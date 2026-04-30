@@ -1,3 +1,22 @@
+## Phase 09 — Complete Token System [DONE]
+- Found that the PRD required three token groups missing from tokens.css: semantic state, data value accents, and query accents.
+- src/styles/tokens.css:
+  - Added `/* Semantic state */` group: --state-success/warning/danger/info/pending/disconnected/loading, all backed by existing --ds-* palette values.
+  - Added `/* Data value accents */` group: --data-null/empty/boolean-true/boolean-false/json/date/number/text/modified/filtered/sorted.
+  - Added `/* Query accents */` group: --query-running/succeeded/failed/duration/row-count/transaction/diagnostic.
+- src/styles/index.css:
+  - Added Tailwind @theme inline mappings for schema accent colors (--color-schema-*), query state colors (--color-query-*), data value colors (--color-data-*), and --color-inverse (text on colored fills).
+- src/features/schema/SchemaTree.tsx:
+  - Updated schema object icon classes from ad-hoc colors to semantic schema accent tokens: database=text-schema-database (accent blue), schema=text-schema-schema (purple), table=text-schema-table (green), view=text-schema-view (blue), sequence=text-schema-sequence (orange), function=text-schema-function (amber).
+- src/features/query-editor/QueryEditorTab.tsx:
+  - RunButton success state: bg-green-600 → bg-query-succeeded; error state: bg-red-600 → bg-query-failed; text-white → text-inverse.
+  - Connection status dot: bg-green-500 → bg-query-succeeded.
+  - ErrorSummary panel: bg-red-500/8, border-red-500/20, text-red-500, text-red-400/70 → bg-query-failed/*, text-query-failed/*.
+  - ResultSection inline error: text-red-500 → text-query-failed.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - JSON cell preview: text-secondary → text-data-json (blue) so JSON values are visually distinct from plain text.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 08 — App Icon [DONE]
 - Implemented the app icon per the PRD App Icon section.
 - tools/make_icon.py:
