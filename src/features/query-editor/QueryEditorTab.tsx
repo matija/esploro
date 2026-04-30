@@ -23,6 +23,7 @@ import { useAppStore } from "../../store";
 import { queryEditorApi, savedQueriesApi } from "./api";
 import { SqlEditor } from "./SqlEditor";
 import type { QueryResult, ResultColumn } from "./types";
+import { getTypeFamily, type TypeFamily } from "../table-viewer/types";
 import { cn } from "../../lib/utils";
 
 const COL_WIDTH = 180;
@@ -39,16 +40,79 @@ type RunState = "idle" | "pending" | "success" | "error";
 
 // ─── CellValue ────────────────────────────────────────────────────────────────
 
-function CellValue({ value }: { value: string | null }) {
+function CellValue({
+  value,
+  family,
+}: {
+  value: string | null;
+  family: TypeFamily;
+}) {
   if (value === null) {
     return (
-      <span className="text-secondary italic text-[10px] px-1.5 py-px rounded bg-control leading-none">
+      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
         NULL
       </span>
     );
   }
+
+  if (value === "") {
+    return (
+      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none italic border border-separator/50">
+        {"''"}
+      </span>
+    );
+  }
+
+  if (family === "boolean") {
+    const isTrue =
+      value === "t" || value.toLowerCase() === "true" || value === "1";
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded leading-none tracking-wide",
+          isTrue
+            ? "bg-success/10 text-success"
+            : "bg-control text-tertiary border border-separator/50",
+        )}
+      >
+        {isTrue ? "true" : "false"}
+      </span>
+    );
+  }
+
+  if (family === "json") {
+    const preview = value.length > 100 ? value.slice(0, 100) + "…" : value;
+    return (
+      <span className="font-mono text-[11px] text-data-json truncate block" title={value}>
+        {preview}
+      </span>
+    );
+  }
+
+  if (family === "date") {
+    return (
+      <span className="font-mono text-xs text-label tabular-nums truncate block">
+        {value}
+      </span>
+    );
+  }
+
+  if (family === "numeric") {
+    return (
+      <span className="font-mono text-xs text-label tabular-nums truncate block text-right w-full">
+        {value}
+      </span>
+    );
+  }
+
+  const display = value.length > 300 ? value.slice(0, 300) + "…" : value;
   return (
-    <span className="font-mono text-xs text-label truncate block">{value}</span>
+    <span
+      className="text-xs text-label truncate block"
+      title={value.length > 300 ? value : undefined}
+    >
+      {display}
+    </span>
   );
 }
 
@@ -100,6 +164,11 @@ function ResultGrid({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedCell, rows]);
+
+  const families = useMemo(
+    () => columns.map((col) => getTypeFamily(col.dataType ?? "")),
+    [columns],
+  );
 
   if (columns.length === 0) return null;
 
@@ -169,7 +238,7 @@ function ResultGrid({
                     )}
                     style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: rowHeight }}
                   >
-                    <CellValue value={rowData?.[ci] ?? null} />
+                    <CellValue value={rowData?.[ci] ?? null} family={families[ci]} />
                   </div>
                 ))}
               </div>

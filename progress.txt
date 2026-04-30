@@ -1,3 +1,21 @@
+## Phase 16 — Query Editor Type-Aware Cell Rendering [DONE]
+- Upgraded the query editor result grid's CellValue to match the table viewer's type-aware rendering.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - CellValue now accepts a `family: TypeFamily` prop and renders distinct treatments for NULL (pill with border), empty string ('') pill, boolean badges (green for true, muted for false), JSON monospace preview (truncated, data-json color), date/time tabular-nums, numeric right-aligned tabular-nums, and long text with truncation + title tooltip.
+  - ResultGrid computes `families` array via `useMemo` from column `dataType` using the shared `getTypeFamily` helper.
+  - Each cell passes its column's type family to CellValue.
+  - Imported `getTypeFamily` and `TypeFamily` from the table-viewer types module to share the type classification logic.
+- Previously, query editor results rendered all non-null values as plain monospace text — now they match the table viewer's visual treatment.
+- Checks passed: npm run type-check, npm run lint.
+
+## Phase 15 — Pre-fill SQL From Schema Tree Context Menu [DONE]
+- Implemented the PRD requirement that "Open in query editor" from the schema tree context menu pre-fills the SQL editor with a useful query.
+- src/features/schema/SchemaTree.tsx:
+  - The "open-query" action now builds a quoted qualified name (`"schema"."table"`) and passes it as `queryContext.sql` with `SELECT * FROM "schema"."table" LIMIT 100;`.
+  - Previously, the action opened an empty query tab with only `tableContext` set — the editor started blank.
+  - The QueryEditorTab already reads `tab.queryContext?.sql` on mount, so the pre-filled SQL appears immediately.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 14 — Wire Grid Row Density Setting [DONE]
 - Connected the Data Grid row density setting (compact/comfortable/spacious) to the table viewer and query editor result grids.
 - src/features/table-viewer/TableViewerTab.tsx:
