@@ -29,6 +29,29 @@
   --color-syntax-number:    var(--ds-syntax-number);
   --color-syntax-enum:      var(--ds-syntax-enum);
   --color-syntax-special:   var(--ds-syntax-special);
+  /* Schema accent colors */
+  --color-schema-database:  var(--schema-database);
+  --color-schema-schema:    var(--schema-schema);
+  --color-schema-table:     var(--schema-table);
+  --color-schema-view:      var(--schema-view);
+  --color-schema-function:  var(--schema-function);
+  --color-schema-sequence:  var(--schema-sequence);
+  --color-schema-column:    var(--schema-column);
+  --color-schema-key:       var(--schema-key);
+  --color-schema-nullable:  var(--schema-nullable);
+  /* Query state colors */
+  --color-query-running:    var(--query-running);
+  --color-query-succeeded:  var(--query-succeeded);
+  --color-query-failed:     var(--query-failed);
+  --color-query-duration:   var(--query-duration);
+  /* Data value colors */
+  --color-data-null:        var(--data-null);
+  --color-data-boolean-true: var(--data-boolean-true);
+  --color-data-json:        var(--data-json);
+  --color-data-modified:    var(--data-modified);
+  --color-data-filtered:    var(--data-filtered);
+  /* Text on colored fills */
+  --color-inverse:          var(--ds-text-inverse);
   --font-mono: var(--font-editor);
 }
 

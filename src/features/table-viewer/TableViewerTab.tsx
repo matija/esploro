@@ -74,7 +74,7 @@ function CellValue({
   if (family === "json") {
     const preview = value.length > 100 ? value.slice(0, 100) + "…" : value;
     return (
-      <span className="font-mono text-[11px] text-secondary truncate block" title={value}>
+      <span className="font-mono text-[11px] text-data-json truncate block" title={value}>
         {preview}
       </span>
     );

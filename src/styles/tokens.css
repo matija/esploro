@@ -148,6 +148,15 @@
   --text-inverse:         var(--ds-text-inverse);
   --text-accent:          var(--ds-accent);
 
+  /* Semantic state */
+  --state-success:          var(--ds-success);
+  --state-warning:          var(--ds-warning);
+  --state-danger:           var(--ds-destructive);
+  --state-info:             var(--ds-accent);
+  --state-pending:          var(--ds-accent);
+  --state-disconnected:     var(--ds-tertiary);
+  --state-loading:          var(--ds-accent);
+
   /* Schema accents */
   --schema-database:      var(--ds-accent);
   --schema-schema:        var(--ds-syntax-keyword);
@@ -158,6 +167,28 @@
   --schema-column:        var(--ds-secondary);
   --schema-key:           var(--ds-warning);
   --schema-nullable:      var(--ds-tertiary);
+
+  /* Data value accents */
+  --data-null:              var(--ds-tertiary);
+  --data-empty:             var(--ds-tertiary);
+  --data-boolean-true:      var(--ds-success);
+  --data-boolean-false:     var(--ds-secondary);
+  --data-json:              var(--ds-syntax-number);
+  --data-date:              var(--ds-label);
+  --data-number:            var(--ds-label);
+  --data-text:              var(--ds-label);
+  --data-modified:          var(--ds-warning);
+  --data-filtered:          var(--ds-accent);
+  --data-sorted:            var(--ds-accent);
+
+  /* Query accents */
+  --query-running:          var(--ds-accent);
+  --query-succeeded:        var(--ds-success);
+  --query-failed:           var(--ds-destructive);
+  --query-duration:         var(--ds-secondary);
+  --query-row-count:        var(--ds-secondary);
+  --query-transaction:      var(--ds-warning);
+  --query-diagnostic:       var(--ds-destructive);
 
   /* Editor syntax */
   --editor-syntax-keyword:  var(--ds-syntax-keyword);

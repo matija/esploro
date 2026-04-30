@@ -228,12 +228,12 @@ function TreeRow({
 
   const icon = (() => {
     switch (node.kind) {
-      case "database":  return <Database size={11} className="text-accent" />;
-      case "schema":    return <Folder size={11} className="text-secondary" />;
-      case "table":     return <Table2 size={11} className="text-success" />;
-      case "view":      return <Eye size={11} className="text-syntax-keyword" />;
-      case "sequence":  return <Hash size={11} className="text-syntax-type" />;
-      case "function":  return <Zap size={11} className="text-syntax-enum" />;
+      case "database":  return <Database size={11} className="text-schema-database" />;
+      case "schema":    return <Folder size={11} className="text-schema-schema" />;
+      case "table":     return <Table2 size={11} className="text-schema-table" />;
+      case "view":      return <Eye size={11} className="text-schema-view" />;
+      case "sequence":  return <Hash size={11} className="text-schema-sequence" />;
+      case "function":  return <Zap size={11} className="text-schema-function" />;
       default:          return null;
     }
   })();

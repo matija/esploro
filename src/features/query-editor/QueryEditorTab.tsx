@@ -224,7 +224,7 @@ function ResultSection({
           </span>
         )}
         {result.error ? (
-          <span className="flex items-center gap-1 text-xs text-red-500">
+          <span className="flex items-center gap-1 text-xs text-query-failed">
             <AlertCircle size={11} />
             {result.error.message}
           </span>
@@ -272,14 +272,14 @@ function ResultSection({
 
 function ErrorSummary({ error }: { error: import("./types").QueryError }) {
   return (
-    <div className="flex items-start gap-2 px-3 py-2 bg-red-500/8 border-t border-red-500/20 shrink-0">
-      <AlertCircle size={13} className="text-red-500 shrink-0 mt-px" />
+    <div className="flex items-start gap-2 px-3 py-2 bg-query-failed/8 border-t border-query-failed/20 shrink-0">
+      <AlertCircle size={13} className="text-query-failed shrink-0 mt-px" />
       <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-xs font-medium text-red-500 leading-snug">
+        <span className="text-xs font-medium text-query-failed leading-snug">
           {error.message}
         </span>
         {error.code && (
-          <span className="text-[10px] text-red-400/70 font-mono">{error.code}</span>
+          <span className="text-[10px] text-query-failed/70 font-mono">{error.code}</span>
         )}
       </div>
     </div>
@@ -398,13 +398,13 @@ function RunButton({
       icon: <Check size={12} />,
       label: "Done",
       hint: null,
-      cls: "bg-green-600 text-white",
+      cls: "bg-query-succeeded text-inverse",
     },
     error: {
       icon: <X size={12} />,
       label: "Error",
       hint: null,
-      cls: "bg-red-600 text-white",
+      cls: "bg-query-failed text-inverse",
     },
   }[runState];
 
@@ -616,7 +616,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
           <span
             className={cn(
               "w-1.5 h-1.5 rounded-full shrink-0",
-              sessionId ? "bg-green-500" : "bg-secondary opacity-40",
+              sessionId ? "bg-query-succeeded" : "bg-secondary opacity-40",
             )}
           />
           <span className="truncate">{connectionLabel}</span>
