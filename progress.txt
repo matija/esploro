@@ -1,3 +1,16 @@
+## Phase 07.12 — Polish Query Editor [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.12 as the next incomplete UI craft task.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - `RunButton` component: state machine idle → pending → success → idle / error → idle with 1.5s auto-reset; distinct icons (Play/Loader/Check/X) and colors (accent/green/red).
+  - Keyboard shortcut hints rendered inline on Run (⌘↵) and Save (⌘S) buttons in the toolbar.
+  - Save button shows accent color + small dot when `isDirty` (sql differs from last saved baseline).
+  - Result panel height persisted to localStorage (`esploro-query-result-height`); restored on mount.
+  - `EmptyResultState` component: shown in the result pane before first run (terminal icon + shortcut hint); pane is revealed after the first run attempt so the empty state replaces blank editor space.
+  - `ErrorSummary` panel: appears above result pane with error message + SQLSTATE code when a query errors.
+  - `ResultSection` refined: compact header, tabular-nums ms, "No rows returned" empty state for queries returning columns with 0 rows.
+  - Connection badge truncates long names with `max-w-[180px]`; status dot dims when disconnected.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.11 — Polish Table Viewer [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.11 as the next incomplete UI craft task.
 - src/features/table-viewer/TableViewerTab.tsx:
