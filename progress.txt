@@ -1,3 +1,17 @@
+## Phase 07.10 — Polish Command Palette [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.10 as the next incomplete UI craft task.
+- src/components/CommandPalette.tsx:
+  - Replaced loose `Command` interface with typed `CommandResult` (title, subtitle, shortcut, action, group).
+  - Added `GroupHeader` component rendering divider-separated group labels (Connections, Schema, Queries, Commands, Settings).
+  - Connection commands now show `user@host:port/db` as subtitle; table commands show profile name and host.
+  - "New Query" command shows ⌘T shortcut hint; added "Appearance Settings" command.
+  - Curated default view when query is empty: core commands + connections + saved queries (no table flood).
+  - `NoResults` component with explanatory text and "New Query" / "New Connection" action buttons.
+  - Schema loading spinner in the search bar when object queries are in-flight.
+  - Footer keyboard hint bar (↑↓ navigate, ↵ select, ESC close).
+  - Styling updated to use `--surface-*`, `--border-*`, `--text-*`, `--motion-fast`, `--radius-control` tokens from Phase 7.2.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.9 — Polish Sidebar [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.9 as the next incomplete UI craft task.
 - src/features/connections/ConnectionList.tsx:
