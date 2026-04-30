@@ -1,3 +1,29 @@
+## Phase 18 — Recent Objects Sidebar Section [DONE]
+- Implemented the PRD sidebar requirement: "Include connection groups, schema objects, saved queries, and recent objects."
+- src/store/index.ts:
+  - Added `RecentObject` interface (type, title, schema, table, database, connectionId, sessionId, savedQueryId, sql, timestamp).
+  - Added `recentObjects` persisted state array (max 12 items, deduplicated by type+title+connectionId).
+  - Added `addRecentObject` action that prepends new entries and trims to limit.
+  - Added `clearRecentObjects` action.
+  - Extended Zustand `partialize` to persist `recentObjects`.
+- src/features/sidebar/RecentObjectsSection.tsx (new):
+  - Renders a list of recently opened objects with type-specific icons (Table2 for tables, Eye for views, FileText for queries).
+  - Each row is clickable — re-opens the table/view/query in a new tab with the original context.
+  - Shows relative age on hover (e.g. "3m ago", "2h ago") using a `formatAge` helper.
+  - Empty state with hint text when no recent objects exist.
+  - "Clear recents" action appears when > 3 items for easy cleanup.
+  - Styled with design token system: bg-hover/bg-pressed, motion-fast, radius-control, schema-table/schema-view/accent colors.
+- src/features/schema/SchemaTree.tsx:
+  - Calls `addRecentObject` when opening a table/view via context menu (open-table, open-query) or double-click.
+- src/features/query-editor/SavedQueriesSection.tsx:
+  - Calls `addRecentObject` when opening a saved query.
+- src/components/CommandPalette.tsx:
+  - Calls `addRecentObject` when opening a table or saved query from the palette.
+- src/components/Sidebar.tsx:
+  - Added "Recent" SidebarSection rendering RecentObjectsSection between Saved Queries and the resize handle.
+- Previously, there was no way to quickly re-access recently opened objects without searching or browsing the schema tree again.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 17 — Table Viewer Error State With Retry [DONE]
 - Implemented the PRD interaction requirement: "Errors should explain what failed and offer the next action when possible."
 - src/features/table-viewer/TableViewerTab.tsx:
