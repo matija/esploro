@@ -1,3 +1,19 @@
+## Phase 08 — App Icon [DONE]
+- Implemented the app icon per the PRD App Icon section.
+- tools/make_icon.py:
+  - Python script that generates all required Tauri icon assets from scratch.
+  - Background: macOS squircle (corner radius ~22.37% of size) filled with Tairiki blue `#0070c1`.
+  - Glyph: Phosphor Icons `binoculars-bold.svg` path, scaled to ~60% of canvas width, white fill, centered.
+  - Subtle inner stroke at 8% white opacity for depth.
+  - Uses `cairosvg` for SVG→PNG conversion and `iconutil` for .icns bundle.
+  - ICO file written manually with embedded PNG data at 16, 32, 48, 256 px.
+- src-tauri/icons/:
+  - Replaced placeholder PNGs with crafted icon: `32x32.png`, `128x128.png`, `128x128@2x.png`.
+  - Added new files: `icon.png` (512×512), `icon.icns` (macOS multi-res bundle), `icon.ico` (Windows 4-size).
+- src-tauri/tauri.conf.json:
+  - Extended `bundle.icon` to include `icons/icon.png`, `icons/icon.icns`, `icons/icon.ico`.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 07.14 — Verification [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.14 as the final UI craft verification task.
 - Ran all automated checks across the full codebase:
