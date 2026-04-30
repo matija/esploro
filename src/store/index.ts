@@ -10,6 +10,9 @@ import {
   normalizeTheme,
   type UiPreferences,
   type UiTheme,
+  type EditorTabSize,
+  type RowDensity,
+  type GridPageSize,
 } from "../features/settings/preferences";
 
 export type TabType = "welcome" | "table" | "query" | "settings";
@@ -42,6 +45,25 @@ interface AppState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   hydrateTheme: (theme: Theme) => void;
+
+  // Editor config — hydrated from Tauri prefs, not persisted in Zustand
+  editorTabSize: EditorTabSize;
+  setEditorTabSize: (size: EditorTabSize) => void;
+  editorWordWrap: boolean;
+  setEditorWordWrap: (wrap: boolean) => void;
+
+  // Grid config — hydrated from Tauri prefs, not persisted in Zustand
+  gridRowDensity: RowDensity;
+  setGridRowDensity: (density: RowDensity) => void;
+  gridPageSize: GridPageSize;
+  setGridPageSize: (size: GridPageSize) => void;
+
+  hydrateEditorAndGridPrefs: (
+    tabSize: EditorTabSize,
+    wordWrap: boolean,
+    rowDensity: RowDensity,
+    pageSize: GridPageSize,
+  ) => void;
 
   // UI — ephemeral
   commandPaletteOpen: boolean;
@@ -103,6 +125,73 @@ export const useAppStore = create<AppState>()(
           .catch(console.error);
       },
       hydrateTheme: (theme) => set({ theme: normalizeTheme(theme) }),
+
+      editorTabSize: defaultUiPreferences.editor.tabSize,
+      setEditorTabSize: (tabSize) => {
+        set({ editorTabSize: tabSize });
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) => {
+            const next = normalizeUiPreferences({
+              ...preferences,
+              editor: { ...preferences.editor, tabSize },
+            });
+            cacheUiPreferencesForBootstrap(next);
+            return invoke("set_ui_preferences", { preferences: next });
+          })
+          .catch(console.error);
+      },
+
+      editorWordWrap: defaultUiPreferences.editor.wordWrap,
+      setEditorWordWrap: (wordWrap) => {
+        set({ editorWordWrap: wordWrap });
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) => {
+            const next = normalizeUiPreferences({
+              ...preferences,
+              editor: { ...preferences.editor, wordWrap },
+            });
+            cacheUiPreferencesForBootstrap(next);
+            return invoke("set_ui_preferences", { preferences: next });
+          })
+          .catch(console.error);
+      },
+
+      gridRowDensity: defaultUiPreferences.grid.rowDensity,
+      setGridRowDensity: (rowDensity) => {
+        set({ gridRowDensity: rowDensity });
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) => {
+            const next = normalizeUiPreferences({
+              ...preferences,
+              grid: { ...preferences.grid, rowDensity },
+            });
+            cacheUiPreferencesForBootstrap(next);
+            return invoke("set_ui_preferences", { preferences: next });
+          })
+          .catch(console.error);
+      },
+
+      gridPageSize: defaultUiPreferences.grid.pageSize,
+      setGridPageSize: (pageSize) => {
+        set({ gridPageSize: pageSize });
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) => {
+            const next = normalizeUiPreferences({
+              ...preferences,
+              grid: { ...preferences.grid, pageSize },
+            });
+            cacheUiPreferencesForBootstrap(next);
+            return invoke("set_ui_preferences", { preferences: next });
+          })
+          .catch(console.error);
+      },
+
+      hydrateEditorAndGridPrefs: (tabSize, wordWrap, rowDensity, pageSize) =>
+        set({ editorTabSize: tabSize, editorWordWrap: wordWrap, gridRowDensity: rowDensity, gridPageSize: pageSize }),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

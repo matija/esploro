@@ -10,12 +10,11 @@ import { TableViewerTab } from "../features/table-viewer";
 import { QueryEditorTab } from "../features/query-editor";
 import {
   LicenseBanner,
-  LicenseSettings,
   UsageTypeDialog,
   licenseApi,
   LICENSE_STATUS_KEY,
 } from "../features/license";
-import { AppearanceSettings } from "../features/settings";
+import { SettingsView } from "../features/settings";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -108,6 +107,7 @@ export function AppShell() {
     theme,
     setTheme,
     hydrateTheme,
+    hydrateEditorAndGridPrefs,
   } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
@@ -138,13 +138,19 @@ export function AppShell() {
         applyUiPreferencesToDocument(normalizedPreferences);
         cacheUiPreferencesForBootstrap(normalizedPreferences);
         hydrateTheme(normalizedPreferences.ui.theme);
+        hydrateEditorAndGridPrefs(
+          normalizedPreferences.editor.tabSize,
+          normalizedPreferences.editor.wordWrap,
+          normalizedPreferences.grid.rowDensity,
+          normalizedPreferences.grid.pageSize,
+        );
       })
       .catch(console.error);
 
     return () => {
       cancelled = true;
     };
-  }, [hydrateTheme]);
+  }, [hydrateTheme, hydrateEditorAndGridPrefs]);
 
   // Notify Rust of current connection count for commercial heuristic
   useEffect(() => {
@@ -203,15 +209,7 @@ export function AppShell() {
             {activeTab?.type === "table" && (
               <TableViewerTab tab={activeTab} />
             )}
-            {activeTab?.type === "settings" && (
-              <div className="flex h-full overflow-auto">
-                <div className="p-8 max-w-lg flex flex-col gap-10 w-full">
-                  <AppearanceSettings />
-                  <div className="border-t border-separator" />
-                  <LicenseSettings />
-                </div>
-              </div>
-            )}
+            {activeTab?.type === "settings" && <SettingsView />}
           </main>
 
           <LicenseBanner />

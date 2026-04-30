@@ -2,12 +2,13 @@ import { useEffect, useRef, useMemo } from "react";
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
 import { EditorState, StateEffect } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { bracketMatching, foldGutter } from "@codemirror/language";
+import { bracketMatching, foldGutter, indentUnit } from "@codemirror/language";
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { lintKeymap, setDiagnostics } from "@codemirror/lint";
 import { sql, type SQLConfig } from "@codemirror/lang-sql";
 import { tairikiTheme } from "./tairikiTheme";
 import type { QueryError } from "./types";
+import { useAppStore } from "../../store";
 
 interface SqlEditorProps {
   value: string;
@@ -31,6 +32,8 @@ export function SqlEditor({
   onRunRef.current = onRun;
   onChangeRef.current = onChange;
 
+  const { editorTabSize, editorWordWrap } = useAppStore();
+
   const extensions = useMemo(
     () => [
       lineNumbers(),
@@ -40,6 +43,8 @@ export function SqlEditor({
       bracketMatching(),
       closeBrackets(),
       autocompletion(),
+      indentUnit.of(" ".repeat(editorTabSize)),
+      ...(editorWordWrap ? [EditorView.lineWrapping] : []),
       sql({ schema: schemaCompletions }),
       tairikiTheme,
       keymap.of([
@@ -62,7 +67,7 @@ export function SqlEditor({
         }
       }),
     ],
-    [schemaCompletions],
+    [schemaCompletions, editorTabSize, editorWordWrap],
   );
 
   // Mount the editor once

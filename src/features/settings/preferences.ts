@@ -8,6 +8,15 @@ export const uiThemeValues = [
 
 export type UiTheme = (typeof uiThemeValues)[number];
 
+export const rowDensityValues = ["compact", "comfortable", "spacious"] as const;
+export type RowDensity = (typeof rowDensityValues)[number];
+
+export const gridPageSizeValues = [50, 100, 200, 500] as const;
+export type GridPageSize = (typeof gridPageSizeValues)[number];
+
+export const editorTabSizeValues = [2, 4, 8] as const;
+export type EditorTabSize = (typeof editorTabSizeValues)[number];
+
 export type UiPreferences = {
   ui: {
     theme: UiTheme;
@@ -18,6 +27,12 @@ export type UiPreferences = {
     fontFamily: string;
     fontSize: number;
     lineHeight: number;
+    tabSize: EditorTabSize;
+    wordWrap: boolean;
+  };
+  grid: {
+    rowDensity: RowDensity;
+    pageSize: GridPageSize;
   };
 };
 
@@ -39,6 +54,12 @@ export const defaultUiPreferences: UiPreferences = {
       'ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
     fontSize: 13,
     lineHeight: 1.5,
+    tabSize: 2,
+    wordWrap: false,
+  },
+  grid: {
+    rowDensity: "compact",
+    pageSize: 200,
   },
 };
 
@@ -70,6 +91,18 @@ function isUiTheme(value: unknown): value is UiTheme {
   );
 }
 
+function isEditorTabSize(value: unknown): value is EditorTabSize {
+  return (editorTabSizeValues as readonly unknown[]).includes(value);
+}
+
+function isGridPageSize(value: unknown): value is GridPageSize {
+  return (gridPageSizeValues as readonly unknown[]).includes(value);
+}
+
+function isRowDensity(value: unknown): value is RowDensity {
+  return (rowDensityValues as readonly unknown[]).includes(value);
+}
+
 function isLegacyTheme(value: unknown): value is LegacyTheme {
   return value === "light" || value === "dark";
 }
@@ -94,6 +127,7 @@ export function normalizeUiPreferences(value: unknown): UiPreferences {
   const root = isRecord(value) ? value : {};
   const ui = isRecord(root.ui) ? root.ui : {};
   const editor = isRecord(root.editor) ? root.editor : {};
+  const grid = isRecord(root.grid) ? root.grid : {};
 
   return {
     ui: {
@@ -121,6 +155,21 @@ export function normalizeUiPreferences(value: unknown): UiPreferences {
         defaultUiPreferences.editor.lineHeight,
         uiPreferenceRanges.editorLineHeight,
       ),
+      tabSize: isEditorTabSize(editor.tabSize)
+        ? editor.tabSize
+        : defaultUiPreferences.editor.tabSize,
+      wordWrap:
+        typeof editor.wordWrap === "boolean"
+          ? editor.wordWrap
+          : defaultUiPreferences.editor.wordWrap,
+    },
+    grid: {
+      rowDensity: isRowDensity(grid.rowDensity)
+        ? grid.rowDensity
+        : defaultUiPreferences.grid.rowDensity,
+      pageSize: isGridPageSize(grid.pageSize)
+        ? grid.pageSize
+        : defaultUiPreferences.grid.pageSize,
     },
   };
 }

@@ -32,6 +32,18 @@ const DEFAULT_EDITOR_FONT_FAMILY: &str =
 const DEFAULT_EDITOR_FONT_SIZE: u8 = 13;
 const DEFAULT_EDITOR_LINE_HEIGHT: f64 = 1.5;
 
+fn default_editor_tab_size() -> u8 {
+    2
+}
+
+fn default_grid_row_density() -> String {
+    "compact".to_string()
+}
+
+fn default_grid_page_size() -> u16 {
+    200
+}
+
 // ---------------------------------------------------------------------------
 // Domain types
 // ---------------------------------------------------------------------------
@@ -72,6 +84,8 @@ pub struct LicenseStatus {
 pub struct UiPreferences {
     pub ui: UiPreferenceUi,
     pub editor: UiPreferenceEditor,
+    #[serde(default)]
+    pub grid: UiGridConfig,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -88,6 +102,28 @@ pub struct UiPreferenceEditor {
     pub font_family: String,
     pub font_size: u8,
     pub line_height: f64,
+    #[serde(default = "default_editor_tab_size")]
+    pub tab_size: u8,
+    #[serde(default)]
+    pub word_wrap: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct UiGridConfig {
+    #[serde(default = "default_grid_row_density")]
+    pub row_density: String,
+    #[serde(default = "default_grid_page_size")]
+    pub page_size: u16,
+}
+
+impl Default for UiGridConfig {
+    fn default() -> Self {
+        UiGridConfig {
+            row_density: default_grid_row_density(),
+            page_size: default_grid_page_size(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -153,7 +189,10 @@ fn default_ui_preferences() -> UiPreferences {
             font_family: DEFAULT_EDITOR_FONT_FAMILY.to_string(),
             font_size: DEFAULT_EDITOR_FONT_SIZE,
             line_height: DEFAULT_EDITOR_LINE_HEIGHT,
+            tab_size: default_editor_tab_size(),
+            word_wrap: false,
         },
+        grid: UiGridConfig::default(),
     }
 }
 
@@ -193,6 +232,27 @@ fn clamp_f64(value: f64, min: f64, max: f64, fallback: f64) -> f64 {
     }
 }
 
+fn normalize_tab_size(value: u8) -> u8 {
+    match value {
+        2 | 4 | 8 => value,
+        _ => default_editor_tab_size(),
+    }
+}
+
+fn normalize_grid_row_density(value: &str) -> String {
+    match value {
+        "compact" | "comfortable" | "spacious" => value.to_string(),
+        _ => default_grid_row_density(),
+    }
+}
+
+fn normalize_grid_page_size(value: u16) -> u16 {
+    match value {
+        50 | 100 | 200 | 500 => value,
+        _ => default_grid_page_size(),
+    }
+}
+
 fn normalize_ui_preferences(preferences: UiPreferences) -> UiPreferences {
     UiPreferences {
         ui: UiPreferenceUi {
@@ -217,6 +277,12 @@ fn normalize_ui_preferences(preferences: UiPreferences) -> UiPreferences {
                 1.8,
                 DEFAULT_EDITOR_LINE_HEIGHT,
             ),
+            tab_size: normalize_tab_size(preferences.editor.tab_size),
+            word_wrap: preferences.editor.word_wrap,
+        },
+        grid: UiGridConfig {
+            row_density: normalize_grid_row_density(&preferences.grid.row_density),
+            page_size: normalize_grid_page_size(preferences.grid.page_size),
         },
     }
 }
@@ -225,6 +291,7 @@ fn preferences_from_json(root: &Value) -> UiPreferences {
     let defaults = default_ui_preferences();
     let ui = root.get("ui").and_then(Value::as_object);
     let editor = root.get("editor").and_then(Value::as_object);
+    let grid = root.get("grid").and_then(Value::as_object);
     let legacy_theme = root.get("uiTheme").and_then(Value::as_str);
 
     normalize_ui_preferences(UiPreferences {
@@ -261,6 +328,27 @@ fn preferences_from_json(root: &Value) -> UiPreferences {
                 .and_then(|v| v.get("lineHeight"))
                 .and_then(Value::as_f64)
                 .unwrap_or(defaults.editor.line_height),
+            tab_size: editor
+                .and_then(|v| v.get("tabSize"))
+                .and_then(Value::as_u64)
+                .and_then(|v| u8::try_from(v).ok())
+                .unwrap_or(defaults.editor.tab_size),
+            word_wrap: editor
+                .and_then(|v| v.get("wordWrap"))
+                .and_then(Value::as_bool)
+                .unwrap_or(defaults.editor.word_wrap),
+        },
+        grid: UiGridConfig {
+            row_density: grid
+                .and_then(|v| v.get("rowDensity"))
+                .and_then(Value::as_str)
+                .unwrap_or(&defaults.grid.row_density)
+                .to_string(),
+            page_size: grid
+                .and_then(|v| v.get("pageSize"))
+                .and_then(Value::as_u64)
+                .and_then(|v| u16::try_from(v).ok())
+                .unwrap_or(defaults.grid.page_size),
         },
     })
 }

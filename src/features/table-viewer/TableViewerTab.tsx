@@ -390,7 +390,9 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading } = useAppStore();
+  const { setTabLoading, gridRowDensity, gridPageSize } = useAppStore();
+  const rowHeight = gridRowDensity === "spacious" ? 56 : gridRowDensity === "comfortable" ? 44 : 33;
+  const cellPaddingClass = gridRowDensity === "spacious" ? "py-[18px]" : gridRowDensity === "comfortable" ? "py-2.5" : "py-1.5";
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -453,7 +455,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         sortColumn: sortColumn ?? undefined,
         sortDirection: sortColumn ? sortDirection : undefined,
         page,
-        pageSize: 200,
+        pageSize: gridPageSize,
       }),
     enabled,
     placeholderData: (prev) => prev,
