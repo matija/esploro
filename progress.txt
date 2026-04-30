@@ -1,3 +1,24 @@
+## Phase 07.8 — Polish App Shell [DONE]
+- Followed `plans/07-ui-craft.md` Phase 7.8 as the next incomplete UI craft task.
+- src/store/index.ts:
+  - Added `isDirty` and `isLoading` optional fields to the Tab interface.
+  - Added `setTabDirty(id, isDirty)` and `setTabLoading(id, isLoading)` actions.
+- src/components/TabBar.tsx:
+  - Added type icon per tab: Database for table tabs, Terminal for query tabs, Settings for settings tabs.
+  - Loading spinner replaces icon when `isLoading` is true.
+  - Small accent dot appears when `isDirty` is true (and not loading).
+  - Added `group` class so close button reveals on hover for all tabs (was only visible when active).
+- src/components/AppShell.tsx:
+  - Added `StatusBar` component at the bottom of the right panel: shows active connection name and database from the active tab context.
+  - Improved `WelcomeView`: Database icon, clearer heading based on connection state, two-line keyboard hint.
+- src/components/Sidebar.tsx:
+  - Widened resize handle from 4px to 6px; added hover/active accent color for discoverability.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Wires `setTabDirty` via `useEffect` comparing current SQL to baseline at mount; clears on unmount and after a successful save.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Wires `setTabLoading` from `isLoading || isFetching`; clears on unmount.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 07.7 — Update CodeMirror Theme [DONE]
 - Followed `plans/07-ui-craft.md` Phase 7.7 as the next incomplete UI craft task.
 - src/features/query-editor/tairikiTheme.ts:
