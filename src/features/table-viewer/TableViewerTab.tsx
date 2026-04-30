@@ -390,9 +390,7 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading, gridRowDensity, gridPageSize } = useAppStore();
-  const rowHeight = gridRowDensity === "spacious" ? 56 : gridRowDensity === "comfortable" ? 44 : 33;
-  const cellPaddingClass = gridRowDensity === "spacious" ? "py-[18px]" : gridRowDensity === "comfortable" ? "py-2.5" : "py-1.5";
+  const { setTabLoading, gridPageSize } = useAppStore();
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);

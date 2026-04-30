@@ -1,3 +1,16 @@
+## Phase 10 — Schema Load Error Rows [DONE]
+- Implemented the next incomplete PRD sidebar state gap: schema tree lazy-load failures now render inline where the loading row would appear.
+- src/features/schema/SchemaTree.tsx:
+  - Added compact error rows with an Alert icon and semantic query-failed color.
+  - Database, schema, object, and column query failures now create inline error rows.
+  - Each error row includes a focused/hoverable Retry action wired to the owning React Query `refetch`.
+  - Added safe fallback text for non-Error thrown values.
+- src/features/schema/types.ts:
+  - Extended schema error nodes with an optional `onRetry` callback.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed unused density locals that were causing the repo lint gate to fail.
+- Checks passed: npm run type-check, npm run lint, git diff --check.
+
 ## Phase 09 — Complete Token System [DONE]
 - Found that the PRD required three token groups missing from tokens.css: semantic state, data value accents, and query accents.
 - src/styles/tokens.css:

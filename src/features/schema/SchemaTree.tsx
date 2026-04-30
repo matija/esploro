@@ -11,6 +11,8 @@ import {
   Zap,
   Search,
   X,
+  AlertCircle,
+  RotateCw,
 } from "lucide-react";
 import { useAppStore } from "../../store";
 import { fuzzyScore } from "../../lib/fuzzy";
@@ -173,11 +175,24 @@ function TreeRow({
   if (node.kind === "error") {
     return (
       <div
-        className="flex items-center gap-1.5 py-[3px] text-xs text-destructive"
+        className="flex items-center gap-1.5 py-[3px] text-xs text-query-failed"
         style={{ paddingLeft: node.depth * 10 + 8, paddingRight: 8 }}
       >
-        <span className="shrink-0 w-[10px]" />
-        <span className="truncate">{node.message}</span>
+        <AlertCircle size={10} className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{node.message}</span>
+        {node.onRetry && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              node.onRetry?.();
+            }}
+            className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-query-failed hover:bg-query-failed/10 active:bg-query-failed/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-query-failed/30"
+          >
+            <RotateCw size={9} />
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -320,6 +335,12 @@ function TreeRow({
 
 function isNavigable(node: TreeNode) {
   return node.kind !== "loading" && node.kind !== "error";
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
 }
 
 function nodeDepth(node: TreeNode): number {
@@ -472,6 +493,16 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     // Normal tree mode
     if (dbsQuery.isLoading) {
       items.push({ key: "loading-dbs", node: { kind: "loading", depth: 0 } });
+    } else if (dbsQuery.isError) {
+      items.push({
+        key: "error-dbs",
+        node: {
+          kind: "error",
+          depth: 0,
+          message: errorMessage(dbsQuery.error, "Could not load databases"),
+          onRetry: () => { void dbsQuery.refetch(); },
+        },
+      });
     } else {
       for (const db of databases) {
         const dk = dbKey(connectionId, db);
@@ -488,6 +519,18 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           items.push({
             key: `${dk}:loading`,
             node: { kind: "loading", depth: 1 },
+          });
+          continue;
+        }
+        if (sq.isError) {
+          items.push({
+            key: `${dk}:error`,
+            node: {
+              kind: "error",
+              depth: 1,
+              message: errorMessage(sq.error, "Could not load schemas"),
+              onRetry: () => { void sq.refetch(); },
+            },
           });
           continue;
         }
@@ -509,6 +552,18 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
             items.push({
               key: `${sk}:loading`,
               node: { kind: "loading", depth: 2 },
+            });
+            continue;
+          }
+          if (oq.isError) {
+            items.push({
+              key: `${sk}:error`,
+              node: {
+                kind: "error",
+                depth: 2,
+                message: errorMessage(oq.error, "Could not load schema objects"),
+                onRetry: () => { void oq.refetch(); },
+              },
             });
             continue;
           }
@@ -554,6 +609,18 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
                   items.push({
                     key: `${tk}:loading`,
                     node: { kind: "loading", depth: 4 },
+                  });
+                  continue;
+                }
+                if (cq.isError) {
+                  items.push({
+                    key: `${tk}:error`,
+                    node: {
+                      kind: "error",
+                      depth: 4,
+                      message: errorMessage(cq.error, "Could not load columns"),
+                      onRetry: () => { void cq.refetch(); },
+                    },
                   });
                   continue;
                 }

@@ -37,7 +37,7 @@ export type TreeNode =
   | { kind: 'function'; name: string; resultType: string; schema: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'column'; def: ColumnDef; table: string; schema: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'loading'; depth: number }
-  | { kind: 'error'; message: string; depth: number };
+  | { kind: 'error'; message: string; depth: number; onRetry?: () => void };
 
 export function nodeKey(node: TreeNode): string {
   switch (node.kind) {
