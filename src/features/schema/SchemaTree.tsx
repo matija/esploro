@@ -768,10 +768,14 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           },
         });
       } else if (action === "open-query") {
+        const qualifiedName = `"${node.schema}"."${node.name}"`;
         addTab({
           type: "query",
           title: `Query ${node.name}`,
           sessionId,
+          queryContext: {
+            sql: `SELECT * FROM ${qualifiedName} LIMIT 100;\n`,
+          },
           tableContext: {
             database: node.database,
             schema: node.schema,
