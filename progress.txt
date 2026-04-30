@@ -1,3 +1,14 @@
+## Phase 17 — Table Viewer Error State With Retry [DONE]
+- Implemented the PRD interaction requirement: "Errors should explain what failed and offer the next action when possible."
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Replaced the plain error text with a structured error panel: AlertCircle icon in a tinted container, "Failed to load table data" heading, descriptive error message, and a Retry button.
+  - Retry button calls `refetch()` from the useQuery hook to re-attempt the table data fetch.
+  - Error message extracts `.message` from Error instances for cleaner display.
+  - Styling uses design token system: `bg-query-failed/10`, `text-query-failed`, `--radius-control`, `--shadow-hairline`, `--motion-fast`.
+  - Added AlertCircle and RotateCw icon imports from lucide-react.
+- Previously, the table viewer error state showed only a raw error string centered in the grid area with no way to retry — the user had to switch tabs or manually reload.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 16 — Query Editor Type-Aware Cell Rendering [DONE]
 - Upgraded the query editor result grid's CellValue to match the table viewer's type-aware rendering.
 - src/features/query-editor/QueryEditorTab.tsx:
