@@ -1,3 +1,17 @@
+## Phase 21 — Schema Tree Inline Hover Actions [DONE]
+- Implemented the PRD sidebar requirement: "Add inline action buttons that appear on hover, not permanent clutter."
+- src/features/schema/SchemaTree.tsx:
+  - Added `onAction` prop to `TreeRow` to support inline action triggers.
+  - Table and view rows now show two hover-revealed action buttons: "Open in table viewer" (ExternalLink icon) and "Open in query editor" (Terminal icon).
+  - Buttons appear on hover via `group`/`group-hover:opacity-100` pattern (same as ConnectionList hover actions).
+  - Buttons are also visible when the row is keyboard-focused (matching the focused state).
+  - Secondary metadata (row count, "view" label) is hidden when hover actions are visible to prevent clutter (`group-hover:hidden`).
+  - Each button stops click propagation to avoid toggling the tree node.
+  - Wired `onAction` in the TreeRow render call to reuse the existing `handleAction` function (same logic as context menu).
+  - Also updated the schema tree context menu to use design token styling: `bg-raised`, `--shadow-popover`, `--radius-popover`, `hover:bg-hover`, `duration-[var(--motion-fast)]`.
+- Previously, the only way to open a table/view from the schema tree was double-click or right-click context menu — hover-discoverable actions were missing.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 20 — Query Result Cell Context Menu [DONE]
 - Implemented the PRD interaction requirement: "Context menus should be available for schema nodes, table rows, grid cells, tabs, and saved queries."
 - src/features/query-editor/QueryEditorTab.tsx:
