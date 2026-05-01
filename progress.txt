@@ -1,3 +1,16 @@
+## Phase 25 — Global Toolbar [DONE]
+- Implemented the PRD app shell requirement: "Keep global actions stable: command palette, new query, settings" and the toolbar region spec: "Current context, primary actions, global search, settings entry."
+- src/components/AppShell.tsx:
+  - Added `Toolbar` component rendered in the titlebar area to the right of the sidebar, matching the macOS window chrome pattern.
+  - Search button: styled as a compact search field placeholder with Search icon, "Search…" text, and ⌘K keyboard hint; opens the command palette on click.
+  - New Query button: SquarePen icon; opens a new query tab with the first active session (same as ⌘T).
+  - Settings button: Settings icon; opens the Appearance settings tab.
+  - All buttons use design token system: `--radius-control`, `--motion-fast`, `--shadow-hairline`, `bg-hover`, `bg-pressed`.
+  - Titlebar split into two regions: left spacer matching `sidebarWidth` (traffic-light safe area), right side with toolbar actions aligned right.
+  - `sidebarWidth` read from the store so the toolbar left spacer tracks sidebar resize.
+- Previously, command palette, new query, and settings were only reachable via keyboard shortcuts (⌘K, ⌘T) or by searching in the command palette — there were no visible toolbar buttons for these global actions.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 24 — Command Palette Views And Settings Deep-Links [DONE]
 - Implemented the PRD command palette requirement: "It should search connections, tables, views, saved queries, commands, and settings."
 - src/components/CommandPalette.tsx:
