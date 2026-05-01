@@ -1,3 +1,22 @@
+## Phase 23 — Tab Error State [DONE]
+- Implemented the PRD tab requirement: "Tabs need close, dirty, loading, and error states" and "Error tabs show danger accent only when the tab is not active; active tab shows error in content."
+- src/store/index.ts:
+  - Added optional `isError` field to the `Tab` interface.
+  - Added `setTabError(id, isError)` action that maps over tabs and updates the matching one.
+- src/components/TabBar.tsx:
+  - `tabIcon` now accepts the `active` parameter; returns an `AlertCircle` icon in `text-query-failed` color when `tab.isError && !active`.
+  - Non-active error tabs get a `border-b-query-failed` bottom border instead of `border-b-transparent`, making the error visible in the tab strip without competing with the active tab's accent hairline.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Reads `setTabError` from the store.
+  - Syncs error state via `useEffect`: sets `isError = true` when the React Query `error` is set and no fetch is in progress; clears it while loading/fetching.
+  - Combined the existing `setTabLoading(false)` unmount cleanup with `setTabError(false)` in one effect.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Reads `setTabError` from the store.
+  - Syncs local `error` state to tab strip: `setTabError(tab.id, error !== null)`.
+  - Combined the existing `setTabDirty(false)` unmount cleanup with `setTabError(false)`.
+- Previously, failed table loads and query errors were only visible in the content area; inactive error tabs looked identical to clean idle tabs.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 22 — Sidebar Disclosure Animation [DONE]
 - Implemented the PRD motion requirement: "Disclosure and row reveal: 140–180 ms."
 - src/components/SidebarSection.tsx:
