@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, KeyRound, Link, AlertCircle, RotateCw } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { tableApi } from "./api";
@@ -201,10 +201,10 @@ function ColumnHeaderCell({
       onClick={onClick}
     >
       {col.isPrimaryKey && (
-        <KeyRound size={10} className="text-schema-key shrink-0" title="Primary key" />
+        <KeyRound size={10} className="text-schema-key shrink-0" aria-label="Primary key" />
       )}
       {col.isForeignKey && !col.isPrimaryKey && (
-        <Link size={10} className="text-schema-foreign-key shrink-0" title="Foreign key" />
+        <Link size={10} className="text-schema-foreign-key shrink-0" aria-label="Foreign key" />
       )}
       <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
         {col.name}
@@ -404,8 +404,14 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading, gridPageSize, gridRowDensity, setLastAction } = useAppStore();
+  const { setTabLoading, gridPageSize, gridRowDensity, setLastAction, profiles, activeSessions } = useAppStore();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
+
+  const connectionLabel = useMemo(() => {
+    if (!sessionId) return null;
+    const connId = Object.entries(activeSessions).find(([, s]) => s === sessionId)?.[0];
+    return profiles.find((p) => p.id === connId)?.displayName ?? null;
+  }, [sessionId, activeSessions, profiles]);
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -610,6 +616,58 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden text-label">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 h-9 bg-sidebar border-b border-separator shrink-0">
+        {/* Object icon + schema-qualified name */}
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="shrink-0 text-schema-table">
+            <Table2 size={13} />
+          </span>
+          <span className="text-xs truncate">
+            {ctx.schema && (
+              <span className="text-secondary">{ctx.schema}<span className="mx-0.5 text-tertiary">.</span></span>
+            )}
+            <span className="text-label font-medium">{ctx.table}</span>
+          </span>
+          {ctx.database && (
+            <span className="text-[11px] text-tertiary shrink-0 pl-1 border-l border-separator">
+              {ctx.database}
+            </span>
+          )}
+        </div>
+
+        {/* Connection badge */}
+        {connectionLabel && (
+          <div className="flex items-center gap-1.5 text-xs text-secondary bg-control px-2 py-1 rounded shrink-0 max-w-[160px]">
+            <span
+              className={cn(
+                "w-1.5 h-1.5 rounded-full shrink-0",
+                sessionId ? "bg-query-succeeded" : "bg-secondary opacity-40",
+              )}
+            />
+            <span className="truncate">{connectionLabel}</span>
+          </div>
+        )}
+
+        {/* Refresh button */}
+        <button
+          onClick={() => void refetch()}
+          disabled={isLoading || isFetching}
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0",
+            "text-secondary hover:bg-control hover:text-label active:bg-subtle",
+            "disabled:opacity-40 disabled:cursor-not-allowed",
+          )}
+          title="Refresh table data (⌘R)"
+        >
+          <RefreshCw
+            size={12}
+            className={cn(isFetching && !isLoading && "animate-spin")}
+          />
+          <span>Refresh</span>
+        </button>
+      </div>
+
       {/* Filter bar */}
       {columns.length > 0 && (
         <div className="shrink-0 border-b border-separator overflow-x-auto bg-sidebar/50">
