@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Database, Loader2 } from "lucide-react";
+import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
@@ -123,6 +123,47 @@ function StatusBar() {
   );
 }
 
+const toolbarBtnClass =
+  "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[11px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
+
+function Toolbar() {
+  const { addTab, activeSessions, setCommandPaletteOpen } = useAppStore();
+
+  return (
+    <div className="flex items-center gap-1 px-2">
+      <button
+        type="button"
+        onClick={() => setCommandPaletteOpen(true)}
+        className={cn(toolbarBtnClass, "gap-2 min-w-[140px] bg-control/50 shadow-[var(--shadow-hairline)]")}
+        title="Search (⌘K)"
+      >
+        <Search size={12} className="shrink-0 text-tertiary" />
+        <span className="flex-1 text-left text-tertiary">Search…</span>
+        <kbd className="text-[10px] text-tertiary/60 font-mono">⌘K</kbd>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          const sessionId = Object.values(activeSessions)[0];
+          addTab({ type: "query", title: "Query", sessionId });
+        }}
+        className={toolbarBtnClass}
+        title="New Query (⌘T)"
+      >
+        <SquarePen size={13} />
+      </button>
+      <button
+        type="button"
+        onClick={() => addTab({ type: "settings", title: "Appearance" })}
+        className={toolbarBtnClass}
+        title="Settings"
+      >
+        <Settings size={13} />
+      </button>
+    </div>
+  );
+}
+
 export function AppShell() {
   const {
     tabs,
@@ -131,6 +172,7 @@ export function AppShell() {
     closeTab,
     activeSessions,
     profiles,
+    sidebarWidth,
     theme,
     setTheme,
     hydrateTheme,
@@ -205,11 +247,16 @@ export function AppShell() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* macOS title-bar drag region */}
+      {/* macOS title-bar + toolbar */}
       <div
         data-tauri-drag-region
-        className="h-[38px] shrink-0 bg-sidebar border-b border-separator"
-      />
+        className="flex h-[38px] shrink-0 bg-sidebar border-b border-separator"
+      >
+        <div data-tauri-drag-region className="shrink-0" style={{ width: sidebarWidth }} />
+        <div className="flex flex-1 items-center justify-end border-l border-separator">
+          <Toolbar />
+        </div>
+      </div>
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
