@@ -13,6 +13,8 @@ import {
   X,
   AlertCircle,
   RotateCw,
+  ExternalLink,
+  Terminal as TerminalIcon,
 } from "lucide-react";
 import { useAppStore } from "../../store";
 import { fuzzyScore } from "../../lib/fuzzy";
@@ -85,7 +87,7 @@ function ContextMenu({
 
   return createPortal(
     <div
-      className="fixed z-50 min-w-[180px] rounded-lg border border-separator bg-content shadow-2xl py-1"
+      className="fixed z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
       style={{ left: menu.x, top: menu.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -96,7 +98,7 @@ function ContextMenu({
           <button
             key={item.action}
             onClick={() => onAction(item.action)}
-            className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-control transition-colors text-left"
+            className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors duration-[var(--motion-fast)] text-left"
           >
             {item.label}
           </button>
@@ -138,6 +140,7 @@ interface RowProps {
   onFocus: () => void;
   onContextMenu: (x: number, y: number) => void;
   onDoubleClick: () => void;
+  onAction?: (action: string) => void;
 }
 
 function TreeRow({
@@ -148,6 +151,7 @@ function TreeRow({
   onFocus,
   onContextMenu,
   onDoubleClick,
+  onAction,
 }: RowProps) {
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -279,10 +283,12 @@ function TreeRow({
     return null;
   })();
 
+  const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view");
+
   return (
     <div
       className={cn(
-        "flex items-center gap-1 py-[3px] select-none transition-colors",
+        "group flex items-center gap-1 py-[3px] select-none transition-colors",
         "hover:bg-control",
         expandable ? "cursor-pointer" : "cursor-default",
         isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
@@ -321,9 +327,40 @@ function TreeRow({
         {label}
       </span>
 
-      {/* Secondary */}
+      {/* Inline hover actions for tables/views */}
+      {hasInlineActions && (
+        <span
+          className={cn(
+            "flex items-center gap-0.5 shrink-0 transition-opacity",
+            "opacity-0 group-hover:opacity-100",
+            isFocused && "opacity-100",
+          )}
+        >
+          <button
+            type="button"
+            title="Open in table viewer"
+            onClick={(e) => { e.stopPropagation(); onAction("open-table"); }}
+            className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
+          >
+            <ExternalLink size={10} />
+          </button>
+          <button
+            type="button"
+            title="Open in query editor"
+            onClick={(e) => { e.stopPropagation(); onAction("open-query"); }}
+            className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
+          >
+            <TerminalIcon size={10} />
+          </button>
+        </span>
+      )}
+
+      {/* Secondary — hidden when inline actions are showing */}
       {secondary && (
-        <span className="text-[10px] text-secondary shrink-0 ml-1">
+        <span className={cn(
+          "text-[10px] text-secondary shrink-0 ml-1",
+          hasInlineActions && "group-hover:hidden",
+        )}>
           {secondary}
         </span>
       )}
@@ -902,6 +939,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               onFocus={() => setFocusedKey(key)}
               onContextMenu={(x, y) => setContextMenu({ node, x, y })}
               onDoubleClick={() => handleDoubleClick(node)}
+              onAction={(action) => handleAction(node, action)}
             />
           );
         })}
