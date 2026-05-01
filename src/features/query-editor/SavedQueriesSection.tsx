@@ -136,18 +136,27 @@ function FolderGroup({
         <Folder size={11} className="shrink-0" />
         <span className="truncate flex-1 text-left text-label">{name}</span>
       </button>
-      {open &&
-        items.map((q) => (
-          <QueryRow
-            key={q.id}
-            query={q}
-            onOpen={() => onOpen(q.id, q.name, q.sql)}
-            onDelete={() => onDelete(q.id)}
-            onRename={(name) => onRename(q, name)}
-            onDuplicate={() => onDuplicate(q)}
-            depth={1}
-          />
-        ))}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: open ? "1fr" : "0fr",
+          transition: "grid-template-rows 160ms ease",
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          {items.map((q) => (
+            <QueryRow
+              key={q.id}
+              query={q}
+              onOpen={() => onOpen(q.id, q.name, q.sql)}
+              onDelete={() => onDelete(q.id)}
+              onRename={(name) => onRename(q, name)}
+              onDuplicate={() => onDuplicate(q)}
+              depth={1}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
