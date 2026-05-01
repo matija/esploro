@@ -38,8 +38,18 @@ const NAV_ITEMS: NavItem[] = [
   { id: "advanced", label: "Advanced", icon: <Settings size={14} /> },
 ];
 
-export function SettingsView() {
-  const [section, setSection] = useState<SettingsSection>("appearance");
+const TITLE_TO_SECTION: Record<string, SettingsSection> = {
+  "Appearance": "appearance",
+  "Editor": "editor",
+  "Data Grid": "grid",
+  "Connections": "connections",
+  "License": "licensing",
+  "Advanced": "advanced",
+};
+
+export function SettingsView({ initialSection }: { initialSection?: string }) {
+  const resolved = (initialSection && TITLE_TO_SECTION[initialSection]) || "appearance";
+  const [section, setSection] = useState<SettingsSection>(resolved);
 
   return (
     <div className="flex h-full">

@@ -236,7 +236,7 @@ export function AppShell() {
             {activeTab?.type === "table" && (
               <TableViewerTab tab={activeTab} />
             )}
-            {activeTab?.type === "settings" && <SettingsView />}
+            {activeTab?.type === "settings" && <SettingsView initialSection={activeTab.title} />}
           </main>
 
           <LicenseBanner />

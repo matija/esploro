@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor,
-  Settings, Loader2, Zap,
+  Settings, Loader2, Zap, Eye, Palette, Code2, Database, AlignJustify,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
@@ -124,6 +124,33 @@ export function CommandPalette() {
           },
         });
       }
+
+      for (const viewName of data.views) {
+        tableCommands.push({
+          id: `view-${connectionId}-${db}-${schema}-${viewName}`,
+          group: "Schema",
+          icon: <Eye size={13} />,
+          title: `${schema}.${viewName}`,
+          subtitle: `${profileName} · ${host} · view`,
+          action: () => {
+            addTab({
+              type: "table",
+              title: `${schema}.${viewName}`,
+              sessionId,
+              tableContext: { database: db, schema, table: viewName, connectionId },
+            });
+            addRecentObject({
+              type: "view",
+              title: `${schema}.${viewName}`,
+              schema,
+              table: viewName,
+              database: db,
+              connectionId,
+              sessionId,
+            });
+          },
+        });
+      }
     }
   }
 
@@ -201,9 +228,30 @@ export function CommandPalette() {
     {
       id: "open-appearance",
       group: "Settings",
-      icon: <Settings size={13} />,
+      icon: <Palette size={13} />,
       title: "Appearance Settings",
       action: () => addTab({ type: "settings", title: "Appearance" }),
+    },
+    {
+      id: "open-editor-settings",
+      group: "Settings",
+      icon: <Code2 size={13} />,
+      title: "Editor Settings",
+      action: () => addTab({ type: "settings", title: "Editor" }),
+    },
+    {
+      id: "open-grid-settings",
+      group: "Settings",
+      icon: <AlignJustify size={13} />,
+      title: "Data Grid Settings",
+      action: () => addTab({ type: "settings", title: "Data Grid" }),
+    },
+    {
+      id: "open-connections-settings",
+      group: "Settings",
+      icon: <Database size={13} />,
+      title: "Connections Settings",
+      action: () => addTab({ type: "settings", title: "Connections" }),
     },
     {
       id: "open-license",
@@ -211,6 +259,13 @@ export function CommandPalette() {
       icon: <KeyRound size={13} />,
       title: "License Settings",
       action: () => addTab({ type: "settings", title: "License" }),
+    },
+    {
+      id: "open-advanced-settings",
+      group: "Settings",
+      icon: <Settings size={13} />,
+      title: "Advanced Settings",
+      action: () => addTab({ type: "settings", title: "Advanced" }),
     },
     {
       id: "theme-light",
