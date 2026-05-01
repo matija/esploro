@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
+import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -118,6 +119,114 @@ function CellValue({
 
 // ─── ResultGrid ───────────────────────────────────────────────────────────────
 
+function ResultCellContextMenu({
+  rowData,
+  columns,
+  colIdx,
+  x,
+  y,
+  onClose,
+}: {
+  rowData: (string | null)[];
+  columns: ResultColumn[];
+  colIdx: number;
+  x: number;
+  y: number;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onDown = () => onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const cellValue = rowData[colIdx] ?? null;
+  const colName = columns[colIdx]?.name ?? "";
+
+  const copyValue = () => {
+    navigator.clipboard.writeText(cellValue ?? "");
+    onClose();
+  };
+
+  const copyColName = () => {
+    navigator.clipboard.writeText(colName);
+    onClose();
+  };
+
+  const copyJson = () => {
+    const obj: Record<string, string | null> = {};
+    columns.forEach((column, index) => {
+      obj[column.name] = rowData[index] ?? null;
+    });
+    navigator.clipboard.writeText(JSON.stringify(obj));
+    onClose();
+  };
+
+  const copyCsv = () => {
+    const csv = rowData
+      .map((value) => {
+        if (value === null) return "";
+        if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      })
+      .join(",");
+    navigator.clipboard.writeText(csv);
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      className="fixed z-50 min-w-[200px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
+      style={{ left: x, top: y }}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <button
+        onClick={copyValue}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+      >
+        <span className="font-medium">Copy Value</span>
+        {cellValue === null && (
+          <span className="ml-auto font-mono text-[9px] text-tertiary bg-control px-1 rounded border border-separator/50">
+            NULL
+          </span>
+        )}
+      </button>
+      <button
+        onClick={copyColName}
+        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+      >
+        Copy Column Name
+        <span className="ml-auto font-mono text-tertiary text-[10px] pl-2 truncate max-w-[100px]">
+          {colName}
+        </span>
+      </button>
+      <div className="my-1 border-t border-separator" />
+      <button
+        onClick={copyJson}
+        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+      >
+        Copy Row as JSON
+      </button>
+      <button
+        onClick={copyCsv}
+        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+      >
+        Copy Row as CSV
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 function ResultGrid({
   columns,
   rows,
@@ -130,6 +239,12 @@ function ResultGrid({
   const bodyRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    row: number;
+    col: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const totalWidth = columns.length * COL_WIDTH;
 
   const virtualizer = useVirtualizer({
@@ -230,6 +345,16 @@ function ResultGrid({
                   <div
                     key={col.name}
                     onClick={() => setSelectedCell({ row: vrow.index, col: ci })}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setSelectedCell({ row: vrow.index, col: ci });
+                      setContextMenu({
+                        row: vrow.index,
+                        col: ci,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
                     className={cn(
                       "flex items-center px-2 border-r border-separator shrink-0 overflow-hidden cursor-default",
                       selectedCell?.row === vrow.index &&
@@ -246,6 +371,16 @@ function ResultGrid({
           })}
         </div>
       </div>
+      {contextMenu && (
+        <ResultCellContextMenu
+          rowData={rows[contextMenu.row] ?? []}
+          columns={columns}
+          colIdx={contextMenu.col}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,12 @@
+## Phase 20 — Query Result Cell Context Menu [DONE]
+- Implemented the PRD interaction requirement: "Context menus should be available for schema nodes, table rows, grid cells, tabs, and saved queries."
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Added a portal-based context menu for query result grid cells.
+  - Right-clicking a result cell now selects it and opens actions for Copy Value, Copy Column Name, Copy Row as JSON, and Copy Row as CSV.
+  - The menu closes on outside mouse down or Escape and uses the existing tokenized popover styling.
+- Previously, query result cells only supported click selection and Cmd/Ctrl+C for a single value; row and column copy actions existed in the table viewer but not in query results.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 19 — Table Viewer Toolbar [DONE]
 - Implemented the PRD requirement: "Toolbars should be contextual but stable. Primary actions stay in the same area across tabs."
 - src/features/table-viewer/TableViewerTab.tsx:
