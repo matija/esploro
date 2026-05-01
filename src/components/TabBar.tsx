@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Database, Terminal, Settings } from "lucide-react";
+import { X, Loader2, Database, Terminal, Settings, AlertCircle } from "lucide-react";
 import { useAppStore, type Tab } from "../store";
 import { cn } from "../lib/utils";
 
@@ -88,7 +88,10 @@ function TabContextMenu({
   );
 }
 
-function tabIcon(tab: Tab) {
+function tabIcon(tab: Tab, active: boolean) {
+  if (tab.isError && !active) {
+    return <AlertCircle size={11} className="shrink-0 text-query-failed" />;
+  }
   switch (tab.type) {
     case "table":
       return <Database size={11} className="shrink-0 text-tertiary" />;
@@ -124,13 +127,15 @@ function TabItem({
         "border-r border-separator border-b-2",
         active
           ? "bg-content text-label border-b-accent"
-          : "text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)] border-b-transparent",
+          : tab.isError
+            ? "text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)] border-b-query-failed"
+            : "text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)] border-b-transparent",
       )}
     >
       {tab.isLoading ? (
         <Loader2 size={11} className="shrink-0 animate-spin text-secondary" />
       ) : (
-        tabIcon(tab)
+        tabIcon(tab, active)
       )}
       <span className="max-w-[120px] truncate">{tab.title}</span>
       {tab.isDirty && !tab.isLoading && (

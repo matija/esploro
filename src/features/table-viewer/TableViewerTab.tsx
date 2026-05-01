@@ -404,7 +404,7 @@ function CellContextMenu({
 export function TableViewerTab({ tab }: { tab: Tab }) {
   const { sessionId } = tab;
   const ctx = tab.tableContext;
-  const { setTabLoading, gridPageSize, gridRowDensity, setLastAction, profiles, activeSessions } = useAppStore();
+  const { setTabLoading, setTabError, gridPageSize, gridRowDensity, setLastAction, profiles, activeSessions } = useAppStore();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
 
   const connectionLabel = useMemo(() => {
@@ -485,6 +485,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setTabLoading(tab.id, isLoading || isFetching);
   }, [isLoading, isFetching, tab.id, setTabLoading]);
 
+  // Sync error state into tab strip
+  useEffect(() => {
+    setTabError(tab.id, !!error && !isLoading && !isFetching);
+  }, [error, isLoading, isFetching, tab.id, setTabError]);
+
   // Report last action to status bar
   useEffect(() => {
     if (!data || isLoading) return;
@@ -496,7 +501,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     });
   }, [data, isLoading, ctx?.table, setLastAction]);
 
-  useEffect(() => () => setTabLoading(tab.id, false), [tab.id, setTabLoading]);
+  useEffect(() => () => {
+    setTabLoading(tab.id, false);
+    setTabError(tab.id, false);
+  }, [tab.id, setTabLoading, setTabError]);
 
   // ── Sorting ────────────────────────────────────────────────────────────────
 

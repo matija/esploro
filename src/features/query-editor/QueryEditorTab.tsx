@@ -642,7 +642,7 @@ function RunButton({
 // ─── QueryEditorTab ───────────────────────────────────────────────────────────
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
-  const { profiles, activeSessions, setTabDirty, setLastAction } = useAppStore();
+  const { profiles, activeSessions, setTabDirty, setTabError, setLastAction } = useAppStore();
   const rqClient = useQueryClient();
 
   const [sql, setSql] = useState(tab.queryContext?.sql ?? "");
@@ -770,8 +770,16 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
     setTabDirty(tab.id, sql !== savedSql.current);
   }, [sql, tab.id, setTabDirty]);
 
-  // Clear dirty on unmount
-  useEffect(() => () => setTabDirty(tab.id, false), [tab.id, setTabDirty]);
+  // Sync query error state into tab strip (only while tab is not active)
+  useEffect(() => {
+    setTabError(tab.id, error !== null);
+  }, [error, tab.id, setTabError]);
+
+  // Clear dirty and error on unmount
+  useEffect(() => () => {
+    setTabDirty(tab.id, false);
+    setTabError(tab.id, false);
+  }, [tab.id, setTabDirty, setTabError]);
 
   // Clear run state timer on unmount
   useEffect(() => () => {

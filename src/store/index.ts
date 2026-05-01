@@ -56,6 +56,7 @@ export interface Tab {
   };
   isDirty?: boolean;
   isLoading?: boolean;
+  isError?: boolean;
 }
 
 export type Theme = UiTheme;
@@ -102,6 +103,7 @@ interface AppState {
   setActiveTab: (id: string) => void;
   setTabDirty: (id: string, isDirty: boolean) => void;
   setTabLoading: (id: string, isLoading: boolean) => void;
+  setTabError: (id: string, isError: boolean) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
 
@@ -262,6 +264,11 @@ export const useAppStore = create<AppState>()(
       setTabLoading: (id, isLoading) =>
         set((s) => ({
           tabs: s.tabs.map((t) => (t.id === id ? { ...t, isLoading } : t)),
+        })),
+
+      setTabError: (id, isError) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) => (t.id === id ? { ...t, isError } : t)),
         })),
 
       closeOtherTabs: (id) =>
