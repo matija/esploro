@@ -1,3 +1,17 @@
+## Phase 22 — Sidebar Disclosure Animation [DONE]
+- Implemented the PRD motion requirement: "Disclosure and row reveal: 140–180 ms."
+- src/components/SidebarSection.tsx:
+  - Replaced `{open && <div>...}` conditional render with a CSS grid-template-rows 0fr→1fr technique.
+  - The outer wrapper div animates `grid-template-rows` over 160 ms; the inner div has `overflow: hidden`.
+  - This approach requires no DOM measurement — animation timing is consistent regardless of content height.
+  - Also added `duration-[var(--motion-base)] ease-out` to the chevron rotation so it now matches the content animation timing (was `transition-transform` with default duration).
+- src/features/query-editor/SavedQueriesSection.tsx:
+  - Applied the same grid-row animation to `FolderGroup` disclosure, replacing the bare `{open && items.map(...)}` conditional.
+  - Children are now always mounted but clipped to 0 height when collapsed, enabling smooth reveal in both directions.
+- The existing `@media (prefers-reduced-motion: reduce)` block in index.css already collapses all transition durations to 0.01 ms, so reduced-motion is respected automatically.
+- Previously, all three sidebar sections (Connections, Saved Queries, Recent) and saved-query folder groups closed/opened instantly with no animation.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 21 — Schema Tree Inline Hover Actions [DONE]
 - Implemented the PRD sidebar requirement: "Add inline action buttons that appear on hover, not permanent clutter."
 - src/features/schema/SchemaTree.tsx:
