@@ -1,3 +1,15 @@
+## Phase 19 — Table Viewer Toolbar [DONE]
+- Implemented the PRD requirement: "Toolbars should be contextual but stable. Primary actions stay in the same area across tabs."
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added a toolbar (h-9, matching the query editor toolbar height) as the top-most element of the table viewer.
+  - Left section: Table2 icon (schema-table color) + schema-qualified name (`schema.table`) with database name shown as a muted secondary label separated by a border.
+  - Right section: connection badge (green dot + connection display name, same pattern as the query editor) + Refresh button.
+  - Refresh button calls `refetch()` from React Query; the RefreshCw icon spins while a background fetch is in progress. Button is disabled while loading.
+  - Added `connectionLabel` derived via `useMemo` from `activeSessions` + `profiles` — reads `profiles` and `activeSessions` from the store.
+  - Also fixed two pre-existing TypeScript errors: `title` prop on Lucide SVG icons is not a valid SVG attribute; replaced with `aria-label` on the KeyRound and Link icons in the column header cell.
+- Previously, the table viewer had no toolbar — it jumped directly to the filter bar with no context about what object was open or a way to refresh data outside of the error state.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 18 — Recent Objects Sidebar Section [DONE]
 - Implemented the PRD sidebar requirement: "Include connection groups, schema objects, saved queries, and recent objects."
 - src/store/index.ts:
