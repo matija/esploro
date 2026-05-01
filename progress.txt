@@ -1,3 +1,18 @@
+## Phase 24 — Command Palette Views And Settings Deep-Links [DONE]
+- Implemented the PRD command palette requirement: "It should search connections, tables, views, saved queries, commands, and settings."
+- src/components/CommandPalette.tsx:
+  - Added views to schema search results: iterates `data.views` from the React Query cache alongside tables, using an Eye icon and "view" subtitle label.
+  - Views open in the table viewer (same as tables) and record a recent object entry.
+  - Added four missing settings commands: Editor Settings (Code2 icon), Data Grid Settings (AlignJustify icon), Connections Settings (Database icon), Advanced Settings (Settings icon).
+  - Updated Appearance Settings icon from generic Settings to Palette to match the settings nav.
+  - All six settings sections are now searchable via the palette.
+- src/features/settings/SettingsView.tsx:
+  - Added `initialSection` prop with a title-to-section mapping so command palette deep-links open the correct settings section instead of always defaulting to Appearance.
+- src/components/AppShell.tsx:
+  - Passes `activeTab.title` as `initialSection` to SettingsView.
+- Previously, views were not searchable from the command palette and only Appearance and License settings were reachable; the other four settings sections could only be found by first opening any settings tab and then clicking the nav.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 23 — Tab Error State [DONE]
 - Implemented the PRD tab requirement: "Tabs need close, dirty, loading, and error states" and "Error tabs show danger accent only when the tab is not active; active tab shows error in content."
 - src/store/index.ts:
