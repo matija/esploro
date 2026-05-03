@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Database, Terminal, Settings, AlertCircle } from "lucide-react";
 import { useAppStore, type Tab } from "../store";
-import { cn } from "../lib/utils";
+import { cn, truncateSmart } from "../lib/utils";
 
 type ContextMenuState = { tab: Tab; x: number; y: number };
 
@@ -137,7 +137,9 @@ function TabItem({
       ) : (
         tabIcon(tab, active)
       )}
-      <span className="max-w-[120px] truncate">{tab.title}</span>
+      <span className="max-w-[120px] truncate" title={tab.title}>
+        {tab.type === "table" ? truncateSmart(tab.title, 18) : tab.title}
+      </span>
       {tab.isDirty && !tab.isLoading && (
         <span
           className="w-1.5 h-1.5 rounded-full bg-accent/70 shrink-0"
