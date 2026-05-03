@@ -1,3 +1,15 @@
+## Phase 28 — Table Tab Smart Truncation [DONE]
+- Implemented the PRD tab requirement: "Table tabs show schema-qualified names with truncation that preserves the table name."
+- src/lib/utils.ts:
+  - Added `truncateSmart(title, maxLen)` helper that preserves the right side (table name) of dot-separated names when truncating.
+  - For `schema.table` titles, the schema portion is truncated from the end (e.g. `...long_schema.table_name`) instead of cutting off the table name.
+  - Falls back to standard end-truncation for non-qualified names.
+- src/components/TabBar.tsx:
+  - Table-type tabs now use `truncateSmart(tab.title, 18)` instead of plain CSS truncation.
+  - Added `title` attribute for full name on hover.
+- Previously, long schema-qualified table names were truncated from the end with CSS, potentially hiding the table name and making tabs ambiguous.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 27 — Toast Notification System [DONE]
 - Implemented the PRD interaction requirement: "Success should be quiet: status text or a small toast, not a modal."
 - src/components/Toast.tsx (new):
