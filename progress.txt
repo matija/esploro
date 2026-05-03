@@ -1,3 +1,29 @@
+## Phase 27 — Toast Notification System [DONE]
+- Implemented the PRD interaction requirement: "Success should be quiet: status text or a small toast, not a modal."
+- src/components/Toast.tsx (new):
+  - `ToastProvider` wraps the app shell and provides a `useToast()` hook via React context.
+  - `toast(message, variant)` creates a new notification with success/error/info/warning variants.
+  - Each toast auto-dismisses after 3.2s, has a close button, and uses a polished enter animation (`toast-enter` keyframe with scale+fade+translate).
+  - Icon per variant: CheckCircle2 (success), AlertCircle (error), AlertTriangle (warning), Info (info).
+  - Uses design tokens: `--shadow-popover`, `--radius-control`, `--motion-fast`, `--state-warning`, `--query-succeeded/failed`, `--color-accent`.
+  - Renders in a fixed bottom-right container above other content (z-100, pointer-events-none with pointer-events-auto on each toast).
+- src/styles/index.css:
+  - Added `@keyframes toast-enter` animation with translateY(8px)+scale(0.97)→identity, so toasts enter from below with a subtle scale pop.
+  - Reduced-motion preference collapses the animation via the existing `prefers-reduced-motion` block.
+- src/components/AppShell.tsx:
+  - Wrapped the entire component tree with `<ToastProvider>` so all tabs and settings have access to the toast system.
+- src/features/settings/AppearanceSettings.tsx:
+  - Replaced the inline `saveState` situs text ("Saving...", "Saved.", "Could not save preferences.") with toasts: `toast("Preferences saved", "success")` on success, `toast("Could not save preferences", "error")` on error.
+  - Removed the `saveState` state variable, `SaveState` type, and the status text `<div>`.
+  - Kept the inline invalid-input warning for real-time validation feedback.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - `onSuccess` in the run mutation: shows `toast("Query completed — N rows — Xms", "success")` on success, `toast("Query error: ...", "error")` when any statement errored.
+  - `onError` in the run mutation: shows `toast("Query failed: ...", "error")` on execution failure.
+  - `handleSave`: shows `toast('Query "name" saved', "success")` on save, `toast("Failed to save query", "error")` on failure.
+  - Removed unused `id` variable from the save handler (lint fix).
+- Previously, there was no reusable toast/notification component; success feedback was ad-hoc inline text and button state changes.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 26 — Sidebar Splitter Keyboard Focus [DONE]
 - Implemented the PRD app shell requirement: "Add splitter affordances that are visible on hover and keyboard focus."
 - src/components/Sidebar.tsx:

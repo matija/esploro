@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
+import { useToast } from "../../components/Toast";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -102,14 +103,12 @@ function canPersist(preferences: UiPreferences): boolean {
   );
 }
 
-type SaveState = "idle" | "saving" | "saved" | "error";
-
 export function AppearanceSettings() {
+  const { toast } = useToast();
   const { theme, hydrateTheme } = useAppStore();
   const [preferences, setPreferences] = useState<UiPreferences>(() =>
     normalizeUiPreferences({ ...defaultUiPreferences, ui: { ...defaultUiPreferences.ui, theme } }),
   );
-  const [saveState, setSaveState] = useState<SaveState>("idle");
 
   useEffect(() => {
     let cancelled = false;
@@ -136,24 +135,17 @@ export function AppearanceSettings() {
   function persist(nextPreferences: UiPreferences): void {
     const normalized = normalizeUiPreferences(nextPreferences);
 
-    if (!canPersist(nextPreferences)) {
-      setSaveState("idle");
-      return;
-    }
+    if (!canPersist(nextPreferences)) return;
 
     applyUiPreferencesToDocument(normalized);
     cacheUiPreferencesForBootstrap(normalized);
     hydrateTheme(normalized.ui.theme);
-    setSaveState("saving");
 
     invoke("set_ui_preferences", { preferences: normalized })
-      .then(() => {
-        setSaveState("saved");
-        window.setTimeout(() => setSaveState("idle"), 1600);
-      })
+      .then(() => toast("Preferences saved", "success"))
       .catch((error) => {
         console.error(error);
-        setSaveState("error");
+        toast("Could not save preferences", "error");
       });
   }
 
@@ -324,17 +316,11 @@ export function AppearanceSettings() {
 
       <PreviewPanel preferences={preferences} />
 
-      <div
-        className={cn(
-          "min-h-5 text-[12px]",
-          saveState === "error" || !isValid ? "text-destructive" : "text-tertiary",
-        )}
-      >
-        {!isValid && "Fix invalid font settings before they can be saved."}
-        {isValid && saveState === "saving" && "Saving appearance preferences..."}
-        {isValid && saveState === "saved" && "Saved."}
-        {isValid && saveState === "error" && "Could not save preferences."}
-      </div>
+      {!isValid && (
+        <div className="text-[12px] text-destructive">
+          Fix invalid font settings before they can be saved.
+        </div>
+      )}
     </section>
   );
 }

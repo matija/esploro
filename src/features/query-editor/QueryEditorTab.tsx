@@ -26,6 +26,7 @@ import { SqlEditor } from "./SqlEditor";
 import type { QueryResult, ResultColumn } from "./types";
 import { getTypeFamily, type TypeFamily } from "../table-viewer/types";
 import { cn } from "../../lib/utils";
+import { useToast } from "../../components/Toast";
 
 const COL_WIDTH = 180;
 const HEADER_HEIGHT = 36;
@@ -642,6 +643,7 @@ function RunButton({
 // ─── QueryEditorTab ───────────────────────────────────────────────────────────
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
+  const { toast } = useToast();
   const { profiles, activeSessions, setTabDirty, setTabError, setLastAction } = useAppStore();
   const rqClient = useQueryClient();
 
@@ -733,10 +735,18 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
         rowCount: totalRows,
         timestamp: Date.now(),
       });
+      if (firstError) {
+        toast(`Query error: ${firstError.message}`, "error");
+      } else {
+        const summary = [`${totalRows.toLocaleString()} row${totalRows !== 1 ? "s" : ""}`,
+          `${totalMs.toLocaleString()}ms`].filter(Boolean).join(" — ");
+        toast(`Query completed — ${summary}`, "success");
+      }
     },
     onError: (e: Error) => {
       setError({ message: e.message, position: null, code: null });
       setRunStateBriefly("error");
+      toast(`Query failed: ${e.message}`, "error");
     },
   });
 
@@ -753,16 +763,17 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const handleSave = useCallback(
     async (name: string, folder: string) => {
       try {
-        const id = await savedQueriesApi.save({ name, folder: folder || undefined, sql });
+        await savedQueriesApi.save({ name, folder: folder || undefined, sql });
         await rqClient.invalidateQueries({ queryKey: ["saved-queries"] });
         savedSql.current = sql;
         setTabDirty(tab.id, false);
-        console.log("Saved query", id);
+        toast(`Query "${name}" saved`, "success");
       } catch (e) {
         console.error("Failed to save query", e);
+        toast("Failed to save query", "error");
       }
     },
-    [sql, rqClient, tab.id, setTabDirty],
+    [sql, rqClient, tab.id, setTabDirty, toast],
   );
 
   // Track dirty state vs saved SQL
