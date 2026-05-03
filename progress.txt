@@ -1,3 +1,13 @@
+## Phase 26 — Sidebar Splitter Keyboard Focus [DONE]
+- Implemented the PRD app shell requirement: "Add splitter affordances that are visible on hover and keyboard focus."
+- src/components/Sidebar.tsx:
+  - Added `onResizeKeyDown` handler: ArrowLeft/ArrowRight resize the sidebar by 10px per keypress, clamped to 180-320px range.
+  - Added `tabIndex={0}` so the resize handle is reachable via keyboard Tab navigation.
+  - Added `role="separator"`, `aria-label="Sidebar resize handle"`, `aria-valuenow/min/max` attributes for accessibility.
+  - Added `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-inset` styling so the splitter shows an accent focus ring when focused via keyboard.
+  - Previously the resize handle only supported mouse drag — keyboard users could not resize the sidebar.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 25 — Global Toolbar [DONE]
 - Implemented the PRD app shell requirement: "Keep global actions stable: command palette, new query, settings" and the toolbar region spec: "Current context, primary actions, global search, settings entry."
 - src/components/AppShell.tsx:
