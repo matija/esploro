@@ -82,6 +82,20 @@ export function Sidebar() {
     [sidebarWidth],
   );
 
+  const onResizeKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = 10;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setSidebarWidth(sidebarWidth - step);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setSidebarWidth(sidebarWidth + step);
+      }
+    },
+    [sidebarWidth, setSidebarWidth],
+  );
+
   useEffect(() => {
     if (!isResizing) return;
     const onMouseMove = (e: MouseEvent) => {
@@ -144,9 +158,17 @@ export function Sidebar() {
         {/* Resize handle */}
         <div
           onMouseDown={onMouseDown}
+          onKeyDown={onResizeKeyDown}
+          tabIndex={0}
+          role="separator"
+          aria-label="Sidebar resize handle"
+          aria-valuenow={sidebarWidth}
+          aria-valuemin={180}
+          aria-valuemax={320}
           className={cn(
             "absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-10",
             "transition-colors duration-100",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-inset",
             isResizing ? "bg-accent/40" : "hover:bg-accent/20",
           )}
         />
