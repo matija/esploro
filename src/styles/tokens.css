@@ -1,15 +1,19 @@
 /* ── Font-face declarations ────────────────────────────────────────────────── */
+/* `tech("variations")` is intentionally omitted — WebKit's CSS parser drops the
+ * entire `src` descriptor when it encounters that hint in CSS injected via
+ * Vite's HMR runtime, leaving the @font-face with no source and silently
+ * falling back to system fonts. The plain `format("woff2")` form works
+ * everywhere and the variable axes still apply. */
 @font-face {
   font-family: "Inter Variable";
-  src: url("../assets/fonts/Inter-Variable.woff2") format("woff2") tech("variations");
+  src: url("../assets/fonts/Inter-Variable.woff2") format("woff2");
   font-weight: 300 700;
   font-display: swap;
-  font-feature-settings: "ss01", "ss02", "cv01";
 }
 
 @font-face {
   font-family: "JetBrains Mono Variable";
-  src: url("../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2") tech("variations");
+  src: url("../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
   font-weight: 400 700;
   font-display: swap;
 }

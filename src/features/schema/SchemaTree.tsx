@@ -139,7 +139,7 @@ interface RowProps {
   onToggle: () => void;
   onFocus: () => void;
   onContextMenu: (x: number, y: number) => void;
-  onDoubleClick: () => void;
+  onActivate: () => void;
   onAction?: (action: string) => void;
 }
 
@@ -150,7 +150,7 @@ function TreeRow({
   onToggle,
   onFocus,
   onContextMenu,
-  onDoubleClick,
+  onActivate,
   onAction,
 }: RowProps) {
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -285,28 +285,48 @@ function TreeRow({
 
   const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view");
 
+  const isDataNode = node.kind === "table" || node.kind === "view";
+
   return (
     <div
       className={cn(
         "group flex items-center gap-1 py-[3px] select-none transition-colors",
         "hover:bg-control",
-        expandable ? "cursor-pointer" : "cursor-default",
+        expandable || isDataNode ? "cursor-pointer" : "cursor-default",
         isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
       )}
       style={{ paddingLeft: depth * 10 + 8, paddingRight: 8 }}
-      onClick={() => { onFocus(); if (expandable) onToggle(); }}
-      onDoubleClick={onDoubleClick}
+      onClick={() => {
+        onFocus();
+        if (isDataNode) {
+          onActivate();
+        } else if (expandable) {
+          onToggle();
+        }
+      }}
       onContextMenu={handleContextMenu}
     >
-      {/* Chevron */}
+      {/* Chevron — clickable on its own so users can expand columns
+       * without triggering the row's primary action. */}
       {expandable ? (
-        <ChevronRight
-          size={10}
-          className={cn(
-            "text-secondary shrink-0 transition-transform duration-100",
-            isExpanded && "rotate-90",
-          )}
-        />
+        <button
+          type="button"
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+          onClick={(e) => {
+            e.stopPropagation();
+            onFocus();
+            onToggle();
+          }}
+          className="shrink-0 p-0 text-secondary hover:text-label transition-colors"
+        >
+          <ChevronRight
+            size={10}
+            className={cn(
+              "transition-transform duration-100",
+              isExpanded && "rotate-90",
+            )}
+          />
+        </button>
       ) : (
         <span className="w-[10px] shrink-0" />
       )}
@@ -390,7 +410,7 @@ function nodeDepth(node: TreeNode): number {
 }
 
 export function SchemaTree({ sessionId, connectionId }: Props) {
-  const { expandedNodes, toggleNode, addTab, addRecentObject } = useAppStore();
+  const { expandedNodes, toggleNode, addTab, setActiveTab, addRecentObject, tabs } = useAppStore();
   const isExp = (key: string) => !!expandedNodes[key];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -772,7 +792,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         if (focusedIndex < 0) break;
         const { node } = items[focusedIndex];
         if (node.kind === "table" || node.kind === "view") {
-          handleDoubleClick(node);
+          openTable(node);
         } else {
           const nkey = keyForNode(node);
           if (nkey) toggleNode(nkey);
@@ -793,26 +813,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       } else if (action === "copy-qualified") {
         navigator.clipboard.writeText(`${node.schema}.${node.name}`);
       } else if (action === "open-table") {
-        addTab({
-          type: "table",
-          title: `${node.schema}.${node.name}`,
-          sessionId,
-          tableContext: {
-            database: node.database,
-            schema: node.schema,
-            table: node.name,
-            connectionId,
-          },
-        });
-        addRecentObject({
-          type: node.kind as "table" | "view",
-          title: `${node.schema}.${node.name}`,
-          schema: node.schema,
-          table: node.name,
-          database: node.database,
-          connectionId,
-          sessionId,
-        });
+        openTable(node);
       } else if (action === "open-query") {
         const qualifiedName = `"${node.schema}"."${node.name}"`;
         const sql = `SELECT * FROM ${qualifiedName} LIMIT 100;\n`;
@@ -846,8 +847,22 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     setContextMenu(null);
   }
 
-  function handleDoubleClick(node: TreeNode) {
-    if (node.kind === "table" || node.kind === "view") {
+  function openTable(node: TreeNode) {
+    if (node.kind !== "table" && node.kind !== "view") return;
+
+    // Reuse an existing tab for this exact table so repeat clicks don't
+    // spawn duplicates — focus it instead.
+    const existing = tabs.find(
+      (t) =>
+        t.type === "table" &&
+        t.tableContext?.connectionId === connectionId &&
+        t.tableContext?.database === node.database &&
+        t.tableContext?.schema === node.schema &&
+        t.tableContext?.table === node.name,
+    );
+    if (existing) {
+      setActiveTab(existing.id);
+    } else {
       addTab({
         type: "table",
         title: `${node.schema}.${node.name}`,
@@ -859,16 +874,16 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           connectionId,
         },
       });
-      addRecentObject({
-        type: node.kind as "table" | "view",
-        title: `${node.schema}.${node.name}`,
-        schema: node.schema,
-        table: node.name,
-        database: node.database,
-        connectionId,
-        sessionId,
-      });
     }
+    addRecentObject({
+      type: node.kind as "table" | "view",
+      title: `${node.schema}.${node.name}`,
+      schema: node.schema,
+      table: node.name,
+      database: node.database,
+      connectionId,
+      sessionId,
+    });
   }
 
   function keyForNode(node: TreeNode): string {
@@ -938,7 +953,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               onToggle={() => nkey && toggleNode(nkey)}
               onFocus={() => setFocusedKey(key)}
               onContextMenu={(x, y) => setContextMenu({ node, x, y })}
-              onDoubleClick={() => handleDoubleClick(node)}
+              onActivate={() => openTable(node)}
               onAction={(action) => handleAction(node, action)}
             />
           );

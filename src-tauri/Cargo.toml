@@ -2,8 +2,9 @@
 name = "esploro"
 version = "0.1.0"
 description = "A native macOS PostgreSQL client"
-authors = []
+authors = ["Matija Munjaković"]
 edition = "2021"
+license = "MIT"
 
 [lib]
 name = "esploro_lib"

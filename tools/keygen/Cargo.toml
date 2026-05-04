@@ -3,6 +3,8 @@ name = "keygen"
 version = "0.1.0"
 edition = "2021"
 description = "Esploro license key generator (internal tool, not shipped)"
+authors = ["Matija Munjaković"]
+license = "MIT"
 
 [dependencies]
 hmac = "0.12"

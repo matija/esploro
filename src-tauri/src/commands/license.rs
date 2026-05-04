@@ -25,11 +25,11 @@ const LICENSE_URL: &str = match option_env!("ESPLORO_STRIPE_URL") {
 
 const DEFAULT_UI_THEME: &str = "tairiki-light";
 const DEFAULT_UI_FONT_FAMILY: &str =
-    "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Helvetica Neue\", sans-serif";
-const DEFAULT_UI_FONT_SIZE: u8 = 13;
+    "\"Inter Variable\", Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Helvetica Neue\", sans-serif";
+const DEFAULT_UI_FONT_SIZE: u8 = 14;
 const DEFAULT_EDITOR_FONT_FAMILY: &str =
-    "ui-monospace, \"SF Mono\", Menlo, Monaco, \"Courier New\", monospace";
-const DEFAULT_EDITOR_FONT_SIZE: u8 = 13;
+    "\"JetBrains Mono Variable\", \"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, Monaco, \"Courier New\", monospace";
+const DEFAULT_EDITOR_FONT_SIZE: u8 = 12;
 const DEFAULT_EDITOR_LINE_HEIGHT: f64 = 1.5;
 
 fn default_editor_tab_size() -> u8 {

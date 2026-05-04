@@ -77,6 +77,7 @@ body,
 body {
   font-family: var(--font-ui);
   font-size: var(--font-ui-size);
+  font-feature-settings: "ss01", "ss02", "cv01"; /* Inter stylistic sets / character variants */
   -webkit-font-smoothing: antialiased;
   color: var(--text-primary);
   background: var(--surface-base);
