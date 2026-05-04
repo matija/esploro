@@ -156,6 +156,9 @@ function ConnectionRow({
       <div
         data-nav-key={`conn:${profile.id}`}
         onClick={onFocus}
+        onDoubleClick={() => {
+          if (!isActive && !isConnecting) onConnect();
+        }}
         onContextMenu={handleContextMenu}
         className={cn(
           'group flex items-start gap-2 py-1.5 transition-colors',

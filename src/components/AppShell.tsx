@@ -78,9 +78,12 @@ function StatusBar() {
   const loadingTabs = tabs.filter((t) => t.isLoading);
 
   return (
-    <div className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[11px] text-tertiary shrink-0 select-none">
+    <div
+      data-tauri-drag-region
+      className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[11px] text-tertiary shrink-0 select-none"
+    >
       {/* Left: connection + database */}
-      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+      <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0 flex-1">
         {profile ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />

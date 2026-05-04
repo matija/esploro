@@ -114,6 +114,7 @@ export function Sidebar() {
   return (
     <>
       <aside
+        data-tauri-drag-region
         style={{ width: sidebarWidth }}
         className={cn(
           "relative flex flex-col h-full shrink-0",
@@ -121,7 +122,7 @@ export function Sidebar() {
           "border-r border-separator",
         )}
       >
-        <div className="flex-1 overflow-y-auto pt-2 pb-4">
+        <div data-tauri-drag-region className="flex-1 overflow-y-auto pt-2 pb-4">
           <SidebarSection
             title="Connections"
             action={

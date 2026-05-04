@@ -173,6 +173,7 @@ export function TabBar() {
     <>
       <div
         role="tablist"
+        data-tauri-drag-region
         className="flex h-9 items-stretch overflow-x-auto bg-sidebar border-b border-separator"
         style={{ scrollbarWidth: "none" }}
       >
