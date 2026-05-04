@@ -1,3 +1,31 @@
+## Phase 29 — Typography Foundations: Font Stack, Sizes & Ligatures [DONE]
+- Implemented PRD User Stories 1-6, 15-18, 21: Inter + JetBrains Mono as bundled variable fonts, 14px UI / 12px editor defaults, CodeMirror ligatures, updated font presets.
+- src/assets/fonts/ (new directory):
+  - Bundled `Inter-Variable.woff2` (352KB, weight range 300-700) from rsms/inter v4.1.
+  - Bundled `JetBrainsMono-Variable.woff2` (40KB, weight range 400-700) from @fontsource-variable/jetbrains-mono.
+- src/styles/tokens.css:
+  - Added `@font-face` declarations for "Inter Variable" and "JetBrains Mono Variable" pointing to bundled WOFF2 files.
+  - Updated `--font-ui` stack: `"Inter Variable", Inter, ...system fallbacks`.
+  - Updated `--font-editor` stack: `"JetBrains Mono Variable", "JetBrains Mono", ...monospace fallbacks`.
+  - Changed `--font-ui-size` from 13px → 14px.
+  - Changed `--font-editor-size` from 13px → 12px.
+  - Inter gets `font-feature-settings: "ss01", "ss02", "cv01"` in its @font-face.
+- src/features/settings/preferences.ts:
+  - Updated DEFAULT_UI_PREFERENCES ui.fontFamily to include Inter.
+  - Updated DEFAULT_UI_PREFERENCES editor.fontFamily to include JetBrains Mono.
+  - Changed default ui.fontSize from 13 → 14.
+  - Changed default editor.fontSize from 13 → 12.
+- index.html:
+  - Updated bootstrap defaults: fontFamily stacks to include Inter/JetBrains Mono.
+  - Changed bootstrap fontSize defaults from 13 → 14 (UI) and 13 → 12 (editor).
+- src/features/settings/AppearanceSettings.tsx:
+  - Added "Inter" as the first UI font preset.
+  - Added "JetBrains Mono" as the first editor font preset.
+- src/features/query-editor/tairikiTheme.ts:
+  - Added `fontVariantLigatures: "common-ligatures"` and `fontFeatureSettings: '"liga", "calt"'` to `.cm-editor` block for JetBrains Mono ligature support.
+- Previously, the app used macOS system fonts (SF Pro, SF Mono) at 13px for both UI and editor, with no bundled fonts and no ligature support in the editor. The new stack defaults to Inter 14px (UI) and JetBrains Mono 12px (editor) with proper ligatures and graceful fallback to system fonts when the variable WOFF2 files are unavailable.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 28 — Table Tab Smart Truncation [DONE]
 - Implemented the PRD tab requirement: "Table tabs show schema-qualified names with truncation that preserves the table name."
 - src/lib/utils.ts:
@@ -774,3 +802,40 @@
 - CommandPalette: "New Connection" + "Connect to {name}" commands
 - SidebarSection: added optional action prop for "+" button
 - Sidebar: loads profiles on mount, wires ConnectionList + ConnectionForm
+
+## Phase 30 — Color Palette Refresh [DONE]
+- Implemented PRD User Stories 7-14, 19-20: refreshed all color tokens for warmth, vibrancy, and distinction across light and dark themes.
+- src/styles/tokens.css — Light theme changes:
+  - `--ds-label`: deep navy #001070 → warm near-black #1b1b1f (less cold, easier to read)
+  - `--ds-accent`: corporate #0070c1 → vivid #2563eb (Tailwind blue-600)
+  - `--ds-accent-hover`: #005a9e → #1d4ed8 (Tailwind blue-700)
+  - `--ds-accent-subtle`: #dceeff → #dbeafe (Tailwind blue-100)
+  - `--ds-sidebar-bg`: bluish #f0f0f8 → warm gray #f5f5f7 (distinct from content bg)
+  - `--ds-bg-subtle`: #e8e8e0 → warm #f0efed
+  - `--ds-bg-active`: #d8d8d0 → warm #e4e2df
+  - `--ds-separator`/`--ds-border-strong`/`--ds-control-bg`: shifted to warm-gray values
+  - `--ds-success`: muted #008000 → rich #16a34a (Tailwind green-600)
+  - `--ds-destructive`: #a31515 → #dc2626 (Tailwind red-600)
+  - `--ds-warning`: #7c5c20 → #d97706 (Tailwind amber-600)
+  - Syntax colors shifted to Tailwind equivalents: keyword purple #7c3aed, type amber #b45309, string green #15803d, number cyan #0891b2 (distinct from accent), enum orange #ea580c, comment warm gray #78716c
+  - `--ds-syntax-number` changed to cyan to differentiate from accent blue
+- src/styles/tokens.css — Dark theme changes:
+  - `--ds-content-bg`: cold #151515 → warm macOS #1c1c1e
+  - `--ds-sidebar-bg`: #111111 → #161618 (slightly deeper than content)
+  - `--ds-bg-subtle`: #191b1d → #252527
+  - `--ds-bg-active`: #282828 → #323234
+  - `--ds-accent`: muted #81a2be → vivid #60a5fa (Tailwind blue-400)
+  - `--ds-accent-hover`: #99b8d0 → #93c5fd (Tailwind blue-300)
+  - `--ds-accent-subtle`: #1e2a35 → #1e3a5f
+  - `--ds-success`: #b5bd68 → #4ade80 (Tailwind green-400)
+  - `--ds-warning`: #f0c674 → #fbbf24 (Tailwind amber-400)
+  - `--ds-destructive`: #cc6666 → #f87171 (Tailwind red-400)
+  - Syntax colors increased saturation across the board: keyword #c084fc, type #fbbf24, string #4ade80, number #22d3ee, enum #fb923c, special #f87171, operator #a78bfa, comment warm gray #78716c
+  - Label text brightened to #e5e7eb for better contrast on warm bg
+- src/styles/tokens.css — Data value accents:
+  - `--data-date`: changed from `--ds-label` to `--ds-syntax-type` (amber) for distinct date color
+  - `--data-number`: changed from `--ds-label` to `--ds-syntax-number` (cyan) for distinct number color
+- src/styles/index.css:
+  - Added missing Tailwind @theme inline mappings: `--color-data-empty`, `--color-data-boolean-false`, `--color-data-date`, `--color-data-number`, `--color-data-text`, `--color-data-sorted`
+- Previously, the light theme used a cold navy-blue palette with the corporate #0070c1 accent, and the dark theme used a cold near-black bg with muted syntax colors. The refreshed palette uses warm grays, Tailwind-v6-inspired accent/semantic colors, and saturated syntax colors that work in both themes. Color changes flow through the existing ds-* → craft token → Tailwind mapping so no component code changes were needed.
+- Checks passed: npm run type-check, npm run lint.

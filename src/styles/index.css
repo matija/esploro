@@ -47,10 +47,16 @@
   --color-query-duration:   var(--query-duration);
   /* Data value colors */
   --color-data-null:        var(--data-null);
+  --color-data-empty:       var(--data-empty);
   --color-data-boolean-true: var(--data-boolean-true);
+  --color-data-boolean-false: var(--data-boolean-false);
   --color-data-json:        var(--data-json);
+  --color-data-date:        var(--data-date);
+  --color-data-number:      var(--data-number);
+  --color-data-text:        var(--data-text);
   --color-data-modified:    var(--data-modified);
   --color-data-filtered:    var(--data-filtered);
+  --color-data-sorted:      var(--data-sorted);
   /* Text on colored fills */
   --color-inverse:          var(--ds-text-inverse);
   --font-mono: var(--font-editor);

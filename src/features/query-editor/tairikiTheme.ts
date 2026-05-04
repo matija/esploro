@@ -10,6 +10,8 @@ const tairikiEditorTheme = EditorView.theme({
     lineHeight: "var(--font-editor-line-height)",
     color: "var(--text-primary)",
     backgroundColor: "var(--surface-base)",
+    fontVariantLigatures: "common-ligatures",
+    fontFeatureSettings: '"liga", "calt"',
   },
   ".cm-content": {
     caretColor: "var(--text-primary)",
