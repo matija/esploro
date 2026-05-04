@@ -16,20 +16,20 @@ Refresh the typography and visual language to feel more polished and pleasant â€
 4. [x] As a user, I want the editor font to be JetBrains Mono (with monospace fallbacks), so that code has excellent ligature support and character distinction.
 5. [x] As a user, I want the Inter and JetBrains Mono fonts to be bundled with the app, so that they render consistently regardless of what is installed on my machine.
 6. [x] As a user, I want consistent line-height and letter-spacing across all UI text, so that reading feels comfortable rather than squeezed.
-7. As a user, I want schema object types (tables, views, functions, sequences) to be rendered in visually distinct, saturated colors, so that I can quickly identify object types in the sidebar tree without reading the label.
-8. As a user, I want the sidebar background to feel slightly warmer or more distinct from the main content area, so that the spatial hierarchy is clear at a glance.
-9. As a user, I want accent colors to feel more vivid and alive in both light and dark mode, so that interactive elements stand out.
-10. As a user, I want data type values in the table grid (nulls, booleans, JSON, numbers, dates) to use clearly differentiated colors, so that I can scan rows and understand data shape quickly.
-11. As a user, I want syntax highlighting in the query editor to use a vibrant, balanced palette, so that SQL keywords, strings, types, and comments are easy to distinguish.
-12. As a user, I want the dark theme colors to feel warm and rich rather than cold and muted, so that working at night is comfortable.
-13. As a user, I want the light theme colors to feel fresh and bright rather than navy-heavy, so that daytime use is pleasant.
-14. As a user, I want all color changes to respect the selected theme (system, light, dark), so that switching themes does not produce jarring visual inconsistencies.
+7. [x] As a user, I want schema object types (tables, views, functions, sequences) to be rendered in visually distinct, saturated colors, so that I can quickly identify object types in the sidebar tree without reading the label.
+8. [x] As a user, I want the sidebar background to feel slightly warmer or more distinct from the main content area, so that the spatial hierarchy is clear at a glance.
+9. [x] As a user, I want accent colors to feel more vivid and alive in both light and dark mode, so that interactive elements stand out.
+10. [x] As a user, I want data type values in the table grid (nulls, booleans, JSON, numbers, dates) to use clearly differentiated colors, so that I can scan rows and understand data shape quickly.
+11. [x] As a user, I want syntax highlighting in the query editor to use a vibrant, balanced palette, so that SQL keywords, strings, types, and comments are easy to distinguish.
+12. [x] As a user, I want the dark theme colors to feel warm and rich rather than cold and muted, so that working at night is comfortable.
+13. [x] As a user, I want the light theme colors to feel fresh and bright rather than navy-heavy, so that daytime use is pleasant.
+14. [x] As a user, I want all color changes to respect the selected theme (system, light, dark), so that switching themes does not produce jarring visual inconsistencies.
 15. [x] As a user, I want the appearance settings to reflect the new default font choices, so that the preset labels and preview match what I see in the app.
 16. [x] As a user, I want the font size slider defaults to reflect the new 14px (UI) and 12px (editor) baselines, so that "reset to defaults" restores the refreshed values.
 17. [x] As a user, I want the transition between hover, active, and selected states to feel smooth and intentional, so that the UI responds to my input without feeling sluggish or jarring.
 18. [x] As a user, I want status bar text and tab bar labels to use the refreshed typography, so that the entire shell feels visually unified.
-19. As a user, I want connection status indicators and badge components to use the richer semantic colors, so that connection health is immediately obvious.
-20. As a user, I want toast notifications to use the refreshed color palette for success, warning, and error states, so that feedback messages are visually consistent with the rest of the app.
+19. [x] As a user, I want connection status indicators and badge components to use the richer semantic colors, so that connection health is immediately obvious.
+20. [x] As a user, I want toast notifications to use the refreshed color palette for success, warning, and error states, so that feedback messages are visually consistent with the rest of the app.
 21. [x] As a user, I want the command palette text to use the refreshed font and sizing, so that searching for commands feels polished.
 22. [x] As a user, I want column type badges in the schema inspector to use distinct, readable color coding, so that I can recognize column types (text, int, boolean, timestamp) at a glance.
 

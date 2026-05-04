@@ -17,124 +17,124 @@
 /* ── Tairiki Light (default) ─────────────────────────────────────────────── */
 :root {
   /* Text */
-  --ds-label:            #001070;        /* Tairiki fg — deep navy primary text */
-  --ds-secondary:        #797979;        /* fg_dark2 */
-  --ds-tertiary:         #595959;        /* fg_dark3 — placeholders, disabled */
+  --ds-label:            #1b1b1f;        /* warm near-black — easy on the eyes */
+  --ds-secondary:        #6b7280;        /* gray-500 */
+  --ds-tertiary:         #9ca3af;        /* gray-400 — placeholders, disabled */
   --ds-text-inverse:     #ffffff;        /* text on accent fills */
   /* Backgrounds */
   --ds-content-bg:       #ffffff;        /* main content area */
-  --ds-sidebar-bg:       #f0f0f8;        /* sidebar, left panel */
-  --ds-bg-subtle:        #e8e8e0;        /* alternating rows, hover states */
-  --ds-bg-active:        #d8d8d0;        /* selected item */
+  --ds-sidebar-bg:       #f5f5f7;        /* warm light gray — distinct from content */
+  --ds-bg-subtle:        #f0efed;        /* warm gray — hover states */
+  --ds-bg-active:        #e4e2df;        /* warm gray — selected item */
   /* Borders */
-  --ds-separator:        #d0d0c8;        /* dividers */
-  --ds-border-strong:    #b0b0a8;        /* input focus ring */
+  --ds-separator:        #d4d2ce;        /* dividers */
+  --ds-border-strong:    #bab8b4;        /* input focus ring */
   /* Controls */
-  --ds-control-bg:       #ebebea;        /* inputs, badges, small surfaces */
+  --ds-control-bg:       #f3f1ef;        /* inputs, badges, small surfaces */
   /* Accent */
-  --ds-accent:           #0070c1;        /* Tairiki blue */
-  --ds-accent-hover:     #005a9e;
-  --ds-accent-subtle:    #dceeff;        /* accent tint for chips, badges */
+  --ds-accent:           #2563eb;        /* blue-600 — vivid but not harsh */
+  --ds-accent-hover:     #1d4ed8;        /* blue-700 */
+  --ds-accent-subtle:    #dbeafe;        /* blue-100 — accent tint for chips, badges */
   /* Semantic */
-  --ds-success:          #008000;        /* connected indicator */
-  --ds-warning:          #7c5c20;        /* commercial banner */
-  --ds-destructive:      #a31515;        /* errors, delete */
+  --ds-success:          #16a34a;        /* green-600 */
+  --ds-warning:          #d97706;        /* amber-600 */
+  --ds-destructive:      #dc2626;        /* red-600 */
   /* Syntax — used for tree icons, type badges, column type coloring */
-  --ds-syntax-keyword:   #7929c8;        /* purple — SQL keywords */
-  --ds-syntax-type:      #7c5c20;        /* amber — type names, timestamps */
-  --ds-syntax-string:    #008000;        /* green — strings, text columns */
-  --ds-syntax-number:    #0070c1;        /* blue — numeric columns */
-  --ds-syntax-enum:      #df5926;        /* orange — enum / custom types */
-  --ds-syntax-special:   #a31515;        /* red — booleans, special values */
-  --ds-syntax-operator:  #693988;        /* light_purple — operators, modifiers */
-  --ds-syntax-comment:   #cd0009;        /* comment red — italic comments */
+  --ds-syntax-keyword:   #7c3aed;        /* violet-600 — SQL keywords */
+  --ds-syntax-type:      #b45309;        /* amber-700 — type names, timestamps */
+  --ds-syntax-string:    #15803d;        /* green-700 — strings, text columns */
+  --ds-syntax-number:    #0891b2;        /* cyan-600 — numeric columns (distinct from accent) */
+  --ds-syntax-enum:      #ea580c;        /* orange-600 — enum / custom types */
+  --ds-syntax-special:   #dc2626;        /* red-600 — booleans, special values */
+  --ds-syntax-operator:  #8b5cf6;        /* violet-500 — operators, modifiers */
+  --ds-syntax-comment:   #78716c;        /* warm gray-500 — italic comments */
 }
 
 /* ── Tairiki Dark ─────────────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ds-label:            #c5c8c6;
-    --ds-secondary:        #969896;
-    --ds-tertiary:         #696969;
-    --ds-text-inverse:     #111111;
-    --ds-content-bg:       #151515;
-    --ds-sidebar-bg:       #111111;
-    --ds-bg-subtle:        #191b1d;
-    --ds-bg-active:        #282828;
-    --ds-separator:        #222222;
-    --ds-border-strong:    #3b3f4c;
+    --ds-label:            #e5e7eb;        /* gray-200 — warm white text */
+    --ds-secondary:        #9ca3af;        /* gray-400 */
+    --ds-tertiary:         #6b7280;        /* gray-500 — placeholders, disabled */
+    --ds-text-inverse:     #111827;
+    --ds-content-bg:       #1c1c1e;        /* macOS dark surface — warm, not cold */
+    --ds-sidebar-bg:       #161618;        /* slightly deeper than content bg */
+    --ds-bg-subtle:        #252527;        /* warm dark — hover states */
+    --ds-bg-active:        #323234;        /* warm dark — selected item */
+    --ds-separator:        #38383a;        /* dividers */
+    --ds-border-strong:    #4a4a4c;        /* input focus ring */
     --ds-control-bg:       rgba(255, 255, 255, 0.06);
-    --ds-accent:           #81a2be;
-    --ds-accent-hover:     #99b8d0;
-    --ds-accent-subtle:    #1e2a35;
-    --ds-success:          #b5bd68;
-    --ds-warning:          #f0c674;
-    --ds-destructive:      #cc6666;
-    --ds-syntax-keyword:   #b294bb;
-    --ds-syntax-type:      #f0c674;
-    --ds-syntax-string:    #b5bd68;
-    --ds-syntax-number:    #81a2be;
-    --ds-syntax-enum:      #de935f;
-    --ds-syntax-special:   #cc6666;
-    --ds-syntax-operator:  #c397d8;
-    --ds-syntax-comment:   #a89984;
+    --ds-accent:           #60a5fa;        /* blue-400 — vivid but not harsh */
+    --ds-accent-hover:     #93c5fd;        /* blue-300 */
+    --ds-accent-subtle:    #1e3a5f;        /* deep blue tint */
+    --ds-success:          #4ade80;        /* green-400 */
+    --ds-warning:          #fbbf24;        /* amber-400 */
+    --ds-destructive:      #f87171;        /* red-400 */
+    --ds-syntax-keyword:   #c084fc;        /* purple-400 — SQL keywords */
+    --ds-syntax-type:      #fbbf24;        /* amber-400 — type names, timestamps */
+    --ds-syntax-string:    #4ade80;        /* green-400 — strings, text columns */
+    --ds-syntax-number:    #22d3ee;        /* cyan-400 — numeric columns */
+    --ds-syntax-enum:      #fb923c;        /* orange-400 — enum / custom types */
+    --ds-syntax-special:   #f87171;        /* red-400 — booleans, special values */
+    --ds-syntax-operator:  #a78bfa;        /* violet-400 — operators, modifiers */
+    --ds-syntax-comment:   #78716c;        /* warm gray — italic comments */
   }
 }
 
 :root[data-theme="dark"] {
-  --ds-label:            #c5c8c6;
-  --ds-secondary:        #969896;
-  --ds-tertiary:         #696969;
-  --ds-text-inverse:     #111111;
-  --ds-content-bg:       #151515;
-  --ds-sidebar-bg:       #111111;
-  --ds-bg-subtle:        #191b1d;
-  --ds-bg-active:        #282828;
-  --ds-separator:        #222222;
-  --ds-border-strong:    #3b3f4c;
+  --ds-label:            #e5e7eb;
+  --ds-secondary:        #9ca3af;
+  --ds-tertiary:         #6b7280;
+  --ds-text-inverse:     #111827;
+  --ds-content-bg:       #1c1c1e;
+  --ds-sidebar-bg:       #161618;
+  --ds-bg-subtle:        #252527;
+  --ds-bg-active:        #323234;
+  --ds-separator:        #38383a;
+  --ds-border-strong:    #4a4a4c;
   --ds-control-bg:       rgba(255, 255, 255, 0.06);
-  --ds-accent:           #81a2be;
-  --ds-accent-hover:     #99b8d0;
-  --ds-accent-subtle:    #1e2a35;
-  --ds-success:          #b5bd68;
-  --ds-warning:          #f0c674;
-  --ds-destructive:      #cc6666;
-  --ds-syntax-keyword:   #b294bb;
-  --ds-syntax-type:      #f0c674;
-  --ds-syntax-string:    #b5bd68;
-  --ds-syntax-number:    #81a2be;
-  --ds-syntax-enum:      #de935f;
-  --ds-syntax-special:   #cc6666;
-  --ds-syntax-operator:  #c397d8;
-  --ds-syntax-comment:   #a89984;
+  --ds-accent:           #60a5fa;
+  --ds-accent-hover:     #93c5fd;
+  --ds-accent-subtle:    #1e3a5f;
+  --ds-success:          #4ade80;
+  --ds-warning:          #fbbf24;
+  --ds-destructive:      #f87171;
+  --ds-syntax-keyword:   #c084fc;
+  --ds-syntax-type:      #fbbf24;
+  --ds-syntax-string:    #4ade80;
+  --ds-syntax-number:    #22d3ee;
+  --ds-syntax-enum:      #fb923c;
+  --ds-syntax-special:   #f87171;
+  --ds-syntax-operator:  #a78bfa;
+  --ds-syntax-comment:   #78716c;
 }
 
 :root[data-theme="light"] {
-  --ds-label:            #001070;
-  --ds-secondary:        #797979;
-  --ds-tertiary:         #595959;
+  --ds-label:            #1b1b1f;
+  --ds-secondary:        #6b7280;
+  --ds-tertiary:         #9ca3af;
   --ds-text-inverse:     #ffffff;
   --ds-content-bg:       #ffffff;
-  --ds-sidebar-bg:       #f0f0f8;
-  --ds-bg-subtle:        #e8e8e0;
-  --ds-bg-active:        #d8d8d0;
-  --ds-separator:        #d0d0c8;
-  --ds-border-strong:    #b0b0a8;
-  --ds-control-bg:       #ebebea;
-  --ds-accent:           #0070c1;
-  --ds-accent-hover:     #005a9e;
-  --ds-accent-subtle:    #dceeff;
-  --ds-success:          #008000;
-  --ds-warning:          #7c5c20;
-  --ds-destructive:      #a31515;
-  --ds-syntax-keyword:   #7929c8;
-  --ds-syntax-type:      #7c5c20;
-  --ds-syntax-string:    #008000;
-  --ds-syntax-number:    #0070c1;
-  --ds-syntax-enum:      #df5926;
-  --ds-syntax-special:   #a31515;
-  --ds-syntax-operator:  #693988;
-  --ds-syntax-comment:   #cd0009;
+  --ds-sidebar-bg:       #f5f5f7;
+  --ds-bg-subtle:        #f0efed;
+  --ds-bg-active:        #e4e2df;
+  --ds-separator:        #d4d2ce;
+  --ds-border-strong:    #bab8b4;
+  --ds-control-bg:       #f3f1ef;
+  --ds-accent:           #2563eb;
+  --ds-accent-hover:     #1d4ed8;
+  --ds-accent-subtle:    #dbeafe;
+  --ds-success:          #16a34a;
+  --ds-warning:          #d97706;
+  --ds-destructive:      #dc2626;
+  --ds-syntax-keyword:   #7c3aed;
+  --ds-syntax-type:      #b45309;
+  --ds-syntax-string:    #15803d;
+  --ds-syntax-number:    #0891b2;
+  --ds-syntax-enum:      #ea580c;
+  --ds-syntax-special:   #dc2626;
+  --ds-syntax-operator:  #8b5cf6;
+  --ds-syntax-comment:   #78716c;
 }
 
 /* ── Craft token contract ────────────────────────────────────────────────── */
@@ -191,8 +191,8 @@
   --data-boolean-true:      var(--ds-success);
   --data-boolean-false:     var(--ds-secondary);
   --data-json:              var(--ds-syntax-number);
-  --data-date:              var(--ds-label);
-  --data-number:            var(--ds-label);
+  --data-date:              var(--ds-syntax-type);
+  --data-number:            var(--ds-syntax-number);
   --data-text:              var(--ds-label);
   --data-modified:          var(--ds-warning);
   --data-filtered:          var(--ds-accent);
