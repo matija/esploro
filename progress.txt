@@ -1,3 +1,31 @@
+## Phase 29 — Typography Foundations: Font Stack, Sizes & Ligatures [DONE]
+- Implemented PRD User Stories 1-6, 15-18, 21: Inter + JetBrains Mono as bundled variable fonts, 14px UI / 12px editor defaults, CodeMirror ligatures, updated font presets.
+- src/assets/fonts/ (new directory):
+  - Bundled `Inter-Variable.woff2` (352KB, weight range 300-700) from rsms/inter v4.1.
+  - Bundled `JetBrainsMono-Variable.woff2` (40KB, weight range 400-700) from @fontsource-variable/jetbrains-mono.
+- src/styles/tokens.css:
+  - Added `@font-face` declarations for "Inter Variable" and "JetBrains Mono Variable" pointing to bundled WOFF2 files.
+  - Updated `--font-ui` stack: `"Inter Variable", Inter, ...system fallbacks`.
+  - Updated `--font-editor` stack: `"JetBrains Mono Variable", "JetBrains Mono", ...monospace fallbacks`.
+  - Changed `--font-ui-size` from 13px → 14px.
+  - Changed `--font-editor-size` from 13px → 12px.
+  - Inter gets `font-feature-settings: "ss01", "ss02", "cv01"` in its @font-face.
+- src/features/settings/preferences.ts:
+  - Updated DEFAULT_UI_PREFERENCES ui.fontFamily to include Inter.
+  - Updated DEFAULT_UI_PREFERENCES editor.fontFamily to include JetBrains Mono.
+  - Changed default ui.fontSize from 13 → 14.
+  - Changed default editor.fontSize from 13 → 12.
+- index.html:
+  - Updated bootstrap defaults: fontFamily stacks to include Inter/JetBrains Mono.
+  - Changed bootstrap fontSize defaults from 13 → 14 (UI) and 13 → 12 (editor).
+- src/features/settings/AppearanceSettings.tsx:
+  - Added "Inter" as the first UI font preset.
+  - Added "JetBrains Mono" as the first editor font preset.
+- src/features/query-editor/tairikiTheme.ts:
+  - Added `fontVariantLigatures: "common-ligatures"` and `fontFeatureSettings: '"liga", "calt"'` to `.cm-editor` block for JetBrains Mono ligature support.
+- Previously, the app used macOS system fonts (SF Pro, SF Mono) at 13px for both UI and editor, with no bundled fonts and no ligature support in the editor. The new stack defaults to Inter 14px (UI) and JetBrains Mono 12px (editor) with proper ligatures and graceful fallback to system fonts when the variable WOFF2 files are unavailable.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 28 — Table Tab Smart Truncation [DONE]
 - Implemented the PRD tab requirement: "Table tabs show schema-qualified names with truncation that preserves the table name."
 - src/lib/utils.ts:

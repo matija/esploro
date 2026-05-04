@@ -46,13 +46,13 @@ export const defaultUiPreferences: UiPreferences = {
   ui: {
     theme: "tairiki-light",
     fontFamily:
-      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
-    fontSize: 13,
+      '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
+    fontSize: 14,
   },
   editor: {
     fontFamily:
-      'ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
-    fontSize: 13,
+      '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
+    fontSize: 12,
     lineHeight: 1.5,
     tabSize: 2,
     wordWrap: false,

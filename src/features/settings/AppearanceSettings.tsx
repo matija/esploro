@@ -43,6 +43,12 @@ const THEME_OPTIONS: ThemeOption[] = [
 
 const FONT_PRESETS: FontPreset[] = [
   {
+    label: "Inter",
+    value:
+      '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
+    target: "ui",
+  },
+  {
     label: "System UI",
     value:
       '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
@@ -57,6 +63,12 @@ const FONT_PRESETS: FontPreset[] = [
     label: "Helvetica Neue",
     value: '"Helvetica Neue", Helvetica, Arial, sans-serif',
     target: "ui",
+  },
+  {
+    label: "JetBrains Mono",
+    value:
+      '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
+    target: "editor",
   },
   {
     label: "SF Mono",

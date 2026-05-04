@@ -10,12 +10,12 @@ Refresh the typography and visual language to feel more polished and pleasant �
 
 ## User Stories
 
-1. As a user, I want the interface text to render at 14px by default, so that it is easier to read without having to manually increase the font size in settings.
-2. As a user, I want the editor text to render at 12px by default, so that code is legible without feeling oversized.
-3. As a user, I want the UI font to be Inter (with system-ui fallback), so that the interface matches the typographic quality of modern macOS apps like Yaak.
-4. As a user, I want the editor font to be JetBrains Mono (with monospace fallbacks), so that code has excellent ligature support and character distinction.
-5. As a user, I want the Inter and JetBrains Mono fonts to be bundled with the app, so that they render consistently regardless of what is installed on my machine.
-6. As a user, I want consistent line-height and letter-spacing across all UI text, so that reading feels comfortable rather than squeezed.
+1. [x] As a user, I want the interface text to render at 14px by default, so that it is easier to read without having to manually increase the font size in settings.
+2. [x] As a user, I want the editor text to render at 12px by default, so that code is legible without feeling oversized.
+3. [x] As a user, I want the UI font to be Inter (with system-ui fallback), so that the interface matches the typographic quality of modern macOS apps like Yaak.
+4. [x] As a user, I want the editor font to be JetBrains Mono (with monospace fallbacks), so that code has excellent ligature support and character distinction.
+5. [x] As a user, I want the Inter and JetBrains Mono fonts to be bundled with the app, so that they render consistently regardless of what is installed on my machine.
+6. [x] As a user, I want consistent line-height and letter-spacing across all UI text, so that reading feels comfortable rather than squeezed.
 7. As a user, I want schema object types (tables, views, functions, sequences) to be rendered in visually distinct, saturated colors, so that I can quickly identify object types in the sidebar tree without reading the label.
 8. As a user, I want the sidebar background to feel slightly warmer or more distinct from the main content area, so that the spatial hierarchy is clear at a glance.
 9. As a user, I want accent colors to feel more vivid and alive in both light and dark mode, so that interactive elements stand out.
@@ -24,32 +24,32 @@ Refresh the typography and visual language to feel more polished and pleasant �
 12. As a user, I want the dark theme colors to feel warm and rich rather than cold and muted, so that working at night is comfortable.
 13. As a user, I want the light theme colors to feel fresh and bright rather than navy-heavy, so that daytime use is pleasant.
 14. As a user, I want all color changes to respect the selected theme (system, light, dark), so that switching themes does not produce jarring visual inconsistencies.
-15. As a user, I want the appearance settings to reflect the new default font choices, so that the preset labels and preview match what I see in the app.
-16. As a user, I want the font size slider defaults to reflect the new 14px (UI) and 12px (editor) baselines, so that "reset to defaults" restores the refreshed values.
-17. As a user, I want the transition between hover, active, and selected states to feel smooth and intentional, so that the UI responds to my input without feeling sluggish or jarring.
-18. As a user, I want status bar text and tab bar labels to use the refreshed typography, so that the entire shell feels visually unified.
+15. [x] As a user, I want the appearance settings to reflect the new default font choices, so that the preset labels and preview match what I see in the app.
+16. [x] As a user, I want the font size slider defaults to reflect the new 14px (UI) and 12px (editor) baselines, so that "reset to defaults" restores the refreshed values.
+17. [x] As a user, I want the transition between hover, active, and selected states to feel smooth and intentional, so that the UI responds to my input without feeling sluggish or jarring.
+18. [x] As a user, I want status bar text and tab bar labels to use the refreshed typography, so that the entire shell feels visually unified.
 19. As a user, I want connection status indicators and badge components to use the richer semantic colors, so that connection health is immediately obvious.
 20. As a user, I want toast notifications to use the refreshed color palette for success, warning, and error states, so that feedback messages are visually consistent with the rest of the app.
-21. As a user, I want the command palette text to use the refreshed font and sizing, so that searching for commands feels polished.
-22. As a user, I want column type badges in the schema inspector to use distinct, readable color coding, so that I can recognize column types (text, int, boolean, timestamp) at a glance.
+21. [x] As a user, I want the command palette text to use the refreshed font and sizing, so that searching for commands feels polished.
+22. [x] As a user, I want column type badges in the schema inspector to use distinct, readable color coding, so that I can recognize column types (text, int, boolean, timestamp) at a glance.
 
 ## Implementation Decisions
 
 ### Font Stack
 
-- **UI font:** Inter Variable (variable font, weight range 300–700), falling back to `system-ui`, `-apple-system`, `sans-serif`. This matches Yaak's default interface font.
-- **Editor font:** JetBrains Mono (variable font, weight range 400–700), falling back to `ui-monospace`, `SF Mono`, `Menlo`, `monospace`. This matches Yaak's default editor font.
-- Both fonts should be self-hosted as WOFF2 variable fonts under `src/assets/fonts/` and declared via `@font-face` in `tokens.css` or a dedicated `fonts.css` imported before tokens. This avoids network round-trips in the Tauri webview.
-- `font-feature-settings: "ss01", "ss02", "cv01"` should be applied to Inter for better numeral and punctuation rendering.
-- `font-feature-settings: "liga", "calt"` should be applied to JetBrains Mono to enable ligatures in the editor.
+- [x] **UI font:** Inter Variable (variable font, weight range 300–700), falling back to `system-ui`, `-apple-system`, `sans-serif`. This matches Yaak's default interface font.
+- [x] **Editor font:** JetBrains Mono (variable font, weight range 400–700), falling back to `ui-monospace`, `SF Mono`, `Menlo`, `monospace`. This matches Yaak's default editor font.
+- [x] Both fonts should be self-hosted as WOFF2 variable fonts under `src/assets/fonts/` and declared via `@font-face` in `tokens.css` or a dedicated `fonts.css` imported before tokens. This avoids network round-trips in the Tauri webview.
+- [x] `font-feature-settings: "ss01", "ss02", "cv01"` should be applied to Inter for better numeral and punctuation rendering.
+- [x] `font-feature-settings: "liga", "calt"` should be applied to JetBrains Mono to enable ligatures in the editor.
 
 ### Default Font Sizes
 
-- `--font-ui-size` default changes from `13px` → `14px`
-- `--font-editor-size` default changes from `13px` → `12px`
-- Defaults in `preferences.ts` (`DEFAULT_UI_PREFERENCES`) updated to match.
-- Bootstrap script in `index.html` continues to apply localStorage values before React hydrates — no change needed there.
-- Appearance settings slider ranges remain unchanged (11–16px for UI, 11–18px for editor); only the default values shift.
+- [x] `--font-ui-size` default changes from `13px` → `14px`
+- [x] `--font-editor-size` default changes from `13px` → `12px`
+- [x] Defaults in `preferences.ts` (`DEFAULT_UI_PREFERENCES`) updated to match.
+- [x] Bootstrap script in `index.html` continues to apply localStorage values before React hydrates — defaults updated to 14/12.
+- [x] Appearance settings slider ranges remain unchanged (11–16px for UI, 11–18px for editor); only the default values shift.
 
 ### Color Palette Refresh (tokens.css)
 
@@ -83,18 +83,18 @@ Refresh the typography and visual language to feel more polished and pleasant �
 
 ### Appearance Settings
 
-- Add Inter and JetBrains Mono as the first (default) option in the UI and editor font pickers respectively.
-- Update preview panel to render at the new default sizes.
-- "Reset to defaults" restores `fontSize: 14` for UI and `editorFontSize: 12`.
+- [x] Add Inter and JetBrains Mono as the first (default) option in the UI and editor font pickers respectively.
+- [x] Update preview panel to render at the new default sizes.
+- [x] "Reset to defaults" restores `fontSize: 14` for UI and `editorFontSize: 12`.
 
 ### CodeMirror Theme (tairikiTheme.ts)
 
-- No structural changes — the theme already uses CSS variables. Changes flow through via updated `--editor-syntax-*` token values in `tokens.css`.
-- Enable JetBrains Mono ligatures via `font-variant-ligatures: common-ligatures` and `font-feature-settings: "liga", "calt"` on the `.cm-editor` element in the CodeMirror theme stylesheet.
+- [x] No structural changes — the theme already uses CSS variables. Changes flow through via updated `--editor-syntax-*` token values in `tokens.css`.
+- [x] Enable JetBrains Mono ligatures via `font-variant-ligatures: common-ligatures` and `font-feature-settings: "liga", "calt"` on the `.cm-editor` element in the CodeMirror theme stylesheet.
 
 ### Tailwind Theme (index.css)
 
-- No changes needed. The `@theme inline` block maps CSS variables to utility classes — updating token values in `tokens.css` automatically updates generated utilities.
+- [x] No changes needed. The `@theme inline` block maps CSS variables to utility classes — updating token values in `tokens.css` automatically updates generated utilities.
 
 ## Testing Decisions
 
@@ -102,7 +102,7 @@ Refresh the typography and visual language to feel more polished and pleasant �
 Typography and visual changes are best verified by visual inspection, but the behavioral surface (preference persistence, default values, theme switching) can and should be unit tested.
 
 **What to test:**
-- `preferences.ts`: verify that `DEFAULT_UI_PREFERENCES` exports `fontSize: 14` and `editorFontSize: 12`, and that the validation schema accepts and clamps these correctly.
+- [x] `preferences.ts`: verify that `DEFAULT_UI_PREFERENCES` exports `fontSize: 14` and `editorFontSize: 12`, and that the validation schema accepts and clamps these correctly.
 - Font loading: verify that the `@font-face` declarations reference files that exist at the expected paths in the build output.
 - Theme switching: existing theme-application logic should continue to work; no new behavior is introduced.
 
