@@ -90,9 +90,9 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 The state machine around validation-and-grace is the valuable surface. The HTTP wire format is Dodo's responsibility; mocking it would just re-verify our mock.
 
 **What to test:**
-- [ ] State-machine transitions in `compute_status()`: just-pasted+`valid:true` → `Commercial`; cached+recently validated → `Commercial`; cached+last_validated >14 days ago + offline → `Unlicensed` with re-validation banner; cached + Dodo returns `valid:false` → `Unlicensed` with normal banner.
-- [ ] Error-code → message mapping for `200 valid:false`, `422`, `5xx`, network failure.
-- [ ] URL construction for the plan picker: given a plan, the right `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` is opened.
+- [x] State-machine transitions in `compute_status()`: just-pasted+`valid:true` → `Commercial`; cached+recently validated → `Commercial`; cached+last_validated >14 days ago + offline → `Unlicensed` with re-validation banner; cached + Dodo returns `valid:false` → `Unlicensed` with normal banner.
+- [x] Error-code → message mapping for `200 valid:false`, `422`, `5xx`, network failure.
+- [x] URL construction for the plan picker: given a plan, the right `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` is opened.
 - [ ] Smoke test against Dodo's test environment with a real test key, run manually before each release. Document the flow in `README.md`.
 
 **What not to test:**

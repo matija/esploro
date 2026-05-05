@@ -1,3 +1,19 @@
+## Phase 34 — License State-Machine Tests [DONE]
+- Implemented PRD Testing Decisions: state-machine transitions, error-code message mapping, and checkout URL construction tests.
+- src-tauri/src/commands/license.rs:
+  - Extracted `compute_status_pure(stored, prefs, banner_dismissed, now)` — pure function that takes all inputs as parameters (no AppHandle, no I/O). `compute_status` now delegates to it with `Utc::now()`.
+  - Extracted `checkout_url_for_plan(plan)` — returns the `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` URL without spawning a process. `open_checkout_url` delegates to it.
+  - Extracted `dodo_error_message(error)` and `dodo_invalid_key_message()` — error string helpers. `activate_license` delegates to them.
+  - Added `#[cfg(test)]` module with 11 unit tests:
+    - `freshly_validated_key_is_commercial` — key validated 1h ago → Commercial
+    - `key_validated_13_days_ago_is_still_commercial` — within 14-day window → Commercial
+    - `key_validated_over_14_days_ago_requires_revalidation` — stale key → Unlicensed + revalidation_required
+    - `no_stored_license_after_valid_false_shows_banner_when_grace_expired` — Dodo returns valid:false, license cleared, grace elapsed → Unlicensed + banner_visible
+    - `no_stored_license_no_commercial_detection_is_unlicensed_no_banner` — clean state
+    - `invalid_format_error_message`, `network_error_message`, `valid_false_message` — error string correctness
+    - `lifetime_url_contains_correct_product_id`, `annual_url_contains_correct_product_id`, `unknown_plan_returns_error` — URL construction
+- Checks passed: cargo test (11/11), cargo clippy --workspace --all-targets -- -D warnings, npm run type-check, npm run lint.
+
 ## Phase 33 — Background License Re-validation [DONE]
 - Moved license re-validation off the hot path of `get_license_status` and onto a background tokio task.
 - src-tauri/src/commands/license.rs:

@@ -466,14 +466,16 @@ async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoError> {
 // Status computation
 // ---------------------------------------------------------------------------
 
-/// Returns status from cached state only — no network calls.
-fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
-    let prefs = load_prefs(app);
-
-    // Check keychain for a stored license
-    if let Some(stored) = read_stored_license() {
+/// Pure status computation — no I/O; accepts all inputs as parameters.
+fn compute_status_pure(
+    stored: Option<&StoredLicense>,
+    prefs: &UserPrefs,
+    banner_dismissed: bool,
+    now: chrono::DateTime<Utc>,
+) -> LicenseStatus {
+    if let Some(stored) = stored {
         if let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
-            let age = Utc::now() - validated_at.with_timezone(&Utc);
+            let age = now - validated_at.with_timezone(&Utc);
             if age < chrono::Duration::days(14) {
                 return LicenseStatus {
                     tier: LicenseTier::Commercial,
@@ -483,7 +485,7 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
                     revalidation_required: false,
                 };
             }
-            // Key exists but offline too long — revert to Unlicensed with banner
+            // Key exists but offline too long — revert to Unlicensed
             return LicenseStatus {
                 tier: LicenseTier::Unlicensed,
                 banner_visible: false,
@@ -499,7 +501,7 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
         if let Ok(detected) = chrono::DateTime::parse_from_rfc3339(detected_str) {
             let grace_end = detected.with_timezone(&Utc) + chrono::Duration::days(14);
             let grace_period_ends = Some(grace_end.to_rfc3339());
-            let banner_visible = Utc::now() > grace_end && !banner_dismissed;
+            let banner_visible = now > grace_end && !banner_dismissed;
             return LicenseStatus {
                 tier: LicenseTier::Unlicensed,
                 banner_visible,
@@ -513,8 +515,8 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
     // Personal or unknown — check if we should show the usage dialog
     let first_launch = chrono::DateTime::parse_from_rfc3339(&prefs.first_launch)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
-    let days_since_launch = (Utc::now() - first_launch).num_days();
+        .unwrap_or(now);
+    let days_since_launch = (now - first_launch).num_days();
     let show_usage_dialog = !prefs.usage_type_answered && days_since_launch >= 3;
 
     let tier = if prefs.usage_type.as_deref() == Some("personal") {
@@ -530,6 +532,45 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
         show_usage_dialog,
         revalidation_required: false,
     }
+}
+
+/// Returns status from cached state only — no network calls.
+fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
+    let prefs = load_prefs(app);
+    let stored = read_stored_license();
+    compute_status_pure(stored.as_ref(), &prefs, banner_dismissed, Utc::now())
+}
+
+// ---------------------------------------------------------------------------
+// Checkout URL helpers
+// ---------------------------------------------------------------------------
+
+fn checkout_url_for_plan(plan: &str) -> Result<String, String> {
+    let product_id = match plan {
+        "lifetime" => LIFETIME_PRODUCT_ID,
+        "annual" => ANNUAL_PRODUCT_ID,
+        other => return Err(format!("Unknown plan: {other}")),
+    };
+    Ok(format!("{CHECKOUT_BASE}/{product_id}?quantity=1"))
+}
+
+// ---------------------------------------------------------------------------
+// Error message helpers
+// ---------------------------------------------------------------------------
+
+fn dodo_error_message(error: &DodoError) -> String {
+    match error {
+        DodoError::InvalidFormat => {
+            "Invalid license key format — check for typos".to_string()
+        }
+        DodoError::NetworkOrServer => {
+            "Could not reach the license server — check your connection and try again".to_string()
+        }
+    }
+}
+
+fn dodo_invalid_key_message() -> &'static str {
+    "License key is not valid or has expired — check your subscription in the customer portal"
 }
 
 // ---------------------------------------------------------------------------
@@ -608,16 +649,8 @@ pub async fn activate_license(
             let dismissed = *state.banner_dismissed.lock().await;
             Ok(compute_status(&app, dismissed))
         }
-        Ok(false) => Err(
-            "License key is not valid or has expired — check your subscription in the customer portal"
-                .to_string(),
-        ),
-        Err(DodoError::InvalidFormat) => {
-            Err("Invalid license key format — check for typos".to_string())
-        }
-        Err(DodoError::NetworkOrServer) => Err(
-            "Could not reach the license server — check your connection and try again".to_string(),
-        ),
+        Ok(false) => Err(dodo_invalid_key_message().to_string()),
+        Err(ref e) => Err(dodo_error_message(e)),
     }
 }
 
@@ -671,12 +704,7 @@ pub async fn notify_connection_count(
 
 #[tauri::command]
 pub fn open_checkout_url(plan: String) -> Result<(), String> {
-    let product_id = match plan.as_str() {
-        "lifetime" => LIFETIME_PRODUCT_ID,
-        "annual" => ANNUAL_PRODUCT_ID,
-        _ => return Err(format!("Unknown plan: {plan}")),
-    };
-    let url = format!("{CHECKOUT_BASE}/{product_id}?quantity=1");
+    let url = checkout_url_for_plan(&plan)?;
     std::process::Command::new("open")
         .arg(&url)
         .spawn()
@@ -731,4 +759,137 @@ pub async fn set_ui_preferences(app: AppHandle, preferences: UiPreferences) -> R
     );
 
     write_json_atomic(&prefs_path(&app), &Value::Object(root))
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    fn base_prefs() -> UserPrefs {
+        UserPrefs {
+            usage_type_answered: false,
+            usage_type: None,
+            first_launch: Utc::now().to_rfc3339(),
+            commercial_detected_at: None,
+            ui_theme: None,
+            ui: None,
+            editor: None,
+        }
+    }
+
+    fn stored(validated_at: chrono::DateTime<Utc>) -> StoredLicense {
+        StoredLicense {
+            license_key: "test-key".to_string(),
+            validated_at: validated_at.to_rfc3339(),
+        }
+    }
+
+    // -- State-machine transitions --
+
+    #[test]
+    fn freshly_validated_key_is_commercial() {
+        let now = Utc::now();
+        let s = stored(now - Duration::hours(1));
+        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
+        assert_eq!(status.tier, LicenseTier::Commercial);
+        assert!(!status.banner_visible);
+        assert!(!status.revalidation_required);
+    }
+
+    #[test]
+    fn key_validated_13_days_ago_is_still_commercial() {
+        let now = Utc::now();
+        let s = stored(now - Duration::days(13));
+        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
+        assert_eq!(status.tier, LicenseTier::Commercial);
+        assert!(!status.revalidation_required);
+    }
+
+    #[test]
+    fn key_validated_over_14_days_ago_requires_revalidation() {
+        let now = Utc::now();
+        let s = stored(now - Duration::days(15));
+        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
+        assert!(status.revalidation_required);
+        assert!(!status.banner_visible);
+    }
+
+    #[test]
+    fn no_stored_license_after_valid_false_shows_banner_when_grace_expired() {
+        // Simulates: Dodo returned valid:false → clear_stored_license() called → compute_status
+        // runs next poll with no stored key. Banner shows because commercial was detected earlier.
+        let now = Utc::now();
+        let mut prefs = base_prefs();
+        prefs.commercial_detected_at = Some((now - Duration::days(20)).to_rfc3339());
+        let status = compute_status_pure(None, &prefs, false, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
+        assert!(status.banner_visible);
+        assert!(!status.revalidation_required);
+    }
+
+    #[test]
+    fn no_stored_license_no_commercial_detection_is_unlicensed_no_banner() {
+        let now = Utc::now();
+        let status = compute_status_pure(None, &base_prefs(), false, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
+        assert!(!status.banner_visible);
+        assert!(!status.revalidation_required);
+    }
+
+    // -- Error-code → message mapping --
+
+    #[test]
+    fn invalid_format_error_message() {
+        assert_eq!(
+            dodo_error_message(&DodoError::InvalidFormat),
+            "Invalid license key format — check for typos"
+        );
+    }
+
+    #[test]
+    fn network_error_message() {
+        assert_eq!(
+            dodo_error_message(&DodoError::NetworkOrServer),
+            "Could not reach the license server — check your connection and try again"
+        );
+    }
+
+    #[test]
+    fn valid_false_message() {
+        assert_eq!(
+            dodo_invalid_key_message(),
+            "License key is not valid or has expired — check your subscription in the customer portal"
+        );
+    }
+
+    // -- Checkout URL construction --
+
+    #[test]
+    fn lifetime_url_contains_correct_product_id() {
+        let url = checkout_url_for_plan("lifetime").unwrap();
+        assert_eq!(
+            url,
+            format!("{CHECKOUT_BASE}/{LIFETIME_PRODUCT_ID}?quantity=1")
+        );
+    }
+
+    #[test]
+    fn annual_url_contains_correct_product_id() {
+        let url = checkout_url_for_plan("annual").unwrap();
+        assert_eq!(
+            url,
+            format!("{CHECKOUT_BASE}/{ANNUAL_PRODUCT_ID}?quantity=1")
+        );
+    }
+
+    #[test]
+    fn unknown_plan_returns_error() {
+        assert!(checkout_url_for_plan("enterprise").is_err());
+    }
 }
