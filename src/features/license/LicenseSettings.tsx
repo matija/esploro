@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { licenseApi, LICENSE_STATUS_KEY } from './api';
 import { LicenseActivationSheet } from './LicenseActivationSheet';
-
-const CUSTOMER_PORTAL_URL = 'https://app.dodopayments.com/customer-portal';
+import { PlanPickerDialog } from './PlanPickerDialog';
 
 export function LicenseSettings() {
   const queryClient = useQueryClient();
@@ -13,6 +12,7 @@ export function LicenseSettings() {
     staleTime: 60_000,
   });
   const [activationOpen, setActivationOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
 
   async function handleRemove() {
     const newStatus = await licenseApi.deactivate();
@@ -33,16 +33,12 @@ export function LicenseSettings() {
             <span className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-sm font-medium text-label">Commercial</span>
           </div>
-          <a
-            href={CUSTOMER_PORTAL_URL}
-            onClick={(e) => {
-              e.preventDefault();
-              licenseApi.openLicenseUrl();
-            }}
+          <button
+            onClick={() => licenseApi.openCustomerPortal()}
             className="self-start text-sm text-accent hover:underline"
           >
             Manage subscription / Find my key →
-          </a>
+          </button>
           <div className="flex gap-2 mt-1">
             <button
               onClick={() => setActivationOpen(true)}
@@ -73,7 +69,7 @@ export function LicenseSettings() {
           </p>
           <div className="flex flex-col gap-2 mt-1">
             <button
-              onClick={() => licenseApi.openLicenseUrl()}
+              onClick={() => setPlanPickerOpen(true)}
               className="self-start text-sm text-accent hover:underline"
             >
               Purchase license →
@@ -91,6 +87,10 @@ export function LicenseSettings() {
       <LicenseActivationSheet
         open={activationOpen}
         onClose={() => setActivationOpen(false)}
+      />
+      <PlanPickerDialog
+        open={planPickerOpen}
+        onClose={() => setPlanPickerOpen(false)}
       />
     </section>
   );

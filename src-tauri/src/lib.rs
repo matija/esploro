@@ -55,7 +55,8 @@ pub fn run() {
             commands::license::answer_usage_dialog,
             commands::license::dismiss_license_banner,
             commands::license::notify_connection_count,
-            commands::license::open_license_url,
+            commands::license::open_checkout_url,
+            commands::license::open_customer_portal,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
         ])

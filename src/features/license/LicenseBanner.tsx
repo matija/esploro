@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { licenseApi, LICENSE_STATUS_KEY } from './api';
 import { LicenseActivationSheet } from './LicenseActivationSheet';
+import { PlanPickerDialog } from './PlanPickerDialog';
 
 export function LicenseBanner() {
   const queryClient = useQueryClient();
@@ -12,6 +13,7 @@ export function LicenseBanner() {
     staleTime: 60_000,
   });
   const [activationOpen, setActivationOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
 
   const showBanner = status?.bannerVisible || status?.revalidationRequired;
   if (!showBanner) return null;
@@ -52,7 +54,7 @@ export function LicenseBanner() {
           Esploro is free for personal use. Commercial use requires a license.
         </span>
         <button
-          onClick={() => licenseApi.openLicenseUrl()}
+          onClick={() => setPlanPickerOpen(true)}
           className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
             bg-amber-200 dark:bg-amber-800
             hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
@@ -80,6 +82,10 @@ export function LicenseBanner() {
       <LicenseActivationSheet
         open={activationOpen}
         onClose={() => setActivationOpen(false)}
+      />
+      <PlanPickerDialog
+        open={planPickerOpen}
+        onClose={() => setPlanPickerOpen(false)}
       />
     </>
   );

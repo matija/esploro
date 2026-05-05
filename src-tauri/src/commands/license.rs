@@ -7,7 +7,10 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 
-const LICENSE_URL: &str = "https://esploro.app/buy";
+const LIFETIME_PRODUCT_ID: &str = "pdt_0NeCDJbPgj9avsXtryxJt";
+const ANNUAL_PRODUCT_ID: &str = "pdt_0NeCDnINEsohTubKMTSQ0";
+const CHECKOUT_BASE: &str = "https://checkout.dodopayments.com/buy";
+const CUSTOMER_PORTAL_URL: &str = "https://app.dodopayments.com/customer-portal";
 
 const DODO_BASE: &str = if cfg!(debug_assertions) {
     "https://test.dodopayments.com"
@@ -656,9 +659,24 @@ pub async fn notify_connection_count(
 }
 
 #[tauri::command]
-pub fn open_license_url() -> Result<(), String> {
+pub fn open_checkout_url(plan: String) -> Result<(), String> {
+    let product_id = match plan.as_str() {
+        "lifetime" => LIFETIME_PRODUCT_ID,
+        "annual" => ANNUAL_PRODUCT_ID,
+        _ => return Err(format!("Unknown plan: {plan}")),
+    };
+    let url = format!("{CHECKOUT_BASE}/{product_id}?quantity=1");
     std::process::Command::new("open")
-        .arg(LICENSE_URL)
+        .arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_customer_portal() -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(CUSTOMER_PORTAL_URL)
         .spawn()
         .map(|_| ())
         .map_err(|e| e.to_string())

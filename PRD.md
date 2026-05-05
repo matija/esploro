@@ -19,8 +19,8 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 
 ## User Stories
 
-1. [ ] As a user, when I click "Purchase license", I want to see Esploro Lifetime ($99.99) and Esploro Annual ($39.99/yr) side-by-side, so that I can pick the one that fits how I work.
-2. [ ] As a user, when I pick a plan, I want the macOS system browser to open the matching Dodo checkout page, so that payment happens in a familiar, trusted browser context.
+1. [x] As a user, when I click "Purchase license", I want to see Esploro Lifetime ($99.99) and Esploro Annual ($39.99/yr) side-by-side, so that I can pick the one that fits how I work.
+2. [x] As a user, when I pick a plan, I want the macOS system browser to open the matching Dodo checkout page, so that payment happens in a familiar, trusted browser context.
 3. [ ] As a user, after a successful purchase, I want to receive my license key by email automatically, so that I don't have to copy anything from a thank-you page.
 4. [ ] As a user, I want to paste my emailed key into the existing License Activation sheet and have it validated against Dodo, so that I'm marked as Commercial within a second of pasting.
 5. [ ] As a user, when validation succeeds, I want the License pane to show "Commercial" status, so that I can confirm the app accepted my key.
@@ -40,11 +40,11 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 
 ### Plan picker UI
 
-- [ ] Add a `PlanPickerDialog` component (Radix `Dialog`, styled like `UsageTypeDialog`) with two cards: Esploro Lifetime ($99.99, "pay once, use forever") and Esploro Annual ($39.99/yr, "auto-renews, always up-to-date"). Each card has a "Continue to checkout" button.
-- [ ] Replace the current `licenseApi.openLicenseUrl()` call sites in `LicenseSettings.tsx` and `LicenseBanner.tsx` so "Get a license" / "Purchase license" opens the dialog instead of a placeholder URL.
-- [ ] On button click, call a new Tauri command `open_checkout_url(plan: "lifetime" | "annual")` which opens `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` via `tauri-plugin-shell`'s `open()`.
-- [ ] Replace the `open_license_url` Rust command with `open_checkout_url`. Both product IDs are baked into the binary as `const` strings; no env vars needed since they're not secrets.
-- [ ] Rename "Get a license" to "Purchase license" everywhere for consistency.
+- [x] Add a `PlanPickerDialog` component (Radix `Dialog`, styled like `UsageTypeDialog`) with two cards: Esploro Lifetime ($99.99, "pay once, use forever") and Esploro Annual ($39.99/yr, "auto-renews, always up-to-date"). Each card has a "Continue to checkout" button.
+- [x] Replace the current `licenseApi.openLicenseUrl()` call sites in `LicenseSettings.tsx` and `LicenseBanner.tsx` so "Get a license" / "Purchase license" opens the dialog instead of a placeholder URL.
+- [x] On button click, call a new Tauri command `open_checkout_url(plan: "lifetime" | "annual")` which opens `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` via `std::process::Command::new("open")` (same pattern as the rest of the codebase; tauri-plugin-shell not added).
+- [x] Replace the `open_license_url` Rust command with `open_checkout_url` + `open_customer_portal`. Both product IDs are baked into the binary as `const` strings; no env vars needed since they're not secrets.
+- [x] Rename "Get a license" to "Purchase license" everywhere for consistency.
 
 ### Validation against Dodo
 

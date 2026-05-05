@@ -12,5 +12,7 @@ export const licenseApi = {
   dismissBanner: () => invoke<void>('dismiss_license_banner'),
   notifyConnectionCount: (count: number) =>
     invoke<LicenseStatus>('notify_connection_count', { count }),
-  openLicenseUrl: () => invoke<void>('open_license_url'),
+  openCheckoutUrl: (plan: 'lifetime' | 'annual') =>
+    invoke<void>('open_checkout_url', { plan }),
+  openCustomerPortal: () => invoke<void>('open_customer_portal'),
 };

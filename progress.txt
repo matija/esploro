@@ -1,3 +1,28 @@
+## Phase 32 — Plan Picker Dialog [DONE]
+- Implemented PRD User Stories 1 and 2: users can now click "Purchase license" to see a plan picker dialog, then open the Dodo checkout in the system browser.
+- src-tauri/src/commands/license.rs:
+  - Removed `LICENSE_URL` const (placeholder URL).
+  - Added `LIFETIME_PRODUCT_ID`, `ANNUAL_PRODUCT_ID`, `CHECKOUT_BASE`, `CUSTOMER_PORTAL_URL` consts.
+  - Replaced `open_license_url()` with `open_checkout_url(plan: String)` which maps "lifetime" / "annual" to the correct Dodo product ID and opens `https://checkout.dodopayments.com/buy/<product_id>?quantity=1`.
+  - Added `open_customer_portal()` which opens the Dodo customer portal URL (replaces the broken `open_license_url` call that was used for the "Manage subscription" link).
+- src-tauri/src/lib.rs:
+  - Registered `open_checkout_url` and `open_customer_portal`; removed `open_license_url`.
+- src/features/license/PlanPickerDialog.tsx (new):
+  - Radix Dialog with two plan cards side-by-side: Esploro Lifetime ($99.99 one-time, "pay once, use forever") and Esploro Annual ($39.99/yr, "auto-renews, always up-to-date").
+  - Each card has a "Continue to checkout" button that calls `open_checkout_url` and closes the dialog.
+  - Styled consistently with `UsageTypeDialog` (backdrop blur, centered, design token classes).
+- src/features/license/api.ts:
+  - Replaced `openLicenseUrl` with `openCheckoutUrl(plan)` and `openCustomerPortal()`.
+- src/features/license/LicenseSettings.tsx:
+  - "Purchase license" button now opens `PlanPickerDialog` instead of calling `openLicenseUrl`.
+  - "Manage subscription / Find my key" button now calls `openCustomerPortal()` (was incorrectly calling `openLicenseUrl`).
+- src/features/license/LicenseBanner.tsx:
+  - "Purchase license" button now opens `PlanPickerDialog`.
+- src/features/license/index.ts:
+  - Added `PlanPickerDialog` export.
+- Previously, "Purchase license" opened a placeholder URL (`https://esploro.app/buy`) with no product selection. Now it shows a two-card plan picker and opens the correct Dodo checkout URL in the system browser.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 31 — Dodo Payments License Validation [DONE]
 - Replaced the offline HMAC license system with live validation against Dodo Payments.
 - src-tauri/Cargo.toml:
