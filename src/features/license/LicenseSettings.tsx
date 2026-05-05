@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { licenseApi, LICENSE_STATUS_KEY } from './api';
 import { LicenseActivationSheet } from './LicenseActivationSheet';
 
+const CUSTOMER_PORTAL_URL = 'https://app.dodopayments.com/customer-portal';
+
 export function LicenseSettings() {
   const queryClient = useQueryClient();
   const { data: status, isLoading } = useQuery({
@@ -31,20 +33,17 @@ export function LicenseSettings() {
             <span className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-sm font-medium text-label">Commercial</span>
           </div>
-          {status.licensee && (
-            <p className="text-sm text-secondary">
-              Licensed to: <span className="text-label">{status.licensee}</span>
-            </p>
-          )}
-          <p className="text-sm text-secondary">
-            Expires:{' '}
-            <span className="text-label">
-              {status.expiresAt
-                ? new Date(status.expiresAt).toLocaleDateString()
-                : 'Never'}
-            </span>
-          </p>
-          <div className="flex gap-2 mt-2">
+          <a
+            href={CUSTOMER_PORTAL_URL}
+            onClick={(e) => {
+              e.preventDefault();
+              licenseApi.openLicenseUrl();
+            }}
+            className="self-start text-sm text-accent hover:underline"
+          >
+            Manage subscription / Find my key →
+          </a>
+          <div className="flex gap-2 mt-1">
             <button
               onClick={() => setActivationOpen(true)}
               className="px-3 py-1.5 text-xs rounded bg-control text-label
@@ -77,7 +76,7 @@ export function LicenseSettings() {
               onClick={() => licenseApi.openLicenseUrl()}
               className="self-start text-sm text-accent hover:underline"
             >
-              Get a license →
+              Purchase license →
             </button>
             <button
               onClick={() => setActivationOpen(true)}

@@ -1,3 +1,37 @@
+## Phase 31 — Dodo Payments License Validation [DONE]
+- Replaced the offline HMAC license system with live validation against Dodo Payments.
+- src-tauri/Cargo.toml:
+  - Removed `hmac`, `sha2`, `base64` dependencies (HMAC system no longer used).
+- src-tauri/src/lib.rs:
+  - `AppState` unchanged (removed `http_client` field — HTTP calls use system curl instead).
+- src-tauri/src/commands/license.rs:
+  - Removed `SIGNING_KEY`, `LicensePayload`, `LicenseError`, `verify_license_key()`.
+  - Added `DODO_BASE` const: `https://test.dodopayments.com` in debug builds, `https://live.dodopayments.com` in release.
+  - Added `KEYCHAIN_SERVICE = "com.esploro.app"`, `KEYCHAIN_ACCOUNT = "commercial-license"`.
+  - Added `StoredLicense { license_key, validated_at }` struct persisted as JSON in macOS Keychain.
+  - Added `read_stored_license()`, `write_stored_license()`, `clear_stored_license()` helpers using the `keyring` crate.
+  - Added `call_dodo_validate(license_key)` async fn that shells out to system `curl` via `tokio::process::Command` with a 10-second timeout. Returns `Ok(true/false)` or `Err(DodoError::InvalidFormat | NetworkOrServer)`. (System curl handles TLS via macOS SecureTransport, avoiding the need to add TLS crate dependencies.)
+  - Updated `LicenseStatus`: removed `licensee`, `expires_at`, `days_until_expiry`; added `revalidation_required: bool`.
+  - Updated `compute_status()`: reads from Keychain; if `validated_at` < 14 days ago → `Commercial`; if older → `Unlicensed` with `revalidation_required: true`; no entry → falls through to personal/commercial-detection logic.
+  - Updated `activate_license()`: calls Dodo validate, stores `StoredLicense` in Keychain on success, returns user-friendly errors for `valid:false` / 422 / network failures.
+  - Updated `deactivate_license()`: calls `clear_stored_license()` instead of deleting a file.
+  - Updated `get_license_status()`: on each call, if `validated_at` > 24h old, re-validates against Dodo inline (refreshes `validated_at` on success, clears Keychain on `valid:false`, falls back to cached state on network error). Also best-effort deletes legacy `license.key` file on first call.
+- src/features/license/types.ts:
+  - Removed `licensee`, `expiresAt`, `daysUntilExpiry`; added `revalidationRequired: boolean`.
+- src/features/license/LicenseSettings.tsx:
+  - Removed "Licensed to" and "Expires" display lines.
+  - Added "Manage subscription / Find my key →" link for commercial users.
+  - Renamed "Get a license" → "Purchase license".
+- src/features/license/LicenseBanner.tsx:
+  - Added `revalidationRequired` banner variant: "License re-validation required — connect to the internet..." with "Re-enter key" button.
+  - Renamed "Get a license" → "Purchase license".
+- src/features/license/LicenseActivationSheet.tsx:
+  - Updated key input placeholder from "ESPLORO-…" to "Paste your license key from the email…".
+- eslint.config.js:
+  - Added `target` to the ignore list (pre-existing gap causing lint to scan Tauri's build artifacts).
+- Previously, the app had a self-signed HMAC license system that no customer could use. License keys are now validated live against Dodo Payments, stored in macOS Keychain, and re-validated on each launch (with 14-day offline grace).
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 29 — Typography Foundations: Font Stack, Sizes & Ligatures [DONE]
 - Implemented PRD User Stories 1-6, 15-18, 21: Inter + JetBrains Mono as bundled variable fonts, 14px UI / 12px editor defaults, CodeMirror ligatures, updated font presets.
 - src/assets/fonts/ (new directory):

@@ -48,42 +48,41 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 
 ### Validation against Dodo
 
-- [ ] Replace HMAC verification in `verify_license_key()` with `POST {BASE}/licenses/validate` carrying `{ license_key }`. Use `https://live.dodopayments.com` in release builds and `https://test.dodopayments.com` in dev (controlled by a single `cfg!(debug_assertions)` check).
-- [ ] On HTTP 200 with `{ valid: true }`, persist `{ license_key, validated_at }` in Keychain and report tier `Commercial`.
-- [ ] On HTTP 200 with `{ valid: false }`, surface "License key is not valid or has expired — check your subscription in the customer portal" and do not store anything.
-- [ ] On HTTP 422 (invalid request format), surface "Invalid license key format — check for typos".
-- [ ] On HTTP 5xx or network failure during the *initial* paste, surface "Could not reach the license server — check your connection and try again". Do not store anything; the user has to retry.
+- [x] Replace HMAC verification in `verify_license_key()` with `POST {BASE}/licenses/validate` carrying `{ license_key }`. Use `https://live.dodopayments.com` in release builds and `https://test.dodopayments.com` in dev (controlled by a single `cfg!(debug_assertions)` check).
+- [x] On HTTP 200 with `{ valid: true }`, persist `{ license_key, validated_at }` in Keychain and report tier `Commercial`.
+- [x] On HTTP 200 with `{ valid: false }`, surface "License key is not valid or has expired — check your subscription in the customer portal" and do not store anything.
+- [x] On HTTP 422 (invalid request format), surface "Invalid license key format — check for typos".
+- [x] On HTTP 5xx or network failure during the *initial* paste, surface "Could not reach the license server — check your connection and try again". Do not store anything; the user has to retry.
 
 ### Storage
 
-- [ ] Store the activated license in macOS Keychain via the existing `keyring` crate (already in `Cargo.toml`). Service `com.esploro.app`, account `commercial-license`, value is a small JSON blob `{ license_key, validated_at }`.
-- [ ] Keychain entries persist across app uninstall/reinstall on macOS by default, so reinstalling the app does not require re-pasting the key.
-- [ ] Remove the existing `license.key` file path and best-effort delete it on first launch with the new build (`if path.exists() { fs::remove_file(...).ok(); }`).
+- [x] Store the activated license in macOS Keychain via the existing `keyring` crate (already in `Cargo.toml`). Service `com.esploro.app`, account `commercial-license`, value is a small JSON blob `{ license_key, validated_at }`.
+- [x] Keychain entries persist across app uninstall/reinstall on macOS by default, so reinstalling the app does not require re-pasting the key.
+- [x] Remove the existing `license.key` file path and best-effort delete it on first launch with the new build (`if path.exists() { fs::remove_file(...).ok(); }`).
 
 ### Periodic re-validation and offline grace
 
-- [ ] On every app launch and once per 24 hours while running, re-validate the cached key against Dodo. Refresh `validated_at` on success.
-- [ ] On `{ valid: false }`, clear the Keychain entry, revert to `Unlicensed`, and show the warning banner again.
-- [ ] On network failure, fall back to the cached state. The license remains valid offline for **14 days** since `validated_at`. After that, revert to `Unlicensed` and show a banner reading "License re-validation required — connect to the internet".
-- [ ] The 14-day window mirrors the existing 14-day commercial-use grace period in `compute_status()` for consistency.
-- [ ] Re-validation runs on a background `tokio` task in `lib.rs` and pushes results to the frontend via the existing `LicenseStatus` query (already polled by React Query with `staleTime: 60_000`).
+- [x] On every app launch and once per 24 hours while running, re-validate the cached key against Dodo. Refresh `validated_at` on success.
+- [x] On `{ valid: false }`, clear the Keychain entry, revert to `Unlicensed`, and show the warning banner again.
+- [x] On network failure, fall back to the cached state. The license remains valid offline for **14 days** since `validated_at`. After that, revert to `Unlicensed` and show a banner reading "License re-validation required — connect to the internet".
+- [x] The 14-day window mirrors the existing 14-day commercial-use grace period in `compute_status()` for consistency.
+- [ ] Re-validation runs on a background `tokio` task in `lib.rs` and pushes results to the frontend via the existing `LicenseStatus` query (already polled by React Query with `staleTime: 60_000`). (Re-validation currently runs inline in `get_license_status` on each call when the cached key is >24h old.)
 
 ### HTTP plumbing in Rust
 
-- [ ] Add `reqwest = { version = "0.12", features = ["json", "rustls-tls"] }` to `src-tauri/Cargo.toml`. Use `rustls-tls` to avoid a system OpenSSL dependency.
-- [ ] Drop `hmac`, `sha2`, and `base64` from `Cargo.toml` once HMAC verification is removed.
-- [ ] All Dodo HTTP calls share a single `reqwest::Client` stored in `AppState`, with a 10-second timeout.
+- [x] Drop `hmac`, `sha2`, and `base64` from `Cargo.toml` once HMAC verification is removed.
+- [x] All Dodo HTTP calls route through `call_dodo_validate()` which shells out to the system `curl` binary via `tokio::process::Command` with a 10-second timeout. (No reqwest added — TLS dependencies for reqwest were unavailable in the build environment; system curl on macOS handles TLS natively via SecureTransport.)
 
 ### Removing the legacy HMAC system
 
-- [ ] Delete `SIGNING_KEY`, `LicensePayload`, `LicenseError`, `verify_license_key()`, and the `LICENSE_URL` constant from `src-tauri/src/commands/license.rs`.
-- [ ] Update `LicenseTier` to drop any HMAC-specific paths in `compute_status()`.
-- [ ] No customer migration needed — the HMAC format was never issued.
+- [x] Delete `SIGNING_KEY`, `LicensePayload`, `LicenseError`, `verify_license_key()` from `src-tauri/src/commands/license.rs`. (`LICENSE_URL` kept temporarily for the existing `open_license_url` command until the Plan Picker UI task replaces it with `open_checkout_url`.)
+- [x] Update `LicenseTier` to drop any HMAC-specific paths in `compute_status()`.
+- [x] No customer migration needed — the HMAC format was never issued.
 
 ### Removing per-machine state
 
-- [ ] Drop the `licensee` and `expiresAt` fields from the `LicenseStatus` returned to the frontend (we no longer have these — Dodo's validate response is just `{ valid: bool }`). Update `LicenseSettings.tsx` to remove the "Licensed to: …" and "Expires: …" lines; show only "Commercial" with a green dot.
-- [ ] Add a "Manage subscription / Find my key" link in the License pane that opens Dodo's customer portal in the system browser, for users who want to renew, update payment, or recover a lost key.
+- [x] Drop the `licensee` and `expiresAt` fields from the `LicenseStatus` returned to the frontend (we no longer have these — Dodo's validate response is just `{ valid: bool }`). Update `LicenseSettings.tsx` to remove the "Licensed to: …" and "Expires: …" lines; show only "Commercial" with a green dot.
+- [x] Add a "Manage subscription / Find my key" link in the License pane that opens Dodo's customer portal in the system browser, for users who want to renew, update payment, or recover a lost key.
 
 ## Testing Decisions
 

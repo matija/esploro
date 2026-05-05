@@ -74,7 +74,7 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
                     handleActivate();
                   }
                 }}
-                placeholder="ESPLORO-…"
+                placeholder="Paste your license key from the email…"
                 className="w-full h-20 px-3 py-2 text-xs font-mono rounded
                   bg-control border border-separator text-label
                   placeholder:text-secondary resize-none

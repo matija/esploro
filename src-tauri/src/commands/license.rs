@@ -1,27 +1,22 @@
 use std::path::{Path, PathBuf};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
-use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use sha2::Sha256;
 use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 
-type HmacSha256 = Hmac<Sha256>;
+const LICENSE_URL: &str = "https://esploro.app/buy";
 
-// Dev fallback; production builds set ESPLORO_LICENSE_SECRET_KEY at compile time.
-const SIGNING_KEY: &[u8] = match option_env!("ESPLORO_LICENSE_SECRET_KEY") {
-    Some(k) => k.as_bytes(),
-    None => b"dev-esploro-license-secret-key-for-testing-only-64bytes-padded!",
+const DODO_BASE: &str = if cfg!(debug_assertions) {
+    "https://test.dodopayments.com"
+} else {
+    "https://live.dodopayments.com"
 };
 
-const LICENSE_URL: &str = match option_env!("ESPLORO_STRIPE_URL") {
-    Some(u) => u,
-    None => "https://esploro.app/buy",
-};
+const KEYCHAIN_SERVICE: &str = "com.esploro.app";
+const KEYCHAIN_ACCOUNT: &str = "commercial-license";
 
 const DEFAULT_UI_THEME: &str = "tairiki-light";
 const DEFAULT_UI_FONT_FAMILY: &str =
@@ -48,18 +43,6 @@ fn default_grid_page_size() -> u16 {
 // Domain types
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct LicensePayload {
-    pub version: u32,
-    pub tier: String,
-    pub issued_at: String,
-    pub expires_at: Option<String>,
-    pub licensee: String,
-    pub max_seats: Option<u32>,
-    pub key_id: String,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum LicenseTier {
     Personal,
@@ -71,12 +54,17 @@ pub enum LicenseTier {
 #[serde(rename_all = "camelCase")]
 pub struct LicenseStatus {
     pub tier: LicenseTier,
-    pub licensee: Option<String>,
-    pub expires_at: Option<String>,
-    pub days_until_expiry: Option<i64>,
     pub banner_visible: bool,
     pub grace_period_ends: Option<String>,
     pub show_usage_dialog: bool,
+    /// True when a cached license exists but hasn't been re-validated for >14 days offline.
+    pub revalidation_required: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct StoredLicense {
+    license_key: String,
+    validated_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -141,32 +129,38 @@ pub struct UserPrefs {
     pub editor: Option<UiPreferenceEditor>,
 }
 
-#[derive(Debug)]
-enum LicenseError {
-    InvalidFormat,
-    InvalidSignature,
-    Expired,
+// ---------------------------------------------------------------------------
+// Keychain helpers
+// ---------------------------------------------------------------------------
+
+fn read_stored_license() -> Option<StoredLicense> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).ok()?;
+    match entry.get_password() {
+        Ok(json) => serde_json::from_str(&json).ok(),
+        Err(keyring::Error::NoEntry) => None,
+        Err(e) => {
+            eprintln!("Failed to read license from keychain: {e}");
+            None
+        }
+    }
 }
 
-impl std::fmt::Display for LicenseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LicenseError::InvalidFormat => write!(f, "Invalid key format"),
-            LicenseError::InvalidSignature => write!(f, "Invalid key"),
-            LicenseError::Expired => write!(f, "This license has expired"),
-        }
+fn write_stored_license(stored: &StoredLicense) -> Result<(), String> {
+    let json = serde_json::to_string(stored).map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).map_err(|e| e.to_string())?;
+    entry.set_password(&json).map_err(|e| e.to_string())
+}
+
+fn clear_stored_license() {
+    if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
+        entry.delete_password().ok();
     }
 }
 
 // ---------------------------------------------------------------------------
 // File path helpers
 // ---------------------------------------------------------------------------
-
-fn license_key_path(app: &AppHandle) -> PathBuf {
-    let dir = app.path().app_data_dir().expect("app data dir");
-    std::fs::create_dir_all(&dir).ok();
-    dir.join("license.key")
-}
 
 fn prefs_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("app data dir");
@@ -404,69 +398,96 @@ fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
-// HMAC verification
+// Dodo Payments validation
 // ---------------------------------------------------------------------------
 
-fn verify_license_key(raw_key: &str) -> Result<LicensePayload, LicenseError> {
-    let trimmed = raw_key.trim().trim_start_matches("ESPLORO-");
-    let parts: Vec<&str> = trimmed.splitn(2, '.').collect();
-    if parts.len() != 2 {
-        return Err(LicenseError::InvalidFormat);
+enum DodoError {
+    InvalidFormat,
+    NetworkOrServer,
+}
+
+/// Calls `POST /licenses/validate` via the system `curl` binary.
+/// Returns `Ok(true/false)` based on the `valid` field in Dodo's response.
+async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoError> {
+    let url = format!("{DODO_BASE}/licenses/validate");
+    let body = format!("{{\"license_key\":\"{}\"}}", license_key.replace('"', "\\\""));
+
+    let output = tokio::process::Command::new("curl")
+        .args([
+            "-s",
+            "--max-time",
+            "10",
+            "-X",
+            "POST",
+            "-H",
+            "Content-Type: application/json",
+            "-H",
+            "Accept: application/json",
+            "-d",
+            &body,
+            "-w",
+            "\n%{http_code}",
+            &url,
+        ])
+        .output()
+        .await
+        .map_err(|_| DodoError::NetworkOrServer)?;
+
+    if !output.status.success() {
+        return Err(DodoError::NetworkOrServer);
     }
 
-    let payload_bytes = URL_SAFE_NO_PAD
-        .decode(parts[0])
-        .map_err(|_| LicenseError::InvalidFormat)?;
-    let sig_bytes = URL_SAFE_NO_PAD
-        .decode(parts[1])
-        .map_err(|_| LicenseError::InvalidFormat)?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // curl -w appends the status code on its own line
+    let (response_body, http_code_str) = stdout
+        .trim_end()
+        .rsplit_once('\n')
+        .ok_or(DodoError::NetworkOrServer)?;
 
-    let mut mac = HmacSha256::new_from_slice(SIGNING_KEY).expect("HMAC accepts any key length");
-    mac.update(&payload_bytes);
-    mac.verify_slice(&sig_bytes)
-        .map_err(|_| LicenseError::InvalidSignature)?;
+    let http_code: u16 = http_code_str.trim().parse().unwrap_or(0);
 
-    let payload: LicensePayload =
-        serde_json::from_slice(&payload_bytes).map_err(|_| LicenseError::InvalidFormat)?;
-
-    if let Some(expires) = &payload.expires_at {
-        let exp = chrono::DateTime::parse_from_rfc3339(expires)
-            .map_err(|_| LicenseError::InvalidFormat)?;
-        if exp.with_timezone(&Utc) < Utc::now() {
-            return Err(LicenseError::Expired);
-        }
+    if http_code == 422 {
+        return Err(DodoError::InvalidFormat);
+    }
+    if http_code >= 500 || http_code == 0 {
+        return Err(DodoError::NetworkOrServer);
     }
 
-    Ok(payload)
+    let parsed: Value =
+        serde_json::from_str(response_body).map_err(|_| DodoError::NetworkOrServer)?;
+
+    Ok(parsed.get("valid").and_then(Value::as_bool).unwrap_or(false))
 }
 
 // ---------------------------------------------------------------------------
 // Status computation
 // ---------------------------------------------------------------------------
 
+/// Returns status from cached state only — no network calls.
 fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
     let prefs = load_prefs(app);
 
-    // Check for a valid license key on disk
-    let key_path = license_key_path(app);
-    if key_path.exists() {
-        if let Ok(key_str) = std::fs::read_to_string(&key_path) {
-            if let Ok(payload) = verify_license_key(key_str.trim()) {
-                let days_until_expiry = payload.expires_at.as_ref().and_then(|e| {
-                    chrono::DateTime::parse_from_rfc3339(e)
-                        .ok()
-                        .map(|exp| (exp.with_timezone(&Utc) - Utc::now()).num_days())
-                });
+    // Check keychain for a stored license
+    if let Some(stored) = read_stored_license() {
+        if let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
+            let age = Utc::now() - validated_at.with_timezone(&Utc);
+            if age < chrono::Duration::days(14) {
                 return LicenseStatus {
                     tier: LicenseTier::Commercial,
-                    licensee: Some(payload.licensee),
-                    expires_at: payload.expires_at,
-                    days_until_expiry,
                     banner_visible: false,
                     grace_period_ends: None,
                     show_usage_dialog: false,
+                    revalidation_required: false,
                 };
             }
+            // Key exists but offline too long — revert to Unlicensed with banner
+            return LicenseStatus {
+                tier: LicenseTier::Unlicensed,
+                banner_visible: false,
+                grace_period_ends: None,
+                show_usage_dialog: false,
+                revalidation_required: true,
+            };
         }
     }
 
@@ -478,12 +499,10 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
             let banner_visible = Utc::now() > grace_end && !banner_dismissed;
             return LicenseStatus {
                 tier: LicenseTier::Unlicensed,
-                licensee: None,
-                expires_at: None,
-                days_until_expiry: None,
                 banner_visible,
                 grace_period_ends,
                 show_usage_dialog: false,
+                revalidation_required: false,
             };
         }
     }
@@ -503,12 +522,10 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
 
     LicenseStatus {
         tier,
-        licensee: None,
-        expires_at: None,
-        days_until_expiry: None,
         banner_visible: false,
         grace_period_ends: None,
         show_usage_dialog,
+        revalidation_required: false,
     }
 }
 
@@ -521,6 +538,42 @@ pub async fn get_license_status(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<LicenseStatus, String> {
+    // Best-effort cleanup of legacy file-based license key
+    let legacy_path = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .map(|d| d.join("license.key"));
+    if let Some(path) = legacy_path {
+        if path.exists() {
+            std::fs::remove_file(&path).ok();
+        }
+    }
+
+    // Re-validate against Dodo if the cached key is older than 24 hours
+    if let Some(stored) = read_stored_license() {
+        if let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
+            let age = Utc::now() - validated_at.with_timezone(&Utc);
+            if age >= chrono::Duration::hours(24) {
+                match call_dodo_validate(&stored.license_key).await {
+                    Ok(true) => {
+                        let refreshed = StoredLicense {
+                            license_key: stored.license_key,
+                            validated_at: Utc::now().to_rfc3339(),
+                        };
+                        write_stored_license(&refreshed).ok();
+                    }
+                    Ok(false) => {
+                        clear_stored_license();
+                    }
+                    Err(_) => {
+                        // Network or server error — use cached state (offline grace applies)
+                    }
+                }
+            }
+        }
+    }
+
     let dismissed = *state.banner_dismissed.lock().await;
     Ok(compute_status(&app, dismissed))
 }
@@ -531,14 +584,27 @@ pub async fn activate_license(
     state: State<'_, AppState>,
     key: String,
 ) -> Result<LicenseStatus, String> {
-    let payload = verify_license_key(key.trim()).map_err(|e| e.to_string())?;
-    if payload.tier != "commercial" {
-        return Err("Not a commercial license key".to_string());
+    match call_dodo_validate(key.trim()).await {
+        Ok(true) => {
+            let stored = StoredLicense {
+                license_key: key.trim().to_string(),
+                validated_at: Utc::now().to_rfc3339(),
+            };
+            write_stored_license(&stored)?;
+            let dismissed = *state.banner_dismissed.lock().await;
+            Ok(compute_status(&app, dismissed))
+        }
+        Ok(false) => Err(
+            "License key is not valid or has expired — check your subscription in the customer portal"
+                .to_string(),
+        ),
+        Err(DodoError::InvalidFormat) => {
+            Err("Invalid license key format — check for typos".to_string())
+        }
+        Err(DodoError::NetworkOrServer) => Err(
+            "Could not reach the license server — check your connection and try again".to_string(),
+        ),
     }
-    let key_path = license_key_path(&app);
-    std::fs::write(&key_path, key.trim()).map_err(|e| e.to_string())?;
-    let dismissed = *state.banner_dismissed.lock().await;
-    Ok(compute_status(&app, dismissed))
 }
 
 #[tauri::command]
@@ -546,10 +612,7 @@ pub async fn deactivate_license(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<LicenseStatus, String> {
-    let key_path = license_key_path(&app);
-    if key_path.exists() {
-        std::fs::remove_file(&key_path).map_err(|e| e.to_string())?;
-    }
+    clear_stored_license();
     let dismissed = *state.banner_dismissed.lock().await;
     Ok(compute_status(&app, dismissed))
 }
