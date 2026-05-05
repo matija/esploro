@@ -17,11 +17,24 @@ except ImportError as e:
     print("Run: pip3 install cairosvg pillow --break-system-packages")
     raise
 
-TAIRIKI_BLUE = "#0070c1"
-ICON_INNER_STROKE = "rgba(255,255,255,0.08)"
+# Tairiki dark-mode tones (sourced from src/styles/tokens.css)
+#   --ds-accent-subtle (dark): #1e3a5f   ← deep blue tint
+#   --ds-accent (light):       #2563eb   ← blue-600 (highlight hint)
+# Plus a deeper navy `#0a1929` extension to anchor the bottom of the gradient.
+TAIRIKI_DEEP_NAVY = "#0a1929"
+TAIRIKI_DEEP_BLUE = "#1e3a5f"
+TAIRIKI_BLUE_HIGHLIGHT = "#2f6fcf"  # lifted Tairiki blue for the top-left lume
+ICON_INNER_STROKE = "rgba(255,255,255,0.10)"
 
-# Phosphor binoculars-bold path (256x256 viewBox)
+# Phosphor binoculars-bold path (256x256 viewBox). This is the same icon Phosphor
+# returns for the search query "explore" — see https://phosphoricons.com/?q=explore
 BINOCULARS_PATH = "M241,150.65s0,0,0-.05a51.33,51.33,0,0,0-2.53-5.9L196.93,50.18a12,12,0,0,0-2.5-3.65,36,36,0,0,0-50.92,0A12,12,0,0,0,140,55V76H116V55a12,12,0,0,0-3.51-8.48,36,36,0,0,0-50.92,0,12,12,0,0,0-2.5,3.65L17.53,144.7A51.33,51.33,0,0,0,15,150.6s0,0,0,.05A52,52,0,1,0,116,168V100h24v68a52,52,0,1,0,101-17.35ZM80,62.28a12,12,0,0,1,12-1.22v63.15a51.9,51.9,0,0,0-35.9-7.62ZM64,196a28,28,0,1,1,28-28A28,28,0,0,1,64,196ZM164,61.06a12.06,12.06,0,0,1,12,1.22l23.87,54.31a51.9,51.9,0,0,0-35.9,7.62ZM192,196a28,28,0,1,1,28-28A28,28,0,0,1,192,196Z"
+
+# Render every PNG at this multiple of the target size and downsample with
+# LANCZOS. cairosvg's native rasterisation is slightly soft at small sizes; the
+# supersampling gives noticeably crisper edges in the 16/32 px Dock & taskbar
+# slots without changing how larger sizes look.
+SUPERSAMPLE = 4
 
 
 def make_icon_svg(size: int) -> str:
@@ -35,23 +48,60 @@ def make_icon_svg(size: int) -> str:
     offset = (size - glyph_size) / 2
     scale = glyph_size / 256
 
+    inner_x = padding + 0.5
+    inner_y = padding + 0.5
+    inner_w = size - padding * 2 - 1
+    inner_h = size - padding * 2 - 1
+    inner_r = radius - 0.5
+
+    # Highlight ellipse near the top-left to suggest a soft Tairiki-blue lume.
+    lume_cx = padding + (size - padding * 2) * 0.28
+    lume_cy = padding + (size - padding * 2) * 0.22
+    lume_rx = (size - padding * 2) * 0.55
+    lume_ry = (size - padding * 2) * 0.45
+
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
+  <defs>
+    <!-- Diagonal Tairiki gradient: deep blue → near-black navy -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="{TAIRIKI_DEEP_BLUE}"/>
+      <stop offset="100%" stop-color="{TAIRIKI_DEEP_NAVY}"/>
+    </linearGradient>
+    <!-- Subtle Tairiki-blue lume in the upper-left for depth -->
+    <radialGradient id="lume" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0.55"/>
+      <stop offset="60%"  stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Squircle clip so the lume doesn't bleed past the corners -->
+    <clipPath id="squircle">
+      <rect x="{padding}" y="{padding}"
+            width="{size - padding * 2}" height="{size - padding * 2}"
+            rx="{radius}" ry="{radius}"/>
+    </clipPath>
+  </defs>
+
   <!-- Background squircle -->
-  <rect
-    x="{padding}" y="{padding}"
-    width="{size - padding * 2}" height="{size - padding * 2}"
-    rx="{radius}" ry="{radius}"
-    fill="{TAIRIKI_BLUE}"
-  />
+  <rect x="{padding}" y="{padding}"
+        width="{size - padding * 2}" height="{size - padding * 2}"
+        rx="{radius}" ry="{radius}"
+        fill="url(#bg)"/>
+
+  <!-- Tairiki-blue lume (clipped to the squircle) -->
+  <g clip-path="url(#squircle)">
+    <ellipse cx="{lume_cx:.3f}" cy="{lume_cy:.3f}"
+             rx="{lume_rx:.3f}" ry="{lume_ry:.3f}"
+             fill="url(#lume)"/>
+  </g>
+
   <!-- Subtle inner stroke for depth -->
-  <rect
-    x="{padding + 0.5}" y="{padding + 0.5}"
-    width="{size - padding * 2 - 1}" height="{size - padding * 2 - 1}"
-    rx="{radius - 0.5}" ry="{radius - 0.5}"
-    fill="none"
-    stroke="{ICON_INNER_STROKE}"
-    stroke-width="1"
-  />
+  <rect x="{inner_x}" y="{inner_y}"
+        width="{inner_w}" height="{inner_h}"
+        rx="{inner_r}" ry="{inner_r}"
+        fill="none"
+        stroke="{ICON_INNER_STROKE}"
+        stroke-width="1"/>
+
   <!-- Binoculars glyph (white, centered) -->
   <g transform="translate({offset}, {offset}) scale({scale})">
     <path d="{BINOCULARS_PATH}" fill="white"/>
@@ -60,7 +110,16 @@ def make_icon_svg(size: int) -> str:
 
 
 def svg_to_png_bytes(svg_str: str, size: int) -> bytes:
-    return cairosvg.svg2png(bytestring=svg_str.encode(), output_width=size, output_height=size)
+    """Rasterise SVG → PNG, supersampled and downscaled with LANCZOS for crisp edges."""
+    hi_res = size * SUPERSAMPLE
+    raw = cairosvg.svg2png(bytestring=svg_str.encode(), output_width=hi_res, output_height=hi_res)
+    if SUPERSAMPLE == 1:
+        return raw
+    img = Image.open(io.BytesIO(raw)).convert("RGBA")
+    img = img.resize((size, size), Image.LANCZOS)
+    out = io.BytesIO()
+    img.save(out, format="PNG", optimize=True)
+    return out.getvalue()
 
 
 def png_bytes_to_pil(data: bytes) -> "Image.Image":
@@ -152,7 +211,7 @@ def main():
     write_png(icons_dir / "32x32.png", 32)
     write_png(icons_dir / "128x128.png", 128)
     write_png(icons_dir / "128x128@2x.png", 256)
-    write_png(icons_dir / "icon.png", 512)
+    write_png(icons_dir / "icon.png", 1024)
 
     make_icns(icons_dir)
     make_ico(icons_dir / "icon.ico")

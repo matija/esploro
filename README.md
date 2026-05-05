@@ -2,6 +2,10 @@
 
 A Postgres client for macOS.
 
+<p align="center">
+  <img src="src-tauri/icons/icon.png" alt="Esploro icon" width="128" height="128" />
+</p>
+
 ![Esploro](screenshots/esploro.png)
 
 DBeaver works, but it's slow and feels like enterprise software. Most alternatives are either Electron apps with web-app UIs or minimalist tools that sacrifice too much. I wanted something like [Yaak](https://yaak.app/) — fast, native-feeling, with the density and craft of a real desktop tool.
