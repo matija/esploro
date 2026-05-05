@@ -1,130 +1,123 @@
-# PRD: Typography & Visual Refresh
+# PRD: Commercial License via Dodo Payments
 
 ## Problem Statement
 
-Esploro's current UI reads as functional but visually flat. The typography uses a conservative 13px baseline for both the interface and the editor, which feels cramped compared to modern macOS native apps. The color palette — while well-structured under the hood — skews heavily toward navy blue and grey, with limited chromatic warmth. Schema object colors, sidebar elements, and data value indicators don't feel distinct enough from one another, making the UI harder to scan at a glance. The overall effect is that the app feels technically solid but lacks visual personality and comfort.
+Esploro already has a full licensing scaffold — the `LicenseTier` model (Personal / Commercial / Unlicensed), the usage-type dialog, the commercial-use detector, the activation sheet, the warning banner, and local key storage with HMAC verification — but it has no way for a user to actually *buy* a license. The "Get a license" button opens a placeholder URL (`https://esploro.app/buy`) and the activation flow accepts only self-signed HMAC keys (`ESPLORO-<payload>.<sig>`) that nobody can issue. The result is a UI that looks complete but a transaction loop that doesn't close.
+
+We want to close the loop without standing up a backend.
 
 ## Solution
 
-Refresh the typography and visual language to feel more polished and pleasant — warmer, more colorful, and better calibrated for readability. Use Yaak's font stack (Inter for UI, JetBrains Mono for the editor) as the reference point, and adopt its proven default sizes: 14px for the UI and 12px for the editor. Enrich the color palette with more distinct, vibrant hues for schema objects, data types, and semantic states — while keeping the color choices coherent with both the light and dark themes. The result should feel like a well-loved native macOS app, not a developer utility.
+Use Dodo Payments — already configured with two products in the dashboard — as the system of record for purchases, license keys, and validity. The user clicks "Purchase license" inside Esploro, picks lifetime or annual, completes checkout in the system browser, receives the key by email from Dodo, and pastes it into the existing activation sheet. The app calls Dodo's public `POST /licenses/validate` endpoint to confirm the key is real and active, stores it in the macOS Keychain, and re-validates it periodically to enforce subscription expiry and admin revocation.
+
+We deliberately do *not* call `POST /licenses/activate`. That means:
+- No per-machine activation slot accounting, no `instance_id` tracking, no "deactivate this machine" dance.
+- The same key works on as many machines as the user pastes it on.
+- Sharing the key with friends is unenforced — we accept this on the honor-system theory and the fact that any client-side enforcement is bypassable anyway. If sharing becomes a measurable problem, we add a thin backend later that does region/UA heuristics before forwarding to Dodo's validate endpoint.
+
+The existing self-signed HMAC system is removed; it was never used by real customers (the app is pre-1.0).
 
 ## User Stories
 
-1. [x] As a user, I want the interface text to render at 14px by default, so that it is easier to read without having to manually increase the font size in settings.
-2. [x] As a user, I want the editor text to render at 12px by default, so that code is legible without feeling oversized.
-3. [x] As a user, I want the UI font to be Inter (with system-ui fallback), so that the interface matches the typographic quality of modern macOS apps like Yaak.
-4. [x] As a user, I want the editor font to be JetBrains Mono (with monospace fallbacks), so that code has excellent ligature support and character distinction.
-5. [x] As a user, I want the Inter and JetBrains Mono fonts to be bundled with the app, so that they render consistently regardless of what is installed on my machine.
-6. [x] As a user, I want consistent line-height and letter-spacing across all UI text, so that reading feels comfortable rather than squeezed.
-7. [x] As a user, I want schema object types (tables, views, functions, sequences) to be rendered in visually distinct, saturated colors, so that I can quickly identify object types in the sidebar tree without reading the label.
-8. [x] As a user, I want the sidebar background to feel slightly warmer or more distinct from the main content area, so that the spatial hierarchy is clear at a glance.
-9. [x] As a user, I want accent colors to feel more vivid and alive in both light and dark mode, so that interactive elements stand out.
-10. [x] As a user, I want data type values in the table grid (nulls, booleans, JSON, numbers, dates) to use clearly differentiated colors, so that I can scan rows and understand data shape quickly.
-11. [x] As a user, I want syntax highlighting in the query editor to use a vibrant, balanced palette, so that SQL keywords, strings, types, and comments are easy to distinguish.
-12. [x] As a user, I want the dark theme colors to feel warm and rich rather than cold and muted, so that working at night is comfortable.
-13. [x] As a user, I want the light theme colors to feel fresh and bright rather than navy-heavy, so that daytime use is pleasant.
-14. [x] As a user, I want all color changes to respect the selected theme (system, light, dark), so that switching themes does not produce jarring visual inconsistencies.
-15. [x] As a user, I want the appearance settings to reflect the new default font choices, so that the preset labels and preview match what I see in the app.
-16. [x] As a user, I want the font size slider defaults to reflect the new 14px (UI) and 12px (editor) baselines, so that "reset to defaults" restores the refreshed values.
-17. [x] As a user, I want the transition between hover, active, and selected states to feel smooth and intentional, so that the UI responds to my input without feeling sluggish or jarring.
-18. [x] As a user, I want status bar text and tab bar labels to use the refreshed typography, so that the entire shell feels visually unified.
-19. [x] As a user, I want connection status indicators and badge components to use the richer semantic colors, so that connection health is immediately obvious.
-20. [x] As a user, I want toast notifications to use the refreshed color palette for success, warning, and error states, so that feedback messages are visually consistent with the rest of the app.
-21. [x] As a user, I want the command palette text to use the refreshed font and sizing, so that searching for commands feels polished.
-22. [x] As a user, I want column type badges in the schema inspector to use distinct, readable color coding, so that I can recognize column types (text, int, boolean, timestamp) at a glance.
+1. [ ] As a user, when I click "Purchase license", I want to see Esploro Lifetime ($99.99) and Esploro Annual ($39.99/yr) side-by-side, so that I can pick the one that fits how I work.
+2. [ ] As a user, when I pick a plan, I want the macOS system browser to open the matching Dodo checkout page, so that payment happens in a familiar, trusted browser context.
+3. [ ] As a user, after a successful purchase, I want to receive my license key by email automatically, so that I don't have to copy anything from a thank-you page.
+4. [ ] As a user, I want to paste my emailed key into the existing License Activation sheet and have it validated against Dodo, so that I'm marked as Commercial within a second of pasting.
+5. [ ] As a user, when validation succeeds, I want the License pane to show "Commercial" status, so that I can confirm the app accepted my key.
+6. [ ] As a user, when validation fails — wrong key, revoked, lapsed subscription — I want a clear error in the activation sheet, so that I know whether to retry, renew, or contact support.
+7. [ ] As a user, I want my license to keep working offline, so that I can use Esploro on a plane or with a flaky connection.
+8. [ ] As a user, my yearly subscription's expiry should be enforced automatically — the app should revert to Unlicensed within 24 hours of the subscription lapsing, so that licensing reflects what I actually paid for.
+9. [ ] As a user, I want my license key stored in the macOS Keychain rather than a plain file, so that another local process can't trivially copy it and so it survives reinstalling the app.
+10. [ ] As a user, I want a "Remove license" button in the License pane that clears the key from this machine, so that I can clean up if I'm selling the machine or troubleshooting.
+11. [ ] As a user, my existing experience around the warning banner, the usage-type dialog, and the commercial-use detector should be unchanged — I just want a real way to buy what the banner is telling me to buy.
 
 ## Implementation Decisions
 
-### Font Stack
+### Dodo dashboard (already configured)
 
-- [x] **UI font:** Inter Variable (variable font, weight range 300–700), falling back to `system-ui`, `-apple-system`, `sans-serif`. This matches Yaak's default interface font.
-- [x] **Editor font:** JetBrains Mono (variable font, weight range 400–700), falling back to `ui-monospace`, `SF Mono`, `Menlo`, `monospace`. This matches Yaak's default editor font.
-- [x] Both fonts should be self-hosted as WOFF2 variable fonts under `src/assets/fonts/` and declared via `@font-face` in `tokens.css` or a dedicated `fonts.css` imported before tokens. This avoids network round-trips in the Tauri webview.
-- [x] `font-feature-settings: "ss01", "ss02", "cv01"` should be applied to Inter for better numeral and punctuation rendering.
-- [x] `font-feature-settings: "liga", "calt"` should be applied to JetBrains Mono to enable ligatures in the editor.
+- [x] **Esploro Lifetime** — one-time, $99.99, license keys enabled, no expiry, activation limit irrelevant. Product ID `pdt_0NeCDJbPgj9avsXtryxJt`.
+- [x] **Esploro Annual** — yearly subscription, $39.99/yr, license keys enabled, expiry tied to subscription period (auto-extends on renewal). Product ID `pdt_0NeCDnINEsohTubKMTSQ0`.
 
-### Default Font Sizes
+### Plan picker UI
 
-- [x] `--font-ui-size` default changes from `13px` → `14px`
-- [x] `--font-editor-size` default changes from `13px` → `12px`
-- [x] Defaults in `preferences.ts` (`DEFAULT_UI_PREFERENCES`) updated to match.
-- [x] Bootstrap script in `index.html` continues to apply localStorage values before React hydrates — defaults updated to 14/12.
-- [x] Appearance settings slider ranges remain unchanged (11–16px for UI, 11–18px for editor); only the default values shift.
+- [ ] Add a `PlanPickerDialog` component (Radix `Dialog`, styled like `UsageTypeDialog`) with two cards: Esploro Lifetime ($99.99, "pay once, use forever") and Esploro Annual ($39.99/yr, "auto-renews, always up-to-date"). Each card has a "Continue to checkout" button.
+- [ ] Replace the current `licenseApi.openLicenseUrl()` call sites in `LicenseSettings.tsx` and `LicenseBanner.tsx` so "Get a license" / "Purchase license" opens the dialog instead of a placeholder URL.
+- [ ] On button click, call a new Tauri command `open_checkout_url(plan: "lifetime" | "annual")` which opens `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` via `tauri-plugin-shell`'s `open()`.
+- [ ] Replace the `open_license_url` Rust command with `open_checkout_url`. Both product IDs are baked into the binary as `const` strings; no env vars needed since they're not secrets.
+- [ ] Rename "Get a license" to "Purchase license" everywhere for consistency.
 
-### Color Palette Refresh (tokens.css)
+### Validation against Dodo
 
-**Light theme changes:**
-- `--ds-label`: shift from deep navy `#001070` toward a near-black with a slight warm tint (e.g. `#1a1a2e` → `#111118`) for more neutral, readable body text
-- `--ds-accent`: introduce a more vibrant mid-blue (e.g. `#2563eb` Tailwind blue-600) to replace the corporate `#0070c1`
-- `--ds-accent-subtle`: warmer, more saturated tint to match new accent
-- `--ds-sidebar-bg`: subtle warm-grey tint (e.g. `#f5f5f7`) rather than the bluish `#f0f0f8`
-- `--ds-success`: richer green (e.g. `#16a34a` / Tailwind green-600)
-- `--ds-destructive`: warmer red (e.g. `#dc2626` / Tailwind red-600)
-- `--ds-warning`: more saturated amber (e.g. `#d97706` / Tailwind amber-600)
+- [ ] Replace HMAC verification in `verify_license_key()` with `POST {BASE}/licenses/validate` carrying `{ license_key }`. Use `https://live.dodopayments.com` in release builds and `https://test.dodopayments.com` in dev (controlled by a single `cfg!(debug_assertions)` check).
+- [ ] On HTTP 200 with `{ valid: true }`, persist `{ license_key, validated_at }` in Keychain and report tier `Commercial`.
+- [ ] On HTTP 200 with `{ valid: false }`, surface "License key is not valid or has expired — check your subscription in the customer portal" and do not store anything.
+- [ ] On HTTP 422 (invalid request format), surface "Invalid license key format — check for typos".
+- [ ] On HTTP 5xx or network failure during the *initial* paste, surface "Could not reach the license server — check your connection and try again". Do not store anything; the user has to retry.
 
-**Dark theme changes:**
-- Introduce a warmer base: `--ds-content-bg` shifts toward `#1c1c1e` (macOS dark surface) rather than a cold near-black
-- `--ds-sidebar-bg` in dark: `#161618` (slightly deeper than content bg)
-- `--ds-accent` in dark: `#60a5fa` (Tailwind blue-400) — vivid but not harsh
-- Syntax colors in dark: increase saturation across the board (keyword purple, string green, number blue, type amber) for better contrast against the warmer dark background
-- `--ds-success`/`--ds-warning`/`--ds-destructive` in dark: follow Tailwind 400-level palette equivalents
+### Storage
 
-**Schema object color enrichment:**
-- Assign each schema object type a distinct, memorable hue that works in both themes:
-  - `--schema-table`: grass green
-  - `--schema-view`: sky blue
-  - `--schema-function`: amber/orange
-  - `--schema-sequence`: coral/rose
-  - `--schema-schema`: violet
-  - `--schema-database`: indigo (accent)
-  - `--schema-key`: gold/yellow
-  - `--schema-foreign-key`: purple
-- Colors should be derived from the `ds-syntax-*` palette for consistency rather than introducing new raw hex values.
+- [ ] Store the activated license in macOS Keychain via the existing `keyring` crate (already in `Cargo.toml`). Service `com.esploro.app`, account `commercial-license`, value is a small JSON blob `{ license_key, validated_at }`.
+- [ ] Keychain entries persist across app uninstall/reinstall on macOS by default, so reinstalling the app does not require re-pasting the key.
+- [ ] Remove the existing `license.key` file path and best-effort delete it on first launch with the new build (`if path.exists() { fs::remove_file(...).ok(); }`).
 
-### Appearance Settings
+### Periodic re-validation and offline grace
 
-- [x] Add Inter and JetBrains Mono as the first (default) option in the UI and editor font pickers respectively.
-- [x] Update preview panel to render at the new default sizes.
-- [x] "Reset to defaults" restores `fontSize: 14` for UI and `editorFontSize: 12`.
+- [ ] On every app launch and once per 24 hours while running, re-validate the cached key against Dodo. Refresh `validated_at` on success.
+- [ ] On `{ valid: false }`, clear the Keychain entry, revert to `Unlicensed`, and show the warning banner again.
+- [ ] On network failure, fall back to the cached state. The license remains valid offline for **14 days** since `validated_at`. After that, revert to `Unlicensed` and show a banner reading "License re-validation required — connect to the internet".
+- [ ] The 14-day window mirrors the existing 14-day commercial-use grace period in `compute_status()` for consistency.
+- [ ] Re-validation runs on a background `tokio` task in `lib.rs` and pushes results to the frontend via the existing `LicenseStatus` query (already polled by React Query with `staleTime: 60_000`).
 
-### CodeMirror Theme (tairikiTheme.ts)
+### HTTP plumbing in Rust
 
-- [x] No structural changes — the theme already uses CSS variables. Changes flow through via updated `--editor-syntax-*` token values in `tokens.css`.
-- [x] Enable JetBrains Mono ligatures via `font-variant-ligatures: common-ligatures` and `font-feature-settings: "liga", "calt"` on the `.cm-editor` element in the CodeMirror theme stylesheet.
+- [ ] Add `reqwest = { version = "0.12", features = ["json", "rustls-tls"] }` to `src-tauri/Cargo.toml`. Use `rustls-tls` to avoid a system OpenSSL dependency.
+- [ ] Drop `hmac`, `sha2`, and `base64` from `Cargo.toml` once HMAC verification is removed.
+- [ ] All Dodo HTTP calls share a single `reqwest::Client` stored in `AppState`, with a 10-second timeout.
 
-### Tailwind Theme (index.css)
+### Removing the legacy HMAC system
 
-- [x] No changes needed. The `@theme inline` block maps CSS variables to utility classes — updating token values in `tokens.css` automatically updates generated utilities.
+- [ ] Delete `SIGNING_KEY`, `LicensePayload`, `LicenseError`, `verify_license_key()`, and the `LICENSE_URL` constant from `src-tauri/src/commands/license.rs`.
+- [ ] Update `LicenseTier` to drop any HMAC-specific paths in `compute_status()`.
+- [ ] No customer migration needed — the HMAC format was never issued.
+
+### Removing per-machine state
+
+- [ ] Drop the `licensee` and `expiresAt` fields from the `LicenseStatus` returned to the frontend (we no longer have these — Dodo's validate response is just `{ valid: bool }`). Update `LicenseSettings.tsx` to remove the "Licensed to: …" and "Expires: …" lines; show only "Commercial" with a green dot.
+- [ ] Add a "Manage subscription / Find my key" link in the License pane that opens Dodo's customer portal in the system browser, for users who want to renew, update payment, or recover a lost key.
 
 ## Testing Decisions
 
 **What makes a good test here:**
-Typography and visual changes are best verified by visual inspection, but the behavioral surface (preference persistence, default values, theme switching) can and should be unit tested.
+The state machine around validation-and-grace is the valuable surface. The HTTP wire format is Dodo's responsibility; mocking it would just re-verify our mock.
 
 **What to test:**
-- [x] `preferences.ts`: verify that `DEFAULT_UI_PREFERENCES` exports `fontSize: 14` and `editorFontSize: 12`, and that the validation schema accepts and clamps these correctly.
-- Font loading: verify that the `@font-face` declarations reference files that exist at the expected paths in the build output.
-- Theme switching: existing theme-application logic should continue to work; no new behavior is introduced.
+- [ ] State-machine transitions in `compute_status()`: just-pasted+`valid:true` → `Commercial`; cached+recently validated → `Commercial`; cached+last_validated >14 days ago + offline → `Unlicensed` with re-validation banner; cached + Dodo returns `valid:false` → `Unlicensed` with normal banner.
+- [ ] Error-code → message mapping for `200 valid:false`, `422`, `5xx`, network failure.
+- [ ] URL construction for the plan picker: given a plan, the right `https://checkout.dodopayments.com/buy/<product_id>?quantity=1` is opened.
+- [ ] Smoke test against Dodo's test environment with a real test key, run manually before each release. Document the flow in `README.md`.
 
 **What not to test:**
-- Pixel-perfect visual output — this is not feasible in a unit test context and is better verified by running the app.
-- CSS variable resolution — this is browser behavior, not application logic.
-
-**Prior art:**
-- Preference validation tests (if any exist) in `src/features/settings/` are the closest analogue.
+- The Dodo HTTP API itself.
+- The `keyring` crate's Keychain behavior.
+- `tauri-plugin-shell`'s `open()` behavior.
 
 ## Out of Scope
 
-- Custom accent color picker (user-defined brand colors).
-- Additional theme variants beyond the existing Tairiki Light / Tairiki Dark / System trio.
-- Changing the data grid's row density defaults (covered by DataGridSettings).
-- Any changes to the editor's keymap, completion behavior, or diagnostics rendering.
-- Dark-mode-only or light-mode-only color variants for schema objects — both themes get a full, coherent set.
-- Icon set changes or icon color adjustments beyond what flows naturally from token updates.
+- **Per-machine activation limits.** No call to `/licenses/activate`, no `instance_id` tracking, no "deactivate this machine" UI. If sharing becomes measurable, add a thin proxy backend that does region/UA heuristics and is the only thing that calls Dodo. Documented as a future enhancement, not a v1 feature.
+- A marketing landing page on `esploro.app`. The plan picker dialog inside the app is the entire purchase entry point.
+- Deep-link return via a custom `esploro://` URL scheme. The user pastes from email; that's the whole flow.
+- Embedded webview checkout. System browser only.
+- Server-side issuance, signing, or escrow of license keys.
+- Discount codes (Dodo handles them on their checkout page if enabled), free trials beyond the existing personal-use tier, team/seat licensing.
+- Migration off the legacy HMAC format — no users exist.
+- Per-feature gating beyond the existing Commercial / Personal / Unlicensed split.
+- In-app subscription management (cancel, change plan, update card). Link out to Dodo's customer portal.
+- License-gated auto-update server. Updates remain free for everyone.
 
 ## Further Notes
 
-- **Yaak reference:** The font choices (Inter + JetBrains Mono at 14px / 12px) are directly inspired by Yaak's defaults, which have proven comfortable for database and API tool UIs. Inter's optical sizing and JetBrains Mono's wide character support make them a strong pairing.
-- **Variable fonts:** Using variable font files (`*.woff2`) instead of static weight files reduces the number of `@font-face` declarations and the total font payload.
-- **Color derivation principle:** Where possible, new color values should be drawn from the Tailwind v4 palette (which is already a project dependency) rather than hand-picked hex values, to keep the palette grounded in a well-tested color system.
-- **Contrast compliance:** All text/background combinations for the new palette should be verified against WCAG AA (4.5:1 for body text, 3:1 for large text) before finalizing values.
+- **Why validate-only.** Dodo's `/licenses/validate` is a public endpoint that returns `{ valid: bool }` and respects subscription expiry and admin revocation. That's enough to enforce the two things we actually care about: "did this person pay" and "is their subscription still active". Skipping `/licenses/activate` removes an entire category of UX papercuts (slot-burn on reinstall, "deactivate first" errors, instance bookkeeping) for the price of trusting users not to share keys — which any client-side enforcement could be bypassed around anyway.
+- **The future-backend escape hatch.** If sharing becomes a problem, the right fix is a small backend that ingests `(license_key, request_metadata)`, applies whatever heuristics make sense (per-region rate limits, repeated UA mismatches, geographic spread), and only then forwards to Dodo's validate endpoint. The app's contract becomes "validate against `license.esploro.app`" instead of "validate against `live.dodopayments.com`" — a one-line change.
+- **Why Keychain.** Plain files in `~/Library/Application Support/com.esploro.app/` are readable by every process running as the user. Keychain entries require explicit consent the first time another app reads them. The other crucial property: Keychain entries survive app uninstall, so reinstalling Esploro is a non-event for licensing.
+- **Why 14 days offline.** Long enough for a two-week trip, short enough that a cancelled subscription stops working within a reasonable window.
+- **Customer portal as recovery.** The "Manage subscription / Find my key" link covers lost keys, expired cards, and "I want to cancel" without us building any of those flows.
