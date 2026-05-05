@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
@@ -10,6 +10,7 @@ import { TableViewerTab } from "../features/table-viewer";
 import { QueryEditorTab } from "../features/query-editor";
 import {
   LicenseBanner,
+  LicenseActivationSheet,
   UsageTypeDialog,
   licenseApi,
   LICENSE_STATUS_KEY,
@@ -130,6 +131,43 @@ function StatusBar() {
 const toolbarBtnClass =
   "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[11px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
 
+function LicenseBadge() {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const { data: status } = useQuery({
+    queryKey: LICENSE_STATUS_KEY,
+    queryFn: licenseApi.getStatus,
+    staleTime: 60_000,
+  });
+
+  const tier = status?.tier ?? "Unlicensed";
+  const isLicensed = tier === "Personal" || tier === "Commercial";
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        title={isLicensed ? `${tier} license active` : "No active license"}
+        className={cn(
+          "flex items-center gap-1.5 h-[18px] px-2 rounded-full text-[10px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
+          isLicensed
+            ? "bg-success/15 text-success hover:bg-success/25"
+            : "bg-control/60 text-tertiary hover:bg-hover hover:text-secondary",
+        )}
+      >
+        <span
+          className={cn(
+            "w-1 h-1 rounded-full shrink-0",
+            isLicensed ? "bg-success" : "bg-tertiary/50",
+          )}
+        />
+        {isLicensed ? tier : "Unlicensed"}
+      </button>
+      <LicenseActivationSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
+  );
+}
+
 function Toolbar() {
   const { addTab, activeSessions, setCommandPaletteOpen } = useAppStore();
 
@@ -164,6 +202,7 @@ function Toolbar() {
       >
         <Settings size={13} />
       </button>
+      <LicenseBadge />
     </div>
   );
 }
