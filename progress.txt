@@ -1,3 +1,13 @@
+## Phase 33 — Background License Re-validation [DONE]
+- Moved license re-validation off the hot path of `get_license_status` and onto a background tokio task.
+- src-tauri/src/commands/license.rs:
+  - Added `pub async fn revalidate_license_background(app: AppHandle)`: checks if the stored license is >24h old, calls `call_dodo_validate`, refreshes `validated_at` on success, clears the keychain on `valid:false`, does nothing on network error (offline grace applies).
+  - Removed the inline re-validation block from `get_license_status`; the command now returns immediately from the keychain cache.
+- src-tauri/src/lib.rs:
+  - Added `.setup()` hook that spawns a `tauri::async_runtime` task on launch: calls `revalidate_license_background` immediately, then loops every 24 hours.
+- Previously, `get_license_status` blocked waiting for a Dodo API call whenever the cached key was older than 24 hours. Now `get_license_status` always returns instantly, and re-validation happens asynchronously in the background. React Query's 60-second polling ensures the frontend picks up any keychain change within a minute.
+- Checks passed: cargo clippy --workspace --all-targets -- -D warnings, npm run type-check, npm run lint.
+
 ## Phase 32 — Plan Picker Dialog [DONE]
 - Implemented PRD User Stories 1 and 2: users can now click "Purchase license" to see a plan picker dialog, then open the Dodo checkout in the system browser.
 - src-tauri/src/commands/license.rs:

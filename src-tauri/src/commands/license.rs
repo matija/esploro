@@ -533,6 +533,41 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Background re-validation
+// ---------------------------------------------------------------------------
+
+/// Re-validates the stored license key against Dodo if it is older than 24 hours.
+/// Called on launch and then every 24 hours by the background task in lib.rs.
+pub async fn revalidate_license_background(app: AppHandle) {
+    let Some(stored) = read_stored_license() else {
+        return;
+    };
+    let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) else {
+        return;
+    };
+    let age = Utc::now() - validated_at.with_timezone(&Utc);
+    if age < chrono::Duration::hours(24) {
+        return;
+    }
+    match call_dodo_validate(&stored.license_key).await {
+        Ok(true) => {
+            let refreshed = StoredLicense {
+                license_key: stored.license_key,
+                validated_at: Utc::now().to_rfc3339(),
+            };
+            write_stored_license(&refreshed).ok();
+        }
+        Ok(false) => {
+            clear_stored_license();
+        }
+        Err(_) => {
+            // Network or server error — offline grace applies; do nothing
+        }
+    }
+    drop(app);
+}
+
+// ---------------------------------------------------------------------------
 // Tauri commands
 // ---------------------------------------------------------------------------
 
@@ -550,30 +585,6 @@ pub async fn get_license_status(
     if let Some(path) = legacy_path {
         if path.exists() {
             std::fs::remove_file(&path).ok();
-        }
-    }
-
-    // Re-validate against Dodo if the cached key is older than 24 hours
-    if let Some(stored) = read_stored_license() {
-        if let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
-            let age = Utc::now() - validated_at.with_timezone(&Utc);
-            if age >= chrono::Duration::hours(24) {
-                match call_dodo_validate(&stored.license_key).await {
-                    Ok(true) => {
-                        let refreshed = StoredLicense {
-                            license_key: stored.license_key,
-                            validated_at: Utc::now().to_rfc3339(),
-                        };
-                        write_stored_license(&refreshed).ok();
-                    }
-                    Ok(false) => {
-                        clear_stored_license();
-                    }
-                    Err(_) => {
-                        // Network or server error — use cached state (offline grace applies)
-                    }
-                }
-            }
         }
     }
 

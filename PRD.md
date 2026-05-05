@@ -21,15 +21,15 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 
 1. [x] As a user, when I click "Purchase license", I want to see Esploro Lifetime ($99.99) and Esploro Annual ($39.99/yr) side-by-side, so that I can pick the one that fits how I work.
 2. [x] As a user, when I pick a plan, I want the macOS system browser to open the matching Dodo checkout page, so that payment happens in a familiar, trusted browser context.
-3. [ ] As a user, after a successful purchase, I want to receive my license key by email automatically, so that I don't have to copy anything from a thank-you page.
-4. [ ] As a user, I want to paste my emailed key into the existing License Activation sheet and have it validated against Dodo, so that I'm marked as Commercial within a second of pasting.
-5. [ ] As a user, when validation succeeds, I want the License pane to show "Commercial" status, so that I can confirm the app accepted my key.
-6. [ ] As a user, when validation fails — wrong key, revoked, lapsed subscription — I want a clear error in the activation sheet, so that I know whether to retry, renew, or contact support.
-7. [ ] As a user, I want my license to keep working offline, so that I can use Esploro on a plane or with a flaky connection.
-8. [ ] As a user, my yearly subscription's expiry should be enforced automatically — the app should revert to Unlicensed within 24 hours of the subscription lapsing, so that licensing reflects what I actually paid for.
-9. [ ] As a user, I want my license key stored in the macOS Keychain rather than a plain file, so that another local process can't trivially copy it and so it survives reinstalling the app.
-10. [ ] As a user, I want a "Remove license" button in the License pane that clears the key from this machine, so that I can clean up if I'm selling the machine or troubleshooting.
-11. [ ] As a user, my existing experience around the warning banner, the usage-type dialog, and the commercial-use detector should be unchanged — I just want a real way to buy what the banner is telling me to buy.
+3. [x] As a user, after a successful purchase, I want to receive my license key by email automatically, so that I don't have to copy anything from a thank-you page. (Handled by Dodo Payments — no app-side implementation needed.)
+4. [x] As a user, I want to paste my emailed key into the existing License Activation sheet and have it validated against Dodo, so that I'm marked as Commercial within a second of pasting.
+5. [x] As a user, when validation succeeds, I want the License pane to show "Commercial" status, so that I can confirm the app accepted my key.
+6. [x] As a user, when validation fails — wrong key, revoked, lapsed subscription — I want a clear error in the activation sheet, so that I know whether to retry, renew, or contact support.
+7. [x] As a user, I want my license to keep working offline, so that I can use Esploro on a plane or with a flaky connection.
+8. [x] As a user, my yearly subscription's expiry should be enforced automatically — the app should revert to Unlicensed within 24 hours of the subscription lapsing, so that licensing reflects what I actually paid for.
+9. [x] As a user, I want my license key stored in the macOS Keychain rather than a plain file, so that another local process can't trivially copy it and so it survives reinstalling the app.
+10. [x] As a user, I want a "Remove license" button in the License pane that clears the key from this machine, so that I can clean up if I'm selling the machine or troubleshooting.
+11. [x] As a user, my existing experience around the warning banner, the usage-type dialog, and the commercial-use detector should be unchanged — I just want a real way to buy what the banner is telling me to buy.
 
 ## Implementation Decisions
 
@@ -66,7 +66,7 @@ The existing self-signed HMAC system is removed; it was never used by real custo
 - [x] On `{ valid: false }`, clear the Keychain entry, revert to `Unlicensed`, and show the warning banner again.
 - [x] On network failure, fall back to the cached state. The license remains valid offline for **14 days** since `validated_at`. After that, revert to `Unlicensed` and show a banner reading "License re-validation required — connect to the internet".
 - [x] The 14-day window mirrors the existing 14-day commercial-use grace period in `compute_status()` for consistency.
-- [ ] Re-validation runs on a background `tokio` task in `lib.rs` and pushes results to the frontend via the existing `LicenseStatus` query (already polled by React Query with `staleTime: 60_000`). (Re-validation currently runs inline in `get_license_status` on each call when the cached key is >24h old.)
+- [x] Re-validation runs on a background `tokio` task in `lib.rs` and pushes results to the frontend via the existing `LicenseStatus` query (already polled by React Query with `staleTime: 60_000`). The task fires immediately on launch and then every 24 hours; `get_license_status` now returns immediately from cache.
 
 ### HTTP plumbing in Rust
 

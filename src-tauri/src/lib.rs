@@ -31,6 +31,16 @@ impl Default for AppState {
 pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    commands::license::revalidate_license_background(handle.clone()).await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(24 * 60 * 60)).await;
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::connections::list_connections,
             commands::connections::create_connection,
