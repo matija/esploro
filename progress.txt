@@ -1,3 +1,22 @@
+## Phase 36 — Better Table Filtering [DONE]
+- Implemented PRD Feature 2 in full: column header filter popovers, context menu filter actions, clickable chips, and ⌘F shortcut.
+- package.json:
+  - Added `@radix-ui/react-popover` and `@radix-ui/react-select` dependencies.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed the horizontal filter bar (`FilterInput` component and the `{columns.length > 0 && ...}` JSX block). No filter UI now takes up space when no filters are active.
+  - Removed `FilterInput` component (replaced by `ColumnFilterPopover`).
+  - Added `ColumnFilterPopover` component: Radix `Popover` + Radix `Select` for operator. Shows column name + type badge, operator selector (styled, not native `<select>`), value input (hidden for IsNull/IsNotNull), Apply + Clear buttons. Enter confirms, Escape closes via Radix's `onEscapeKeyDown`.
+  - Updated `ColumnHeaderCell`: filter icon now always visible on header hover (not just when filtered), styled accent when filter is active. `onFilterClick` prop stops propagation so sort isn't triggered.
+  - Added single shared `ColumnFilterPopover` instance rendered outside the header loop, positioned using a `virtualRef` (`anchorEl` from `filterAnchorEl` ref) anchored to the clicked filter button.
+  - Added `onFilterByValue` prop to `CellContextMenu`. New menu items after the copy section: "Filter by this value" (sets `col = value`) and "Filter: IS NULL" (when cell is null, sets IS NULL operator).
+  - Active filter chips row: each chip is now a clickable `<button>` that reopens the filter popover for that column, pre-filled with the current entry. × button stops propagation before removing the filter.
+  - Added `applyFilterEntry` callback that handles both setting and clearing filter entries.
+  - Added `handleFilterByValue` callback that sets `Eq` + cell value (or `IsNull`) directly from context menu.
+  - Added `openFilterCol` state and `filterAnchorEl` ref for the shared popover.
+  - Added ⌘F keyboard shortcut: opens popover for sorted column or first column.
+  - Memoized `columns` array to avoid spurious hook dependency changes.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 35 — MySQL/MariaDB Connection Support [DONE]
 - Implemented PRD Feature 1 in full: MySQL/MariaDB connections from driver abstraction to UI.
 - src-tauri/Cargo.toml:

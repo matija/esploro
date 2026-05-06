@@ -232,7 +232,7 @@ In the active chip row, make each chip clickable. Clicking a chip sets a `editin
 - [ ] Verify that LIKE operator is used for MySQL text filters (no ILIKE).
 - [ ] Verify error message when connection fails (wrong password, wrong host).
 
-**Filtering**
+**Filtering** ✅ Implementation complete (manual testing pending live table data)
 
 - [ ] Open a wide table (10+ columns). Filter popover opens for any column via header click.
 - [ ] "Filter by this value" sets the filter and the chip appears.

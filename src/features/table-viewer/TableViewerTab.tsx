@@ -9,6 +9,9 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import * as Select from "@radix-ui/react-select";
+import { ChevronDown as SelectChevron, Check } from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { tableApi } from "./api";
@@ -185,11 +188,13 @@ function ColumnHeaderCell({
   sortDir,
   isFiltered,
   onClick,
+  onFilterClick,
 }: {
   col: ResultColumn;
   sortDir: "asc" | "desc" | null;
   isFiltered: boolean;
   onClick: () => void;
+  onFilterClick: (e: React.MouseEvent) => void;
 }) {
   return (
     <div
@@ -210,11 +215,21 @@ function ColumnHeaderCell({
         {col.name}
       </span>
       {col.isNullable && (
-        <span className="text-[8px] font-mono text-tertiary shrink-0" title="Nullable">?</span>
+        <span className="text-[8px] font-mono text-tertiary shrink-0 group-hover:hidden" title="Nullable">?</span>
       )}
-      {isFiltered && (
-        <Filter size={9} className="text-accent shrink-0" />
-      )}
+      {/* Filter icon: accent when filtered, visible on hover when not */}
+      <button
+        onClick={onFilterClick}
+        title={`Filter by ${col.name}`}
+        className={cn(
+          "shrink-0 p-0.5 rounded transition-colors",
+          isFiltered
+            ? "text-accent"
+            : "text-tertiary opacity-0 group-hover:opacity-100 hover:text-accent",
+        )}
+      >
+        <Filter size={9} />
+      </button>
       <span
         className={cn(
           "text-[9px] font-mono px-1 py-px rounded shrink-0",
@@ -233,59 +248,153 @@ function ColumnHeaderCell({
   );
 }
 
-// ─── FilterInput ──────────────────────────────────────────────────────────────
+// ─── FilterEntry ─────────────────────────────────────────────────────────────
 
 interface FilterEntry {
   operator: FilterOperator;
   value: string;
 }
 
-function FilterInput({
+// ─── ColumnFilterPopover ─────────────────────────────────────────────────────
+
+function ColumnFilterPopover({
   col,
+  anchorEl,
+  open,
+  onOpenChange,
   entry,
-  onChange,
+  onApply,
 }: {
   col: ResultColumn;
+  anchorEl: Element | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   entry: FilterEntry | undefined;
-  onChange: (e: FilterEntry) => void;
+  onApply: (entry: FilterEntry | null) => void;
 }) {
   const family = getTypeFamily(col.dataType);
   const ops = getOperatorsForFamily(family);
-  const current: FilterEntry = entry ?? { operator: ops[0], value: "" };
-  const noValue =
-    current.operator === "IsNull" || current.operator === "IsNotNull";
+  const [draft, setDraft] = useState<FilterEntry>(
+    entry ?? { operator: ops[0], value: "" },
+  );
+
+  // Sync draft when popover opens
+  useEffect(() => {
+    if (open) {
+      setDraft(entry ?? { operator: ops[0], value: "" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Build a stable virtual ref wrapping the live anchor element
+  const virtualRef = useRef({ getBoundingClientRect: () => anchorEl?.getBoundingClientRect() ?? new DOMRect() });
+  useEffect(() => {
+    virtualRef.current = { getBoundingClientRect: () => anchorEl?.getBoundingClientRect() ?? new DOMRect() };
+  }, [anchorEl]);
+
+  const noValue = draft.operator === "IsNull" || draft.operator === "IsNotNull";
+  const hasExisting = !!entry;
+
+  const apply = () => {
+    onApply(draft);
+    onOpenChange(false);
+  };
+
+  const clear = () => {
+    onApply(null);
+    onOpenChange(false);
+  };
 
   return (
-    <div
-      className="flex items-center gap-1 px-2 py-1 rounded bg-control text-xs"
-      style={{ minWidth: 200 }}
-    >
-      <span className="text-secondary font-medium shrink-0 truncate max-w-[70px]">
-        {col.name}
-      </span>
-      <select
-        value={current.operator}
-        onChange={(e) =>
-          onChange({ ...current, operator: e.target.value as FilterOperator })
-        }
-        className="bg-transparent text-label text-xs outline-none shrink-0 cursor-pointer"
-      >
-        {ops.map((op) => (
-          <option key={op} value={op}>
-            {OP_LABELS[op]}
-          </option>
-        ))}
-      </select>
-      {!noValue && (
-        <input
-          type="text"
-          value={current.value}
-          onChange={(e) => onChange({ ...current, value: e.target.value })}
-          placeholder="value…"
-          className="w-24 bg-transparent text-label text-xs outline-none placeholder:text-secondary min-w-0"
-        />
-      )}
-    </div>
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      <Popover.Anchor virtualRef={virtualRef} />
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={4}
+          onEscapeKeyDown={() => onOpenChange(false)}
+          onInteractOutside={() => onOpenChange(false)}
+          className="z-50 w-64 rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] p-3 flex flex-col gap-2.5"
+        >
+          {/* Column name + type badge */}
+          <div className="flex items-center gap-2 pb-1 border-b border-separator">
+            <span className="text-xs font-semibold text-label truncate flex-1">{col.name}</span>
+            <span className={cn("text-[9px] font-mono px-1 py-px rounded shrink-0", typeFamilyBadgeClass(family))}>
+              {col.dataType}
+            </span>
+          </div>
+
+          {/* Operator selector */}
+          <Select.Root
+            value={draft.operator}
+            onValueChange={(v) => setDraft((d) => ({ ...d, operator: v as FilterOperator }))}
+          >
+            <Select.Trigger className="flex items-center justify-between w-full px-2 py-1.5 rounded-[var(--radius-control)] bg-control border border-separator text-xs text-label hover:bg-hover transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+              <Select.Value />
+              <Select.Icon>
+                <SelectChevron size={12} className="text-secondary" />
+              </Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content
+                position="popper"
+                sideOffset={4}
+                className="z-[60] min-w-[var(--radix-select-trigger-width)] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1 text-xs"
+              >
+                <Select.Viewport>
+                  {ops.map((op) => (
+                    <Select.Item
+                      key={op}
+                      value={op}
+                      className="flex items-center justify-between px-3 py-1.5 text-label hover:bg-hover cursor-default outline-none data-[highlighted]:bg-hover"
+                    >
+                      <Select.ItemText>{OP_LABELS[op]}</Select.ItemText>
+                      <Select.ItemIndicator>
+                        <Check size={10} className="text-accent" />
+                      </Select.ItemIndicator>
+                    </Select.Item>
+                  ))}
+                </Select.Viewport>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
+
+          {/* Value input */}
+          {!noValue && (
+            <input
+              type="text"
+              value={draft.value}
+              onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") apply();
+              }}
+              placeholder="value…"
+              autoFocus
+              className="w-full px-2 py-1.5 rounded-[var(--radius-control)] bg-control border border-separator text-xs text-label placeholder:text-secondary outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            />
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-0.5">
+            <button
+              onClick={apply}
+              className="flex-1 px-2 py-1.5 rounded-[var(--radius-control)] bg-accent text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
+            >
+              Apply
+            </button>
+            {hasExisting && (
+              <button
+                onClick={clear}
+                className="px-2 py-1.5 rounded-[var(--radius-control)] bg-control text-secondary text-xs hover:bg-hover hover:text-destructive transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -298,6 +407,7 @@ function CellContextMenu({
   x,
   y,
   onClose,
+  onFilterByValue,
 }: {
   rowData: (string | null)[];
   columns: ResultColumn[];
@@ -305,6 +415,7 @@ function CellContextMenu({
   x: number;
   y: number;
   onClose: () => void;
+  onFilterByValue: (colName: string, value: string | null) => void;
 }) {
   useEffect(() => {
     const onDown = () => onClose();
@@ -355,6 +466,11 @@ function CellContextMenu({
     onClose();
   };
 
+  const filterByValue = () => {
+    onFilterByValue(colName, cellValue);
+    onClose();
+  };
+
   return createPortal(
     <div
       className="fixed z-50 min-w-[200px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
@@ -394,6 +510,27 @@ function CellContextMenu({
       >
         Copy Row as CSV
       </button>
+      <div className="my-1 border-t border-separator" />
+      {cellValue !== null ? (
+        <button
+          onClick={filterByValue}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+        >
+          <Filter size={10} className="text-secondary shrink-0" />
+          <span>Filter by this value</span>
+          <span className="ml-auto font-mono text-tertiary text-[10px] truncate max-w-[80px]">
+            {cellValue.length > 20 ? cellValue.slice(0, 20) + "…" : cellValue}
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={filterByValue}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+        >
+          <Filter size={10} className="text-secondary shrink-0" />
+          Filter: IS NULL
+        </button>
+      )}
     </div>,
     document.body,
   );
@@ -532,7 +669,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const rows = data?.rows ?? [];
-  const columns = data?.columns ?? [];
+  const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -608,6 +745,52 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setFilterDraft({});
   };
 
+  // ── Filter popover state ───────────────────────────────────────────────────
+
+  const [openFilterCol, setOpenFilterCol] = useState<string | null>(null);
+  const filterAnchorEl = useRef<Element | null>(null);
+
+  const applyFilterEntry = useCallback(
+    (colName: string, entry: FilterEntry | null) => {
+      setFilterDraft((prev) => {
+        const next = { ...prev };
+        if (entry === null) {
+          delete next[colName];
+        } else {
+          next[colName] = entry;
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleFilterByValue = useCallback(
+    (colName: string, value: string | null) => {
+      setFilterDraft((prev) => ({
+        ...prev,
+        [colName]: {
+          operator: value === null ? "IsNull" : "Eq",
+          value: value ?? "",
+        },
+      }));
+    },
+    [],
+  );
+
+  // ⌘F: open filter popover for sorted column or first column
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f" && columns.length > 0) {
+        e.preventDefault();
+        const target = sortColumn ?? columns[0].name;
+        setOpenFilterCol(target);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [columns, sortColumn]);
+
   const totalWidth = columns.length * COL_WIDTH;
 
   // ── Guard ──────────────────────────────────────────────────────────────────
@@ -676,47 +859,31 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         </button>
       </div>
 
-      {/* Filter bar */}
-      {columns.length > 0 && (
-        <div className="shrink-0 border-b border-separator overflow-x-auto bg-sidebar/50">
-          <div
-            className="flex gap-1.5 px-2 py-1.5"
-            style={{ minWidth: "max-content" }}
-          >
-            {columns.map((col) => (
-              <FilterInput
-                key={col.name}
-                col={col}
-                entry={filterDraft[col.name]}
-                onChange={(e) =>
-                  setFilterDraft((prev) => ({ ...prev, [col.name]: e }))
-                }
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Active filter chips */}
       {activeChips.length > 0 && (
         <div className="shrink-0 flex flex-wrap items-center gap-1 px-2 py-1 border-b border-separator bg-accent/5">
           {activeChips.map((f) => (
-            <span
+            <button
               key={f.column}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs"
+              onClick={(e) => {
+                filterAnchorEl.current = e.currentTarget;
+                setOpenFilterCol(f.column);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs hover:bg-accent/20 transition-colors"
             >
               <span className="font-medium">{f.column}</span>
               <span>{OP_LABELS[f.operator]}</span>
               {f.value !== undefined && (
                 <span className="font-mono">'{f.value}'</span>
               )}
-              <button
-                onClick={() => removeFilter(f.column)}
-                className="hover:text-destructive transition-colors ml-0.5"
+              <span
+                role="button"
+                onClick={(e) => { e.stopPropagation(); removeFilter(f.column); }}
+                className="hover:text-destructive transition-colors ml-0.5 cursor-pointer"
               >
                 ×
-              </button>
-            </span>
+              </span>
+            </button>
           ))}
           <button
             onClick={clearAllFilters}
@@ -793,6 +960,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     }
                     isFiltered={activeFilterCols.has(col.name)}
                     onClick={() => handleSort(col.name)}
+                    onFilterClick={(e) => {
+                      e.stopPropagation();
+                      filterAnchorEl.current = e.currentTarget;
+                      setOpenFilterCol((prev) =>
+                        prev === col.name ? null : col.name,
+                      );
+                    }}
                   />
                 ))}
               </div>
@@ -941,6 +1115,22 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         </div>
       </div>
 
+      {/* Column filter popover (single shared instance) */}
+      {openFilterCol !== null && (() => {
+        const filterCol = columns.find((c) => c.name === openFilterCol);
+        if (!filterCol) return null;
+        return (
+          <ColumnFilterPopover
+            col={filterCol}
+            anchorEl={filterAnchorEl.current}
+            open={true}
+            onOpenChange={(o) => { if (!o) setOpenFilterCol(null); }}
+            entry={filterDraft[openFilterCol]}
+            onApply={(entry) => applyFilterEntry(openFilterCol, entry)}
+          />
+        );
+      })()}
+
       {/* Cell context menu */}
       {cellMenu && (
         <CellContextMenu
@@ -950,6 +1140,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           x={cellMenu.x}
           y={cellMenu.y}
           onClose={() => setCellMenu(null)}
+          onFilterByValue={handleFilterByValue}
         />
       )}
     </div>
