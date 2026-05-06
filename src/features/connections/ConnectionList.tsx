@@ -327,6 +327,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
       displayName: `${profile.displayName} (copy)`,
       color: profile.color,
       folder: profile.folder,
+      driver: profile.driver,
       host: profile.host,
       port: profile.port,
       socketPath: profile.socketPath,
