@@ -195,7 +195,8 @@ fn default_ui_preferences() -> UiPreferences {
 
 fn normalize_theme(theme: &str) -> String {
     match theme {
-        "tairiki-light" | "tairiki-dark" | "system" | "macos-light" | "macos-dark" => {
+        "tairiki-light" | "tairiki-dark" | "system" | "macos-light" | "macos-dark"
+        | "tokyo-night" | "tokyo-night-day" | "github-dark" | "github-light" => {
             theme.to_string()
         }
         "light" => "tairiki-light".to_string(),

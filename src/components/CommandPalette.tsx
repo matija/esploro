@@ -290,6 +290,34 @@ export function CommandPalette() {
       title: "Theme: System",
       action: () => setTheme("system"),
     },
+    {
+      id: "theme-tokyo-night",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Tokyo Night",
+      action: () => setTheme("tokyo-night"),
+    },
+    {
+      id: "theme-tokyo-night-day",
+      group: "Settings",
+      icon: <Sun size={13} />,
+      title: "Theme: Tokyo Night Day",
+      action: () => setTheme("tokyo-night-day"),
+    },
+    {
+      id: "theme-github-dark",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: GitHub Dark",
+      action: () => setTheme("github-dark"),
+    },
+    {
+      id: "theme-github-light",
+      group: "Settings",
+      icon: <Sun size={13} />,
+      title: "Theme: GitHub Light",
+      action: () => setTheme("github-light"),
+    },
   ];
 
   const allCommands: CommandResult[] = [

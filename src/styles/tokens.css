@@ -141,6 +141,122 @@
   --ds-syntax-comment:   #78716c;
 }
 
+/* ── Tokyo Night Storm (dark) ────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="tokyo-night"] {
+  --ds-content-bg:       #24283b;
+  --ds-sidebar-bg:       #1f2335;
+  --ds-bg-subtle:        #2e3348;
+  --ds-bg-active:        #363b54;
+  --ds-separator:        #3b4261;
+  --ds-border-strong:    #545c7e;
+  --ds-control-bg:       rgba(192, 202, 245, 0.06);
+  --ds-label:            #c0caf5;
+  --ds-secondary:        #a9b1d6;
+  --ds-tertiary:         #565f89;
+  --ds-text-inverse:     #1a1b2e;
+  --ds-accent:           #7aa2f7;
+  --ds-accent-hover:     #89b4fa;
+  --ds-accent-subtle:    #3d59a1;
+  --ds-success:          #9ece6a;
+  --ds-warning:          #e0af68;
+  --ds-destructive:      #f7768e;
+  --ds-syntax-keyword:   #bb9af7;
+  --ds-syntax-type:      #e0af68;
+  --ds-syntax-string:    #9ece6a;
+  --ds-syntax-number:    #7dcfff;
+  --ds-syntax-enum:      #ff9e64;
+  --ds-syntax-special:   #f7768e;
+  --ds-syntax-operator:  #89ddff;
+  --ds-syntax-comment:   #565f89;
+}
+
+/* ── Tokyo Night Day (light) ─────────────────────────────────────────────── */
+:root[data-theme="light"][data-palette="tokyo-night-day"] {
+  --ds-content-bg:       #e1e2e7;
+  --ds-sidebar-bg:       #d0d5e3;
+  --ds-bg-subtle:        #cbd0e3;
+  --ds-bg-active:        #b7c1e3;
+  --ds-separator:        #a8aecb;
+  --ds-border-strong:    #6172b0;
+  --ds-control-bg:       #e9e9ed;
+  --ds-label:            #3760bf;
+  --ds-secondary:        #6172b0;
+  --ds-tertiary:         #848cb5;
+  --ds-text-inverse:     #ffffff;
+  --ds-accent:           #2e7de9;
+  --ds-accent-hover:     #1a5fbf;
+  --ds-accent-subtle:    #b7c5f0;
+  --ds-success:          #587539;
+  --ds-warning:          #8c6c3e;
+  --ds-destructive:      #f52a65;
+  --ds-syntax-keyword:   #9854f1;
+  --ds-syntax-type:      #8c6c3e;
+  --ds-syntax-string:    #587539;
+  --ds-syntax-number:    #007197;
+  --ds-syntax-enum:      #b15c00;
+  --ds-syntax-special:   #f52a65;
+  --ds-syntax-operator:  #7847bd;
+  --ds-syntax-comment:   #848cb5;
+}
+
+/* ── GitHub Dark ─────────────────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="github-dark"] {
+  --ds-content-bg:       #0d1117;
+  --ds-sidebar-bg:       #010409;
+  --ds-bg-subtle:        #161b22;
+  --ds-bg-active:        #21262d;
+  --ds-separator:        #30363d;
+  --ds-border-strong:    #6e7681;
+  --ds-control-bg:       #21262d;
+  --ds-label:            #e6edf3;
+  --ds-secondary:        #7d8590;
+  --ds-tertiary:         #6e7681;
+  --ds-text-inverse:     #ffffff;
+  --ds-accent:           #2f81f7;
+  --ds-accent-hover:     #58a6ff;
+  --ds-accent-subtle:    #1f6feb;
+  --ds-success:          #3fb950;
+  --ds-warning:          #d29922;
+  --ds-destructive:      #f85149;
+  --ds-syntax-keyword:   #ff7b72;
+  --ds-syntax-type:      #ffa657;
+  --ds-syntax-string:    #a5d6ff;
+  --ds-syntax-number:    #79c0ff;
+  --ds-syntax-enum:      #ffa657;
+  --ds-syntax-special:   #d2a8ff;
+  --ds-syntax-operator:  #ff7b72;
+  --ds-syntax-comment:   #8b949e;
+}
+
+/* ── GitHub Light ────────────────────────────────────────────────────────── */
+:root[data-theme="light"][data-palette="github-light"] {
+  --ds-content-bg:       #ffffff;
+  --ds-sidebar-bg:       #f6f8fa;
+  --ds-bg-subtle:        #eaeef2;
+  --ds-bg-active:        #d8dee4;
+  --ds-separator:        #d0d7de;
+  --ds-border-strong:    #8c959f;
+  --ds-control-bg:       #f6f8fa;
+  --ds-label:            #1f2328;
+  --ds-secondary:        #656d76;
+  --ds-tertiary:         #8c959f;
+  --ds-text-inverse:     #ffffff;
+  --ds-accent:           #0969da;
+  --ds-accent-hover:     #0550ae;
+  --ds-accent-subtle:    #ddf4ff;
+  --ds-success:          #1a7f37;
+  --ds-warning:          #9a6700;
+  --ds-destructive:      #cf222e;
+  --ds-syntax-keyword:   #cf222e;
+  --ds-syntax-type:      #953800;
+  --ds-syntax-string:    #0a3069;
+  --ds-syntax-number:    #0550ae;
+  --ds-syntax-enum:      #953800;
+  --ds-syntax-special:   #8250df;
+  --ds-syntax-operator:  #cf222e;
+  --ds-syntax-comment:   #6e7781;
+}
+
 /* ── Craft token contract ────────────────────────────────────────────────── */
 :root {
   /* Surfaces */

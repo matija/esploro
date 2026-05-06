@@ -40,6 +40,10 @@ const THEME_OPTIONS: ThemeOption[] = [
   { value: "tairiki-light", label: "Tairiki Light", icon: <Sun size={13} /> },
   { value: "tairiki-dark", label: "Tairiki Dark", icon: <Moon size={13} /> },
   { value: "system", label: "System", icon: <Monitor size={13} /> },
+  { value: "tokyo-night", label: "Tokyo Night", icon: <Moon size={13} /> },
+  { value: "tokyo-night-day", label: "Tokyo Night Day", icon: <Sun size={13} /> },
+  { value: "github-dark", label: "GitHub Dark", icon: <Moon size={13} /> },
+  { value: "github-light", label: "GitHub Light", icon: <Sun size={13} /> },
 ];
 
 const FONT_PRESETS: FontPreset[] = [

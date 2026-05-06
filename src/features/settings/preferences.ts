@@ -4,6 +4,10 @@ export const uiThemeValues = [
   "system",
   "macos-light",
   "macos-dark",
+  "tokyo-night",
+  "tokyo-night-day",
+  "github-dark",
+  "github-light",
 ] as const;
 
 export type UiTheme = (typeof uiThemeValues)[number];
@@ -178,11 +182,30 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
   switch (normalizeTheme(theme)) {
     case "tairiki-light":
     case "macos-light":
+    case "tokyo-night-day":
+    case "github-light":
       return "light";
     case "tairiki-dark":
     case "macos-dark":
+    case "tokyo-night":
+    case "github-dark":
       return "dark";
     case "system":
+      return null;
+  }
+}
+
+export function themeToPaletteAttribute(theme: unknown): string | null {
+  switch (normalizeTheme(theme)) {
+    case "tokyo-night":
+      return "tokyo-night";
+    case "tokyo-night-day":
+      return "tokyo-night-day";
+    case "github-dark":
+      return "github-dark";
+    case "github-light":
+      return "github-light";
+    default:
       return null;
   }
 }
@@ -193,11 +216,18 @@ export function applyUiPreferencesToDocument(preferences: UiPreferences): void {
   const normalized = normalizeUiPreferences(preferences);
   const root = document.documentElement;
   const domTheme = themeToDomAttribute(normalized.ui.theme);
+  const palette = themeToPaletteAttribute(normalized.ui.theme);
 
   if (domTheme === null) {
     root.removeAttribute("data-theme");
   } else {
     root.setAttribute("data-theme", domTheme);
+  }
+
+  if (palette === null) {
+    root.removeAttribute("data-palette");
+  } else {
+    root.setAttribute("data-palette", palette);
   }
 
   root.style.setProperty("--font-ui", normalized.ui.fontFamily);

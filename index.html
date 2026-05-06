@@ -26,6 +26,10 @@
           system: true,
           'macos-light': true,
           'macos-dark': true,
+          'tokyo-night': true,
+          'tokyo-night-day': true,
+          'github-dark': true,
+          'github-light': true,
         };
 
         function themeValue(value) {
@@ -69,8 +73,13 @@
         }
 
         function resolvedDomTheme(theme) {
-          if (theme === 'tairiki-light' || theme === 'macos-light') return 'light';
-          if (theme === 'tairiki-dark' || theme === 'macos-dark') return 'dark';
+          if (theme === 'tairiki-light' || theme === 'macos-light' || theme === 'tokyo-night-day' || theme === 'github-light') return 'light';
+          if (theme === 'tairiki-dark' || theme === 'macos-dark' || theme === 'tokyo-night' || theme === 'github-dark') return 'dark';
+          return null;
+        }
+
+        function resolvedPalette(theme) {
+          if (theme === 'tokyo-night' || theme === 'tokyo-night-day' || theme === 'github-dark' || theme === 'github-light') return theme;
           return null;
         }
 
@@ -81,6 +90,12 @@
             root.setAttribute('data-theme', domTheme);
           } else {
             root.removeAttribute('data-theme');
+          }
+          var palette = resolvedPalette(preferences.ui.theme);
+          if (palette) {
+            root.setAttribute('data-palette', palette);
+          } else {
+            root.removeAttribute('data-palette');
           }
           root.style.setProperty('--font-ui', preferences.ui.fontFamily);
           root.style.setProperty('--font-ui-size', preferences.ui.fontSize + 'px');

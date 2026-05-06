@@ -1,3 +1,29 @@
+## Phase 37 — Tokyo Night and GitHub Themes [DONE]
+- Implemented PRD Features 1 and 2: four new themes using a `data-palette` attribute layered on top of the existing `data-theme` (light/dark) split.
+- src/features/settings/preferences.ts:
+  - Extended `uiThemeValues` with `tokyo-night`, `tokyo-night-day`, `github-dark`, `github-light`.
+  - Updated `themeToDomAttribute` to map new dark themes → `"dark"` and new light themes → `"light"`.
+  - Added `themeToPaletteAttribute` that returns the palette name for the four new themes, `null` for Tairiki/System.
+  - Updated `applyUiPreferencesToDocument` to set or remove `data-palette` alongside `data-theme`.
+- src/styles/tokens.css:
+  - Added four new palette blocks using `data-theme` + `data-palette` attribute selectors.
+  - Tokyo Night Storm: `[data-theme="dark"][data-palette="tokyo-night"]` — canonical folke/tokyonight.nvim Storm palette.
+  - Tokyo Night Day: `[data-theme="light"][data-palette="tokyo-night-day"]` — Day variant.
+  - GitHub Dark: `[data-theme="dark"][data-palette="github-dark"]` — Primer canvas.default dark palette.
+  - GitHub Light: `[data-theme="light"][data-palette="github-light"]` — Primer canvas.default light palette.
+  - All tokens map to `--ds-*` so the full craft token contract picks them up automatically with no component changes.
+- src/features/settings/AppearanceSettings.tsx:
+  - Added all four new themes to `THEME_OPTIONS` with Moon/Sun icons.
+- src/components/CommandPalette.tsx:
+  - Added four new theme commands to `coreCommands` (Tokyo Night, Tokyo Night Day, GitHub Dark, GitHub Light).
+- src-tauri/src/commands/license.rs:
+  - Updated `normalize_theme` to accept the four new theme IDs.
+- index.html:
+  - Added new themes to the bootstrap `themes` allowlist.
+  - Updated `resolvedDomTheme` to map them to `"light"` or `"dark"`.
+  - Added `resolvedPalette` helper that sets `data-palette` before React hydrates, preventing flash of wrong palette.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 36 — Better Table Filtering [DONE]
 - Implemented PRD Feature 2 in full: column header filter popovers, context menu filter actions, clickable chips, and ⌘F shortcut.
 - package.json:

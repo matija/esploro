@@ -6,7 +6,7 @@ The MySQL + filtering PRD has shipped and lives in `prds/PRD-mysql-and-filtering
 
 ---
 
-## Feature 1: Tokyo Night themes (dark + light)
+## Feature 1: Tokyo Night themes (dark + light) [DONE]
 
 ### Why
 
@@ -99,7 +99,7 @@ Both follow the canonical palette from `folke/tokyonight.nvim`. We pick **Storm*
 
 ---
 
-## Feature 2: GitHub themes (dark + light)
+## Feature 2: GitHub themes (dark + light) [DONE]
 
 ### Why
 
