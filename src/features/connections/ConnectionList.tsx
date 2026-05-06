@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { connectionsApi } from './api';
 import type { ConnectionProfile, ConnectionInput } from './types';
 import { useAppStore } from '../../store';
+import { useConfirm } from '../../components/ConfirmDialog';
 
 interface Props {
   profiles: ConnectionProfile[];
@@ -249,6 +250,7 @@ function ConnectionRow({
 
 export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, onPasteConnectionUrl, renderExpansion }: Props) {
   const { activeSessions, connectSession, disconnectSession } = useAppStore();
+  const confirm = useConfirm();
 
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -344,7 +346,16 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this connection?')) return;
+    const profile = profiles.find((p) => p.id === id);
+    const ok = await confirm({
+      title: 'Delete connection?',
+      description: profile
+        ? `"${profile.displayName}" will be removed along with its stored password.`
+        : 'This connection profile will be removed along with its stored password.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await connectionsApi.delete(id);
       disconnectSession(id);

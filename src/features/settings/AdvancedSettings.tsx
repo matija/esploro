@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { RotateCcw } from "lucide-react";
 import { useAppStore } from "../../store";
+import { useConfirm } from "../../components/ConfirmDialog";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -9,9 +10,16 @@ import {
 
 export function AdvancedSettings() {
   const { hydrateTheme, hydrateEditorAndGridPrefs } = useAppStore();
+  const confirm = useConfirm();
 
   async function handleResetAll() {
-    if (!window.confirm("Reset all preferences to defaults? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Reset all preferences?",
+      description: "Theme, fonts, editor behaviour, and grid settings will all return to their factory defaults. This cannot be undone.",
+      confirmLabel: "Reset",
+      destructive: true,
+    });
+    if (!ok) return;
     applyUiPreferencesToDocument(defaultUiPreferences);
     cacheUiPreferencesForBootstrap(defaultUiPreferences);
     hydrateTheme(defaultUiPreferences.ui.theme);

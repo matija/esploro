@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/Toast";
+import { useConfirm } from "../../components/ConfirmDialog";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -117,6 +118,7 @@ function canPersist(preferences: UiPreferences): boolean {
 
 export function AppearanceSettings() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const { theme, hydrateTheme } = useAppStore();
   const [preferences, setPreferences] = useState<UiPreferences>(() =>
     normalizeUiPreferences({ ...defaultUiPreferences, ui: { ...defaultUiPreferences.ui, theme } }),
@@ -169,8 +171,16 @@ export function AppearanceSettings() {
     });
   }
 
-  function resetPreferences(): void {
-    if (isCustom && !window.confirm("Reset appearance preferences to defaults?")) return;
+  async function resetPreferences(): Promise<void> {
+    if (isCustom) {
+      const ok = await confirm({
+        title: "Reset appearance preferences?",
+        description: "Theme, fonts, and density will return to their defaults.",
+        confirmLabel: "Reset",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setPreferences(defaultUiPreferences);
     persist(defaultUiPreferences);
   }

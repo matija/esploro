@@ -27,6 +27,7 @@ import {
 } from "../features/settings/preferences";
 import { cn } from "../lib/utils";
 import { ToastProvider } from "./Toast";
+import { ConfirmProvider } from "./ConfirmDialog";
 
 function WelcomeView() {
   const { activeSessions } = useAppStore();
@@ -371,6 +372,7 @@ export function AppShell() {
 
   return (
     <ToastProvider>
+    <ConfirmProvider>
     <div className="flex flex-col h-screen overflow-hidden">
       {/* macOS title-bar + toolbar */}
       <div
@@ -419,6 +421,7 @@ export function AppShell() {
       <CommandPalette />
       <UsageTypeDialog />
     </div>
+    </ConfirmProvider>
     </ToastProvider>
   );
 }

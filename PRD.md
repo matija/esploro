@@ -1,242 +1,365 @@
-# PRD: MySQL/MariaDB Support + Better Table Filtering
+# PRD: Themes, polish, and About
 
-Two features. They share a release because MySQL type names affect how filters behave, and it's cleaner to do them together than to ship half a filter system, then retrofit it for MySQL types.
+A grab-bag release. Two new theme families, a couple of UI papercuts, and an About screen so the app stops feeling anonymous.
 
----
-
-## Feature 1: MySQL and MariaDB connections
-
-### Problem
-
-Esploro only connects to PostgreSQL. A lot of freelance and hobbyist work runs on MySQL or MariaDB — WordPress, Laravel, Rails with MySQL adapter, managed databases on PlanetScale and Railway. Every time a user opens a non-Postgres database, they have to switch to a different client.
-
-### What we want
-
-A user should be able to add a MySQL or MariaDB connection the same way they add a Postgres one. They pick the driver from a dropdown, fill in host/port/database/user/password, hit Connect, and browse tables. The table viewer, schema browser, and query editor should all work.
-
-MySQL and MariaDB are close enough to treat as one driver. We call the driver `mysql` internally and surface "MySQL / MariaDB" in the UI.
-
-### User stories
-
-1. As a user, I can create a connection profile with driver set to "MySQL / MariaDB", so that I can connect to a MySQL or MariaDB server.
-2. As a user, the default port fills in as 3306 when I pick MySQL, so that I don't have to look it up.
-3. As a user, I can browse the schema tree — databases, tables, and columns — the same way I do in Postgres connections.
-4. As a user, I can open a table and page through its rows in the table viewer.
-5. As a user, I can run SQL queries in the query editor against a MySQL connection.
-6. As a user, column types show up correctly (VARCHAR, INT, DATETIME, TINYINT, etc.) and filter operators are appropriate for each type.
-7. As a user, connections are tested before saving, with a clear error if the host is unreachable or credentials are wrong.
-
-### What MySQL is missing (vs Postgres)
-
-- **No schema layer.** In MySQL, database = schema. The schema browser shows databases → tables → columns. No intermediate schema node.
-- **No ILIKE.** MySQL's LIKE is case-insensitive by default with a UTF-8 collation. We expose LIKE only; no ILIKE operator for MySQL text columns.
-- **No native boolean type.** MySQL uses `TINYINT(1)` for booleans. Map `tinyint` to the `boolean` type family when the column length is 1; otherwise numeric.
-- **No UUID type.** Store as `CHAR(36)` or `VARCHAR(36)`. Treat as text family.
-- **Different INFORMATION_SCHEMA column names.** `COLUMN_TYPE` (MySQL) vs `udt_name` (Postgres), `IS_NULLABLE = 'YES'` in both but the primary-key query differs (use `COLUMN_KEY = 'PRI'` in MySQL instead of joining `pg_constraint`).
-
-### Implementation decisions
-
-**Driver abstraction in Rust**
-
-Define a `DbDriver` trait (or an enum dispatch) with methods:
-- `query_table(...)` → `TableQueryResult`
-- `list_databases()` → `Vec<String>`
-- `list_tables(database)` → `Vec<TableInfo>`
-- `list_columns(database, table)` → `Vec<ColumnInfo>`
-- `execute_query(sql)` → `QueryResult`
-
-The `AppState` pool map changes from `HashMap<SessionId, deadpool_postgres::Pool>` to `HashMap<SessionId, DriverSession>` where `DriverSession` is an enum:
-
-```rust
-enum DriverSession {
-    Postgres(deadpool_postgres::Pool),
-    Mysql(mysql_async::Pool),
-}
-```
-
-All Tauri commands dispatch through this enum. The command signatures stay the same.
-
-**Crate: `mysql_async`**
-
-Use `mysql_async` — it's async-native, well-maintained, and doesn't pull in `sqlx`'s full macro surface. Add `mysql_async = { version = "0.34", features = ["default"] }` to `Cargo.toml`.
-
-**ConnectionProfile changes**
-
-Add a `driver` field:
-
-```rust
-pub enum DbDriver { Postgres, Mysql }
-```
-
-Default to `Postgres` so existing profiles deserialize cleanly. Serialize as `"postgres"` / `"mysql"`.
-
-**Connection form changes**
-
-- Add a segmented control (or Select) at the top of the connection form: `PostgreSQL | MySQL / MariaDB`.
-- When MySQL is selected: default port → 3306; hide the SSL mode field for now (MySQL SSL is a separate config surface, defer to v2); hide the schema field in the form (MySQL has no schema).
-- When testing or saving, validate that host + port + database + username are all set.
-
-**Schema browser changes**
-
-- For MySQL sessions, the tree is: database node → table nodes (no schema level).
-- `list_tables` uses `SHOW TABLES IN <database>` or `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?`.
-- `list_columns` uses `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`.
-- Primary key: `COLUMN_KEY = 'PRI'`. Foreign key: `COLUMN_KEY = 'MUL'` (approximation; exact FK detection needs `INFORMATION_SCHEMA.KEY_COLUMN_USAGE`, but MUL is good enough for the badge).
-
-**Type family mapping for MySQL**
-
-Extend `getTypeFamily` in `types.ts` to handle MySQL type names:
-
-| MySQL type | Family |
-|---|---|
-| varchar, char, text, tinytext, mediumtext, longtext, enum, set | text |
-| int, bigint, smallint, tinyint (length ≠ 1), float, double, decimal | numeric |
-| tinyint(1) | boolean |
-| date, datetime, timestamp, time, year | date |
-| json | json |
-| binary, varbinary, blob, mediumblob, longblob | other |
-
-**Filter operators for MySQL**
-
-`getOperatorsForFamily` already returns correct sets except: remove `ILike` for MySQL connections. Pass the active driver down to the type utilities, or check on the Rust side when building the WHERE clause — if driver is MySQL and operator is ILike, treat it as Like.
-
-**Query pagination**
-
-MySQL: use `LIMIT ? OFFSET ?` — same as Postgres. The `COUNT(*)` subquery pattern is identical.
-
-**Out of scope for v1**
-
-- MySQL SSL/TLS configuration in the connection form.
-- SSH tunnel support.
-- MariaDB-specific features (Sequences, JSON differences). We test against MariaDB 10.6+ and MySQL 8.x; older versions may have minor issues.
-- PlanetScale's HTTP API mode (use standard MySQL driver; PlanetScale supports it).
-- Auto-increment / sequence introspection in the schema browser.
+The MySQL + filtering PRD has shipped and lives in `prds/PRD-mysql-and-filtering.md`.
 
 ---
 
-## Feature 2: Better table filtering
+## Feature 1: Tokyo Night themes (dark + light)
 
-### Problem
+### Why
 
-The current filter bar shows every column as an inline `FilterInput` widget in a horizontally scrolling row. For a table with 8 or more columns, you have to scroll to find the column you want. The operator is a native `<select>`, which doesn't match the app's style. There's no way to set a filter from the context menu. And the filter bar takes up a full row of vertical space even when no filters are active.
-
-The experience feels tacked on rather than designed.
+Tokyo Night is the default theme for a lot of developers. They open Esploro and want it to look like the rest of their setup. We have the token contract in place — adding a palette is mostly data entry.
 
 ### What we want
 
-Filtering should feel fast and intentional. Three entry points:
+Two new themes in the Appearance picker:
 
-1. **Column header click → filter popover.** Clicking the filter icon in a column header (or pressing ⌘F while a column is focused) opens a small popover anchored to that column. The popover shows the column name, an operator selector (Radix `Select`, not native), and a value input. Confirm with Enter or click outside to apply.
-2. **"Filter by this value" in the cell context menu.** Right-clicking a cell shows a new item: "Filter by this value". Choosing it sets `col = 'cell_value'` immediately. Right-clicking a NULL cell shows "Filter: IS NULL".
-3. **Active filter chips → click to edit.** Clicking an active filter chip reopens the popover for that column, pre-filled.
+- **Tokyo Night** — the dark variant, based on Tokyo Night Storm.
+- **Tokyo Night Day** — the light variant.
 
-The always-visible filter bar is removed. Its job is replaced by these three entry points plus the chip row.
+Both follow the canonical palette from `folke/tokyonight.nvim`. We pick **Storm** as the dark variant rather than Night because Storm is softer (slightly bluer background) and better for long sessions. Night can come later if anyone asks.
 
-### User stories
+### Palette mapping (Storm → `--ds-*` tokens)
 
-1. As a user, I click the filter icon on a column header and a popover opens for that column, so that I can set a filter without scrolling.
-2. As a user, the operator selector in the popover is styled to match the app (not a native select), so that it feels native to Esploro.
-3. As a user, I right-click a cell and choose "Filter by this value", so that I can filter by a value I can already see without typing.
-4. As a user, right-clicking a NULL cell shows "Filter: IS NULL" in the context menu, so that I can filter nulls from row data.
-5. As a user, clicking an active filter chip reopens the edit popover for that filter, so that I can adjust it without removing and re-adding.
-6. As a user, pressing Escape in the filter popover closes it without applying changes, so that I can cancel without side effects.
-7. As a user, pressing Enter confirms the filter, so that I can filter quickly with the keyboard.
-8. As a user, with no active filters, no filter UI takes up space except the filter icon in column headers (which appears on header hover), so that the table has maximum vertical space.
+| Token | Storm value | Notes |
+|---|---|---|
+| `--ds-content-bg` | `#24283b` | bg |
+| `--ds-sidebar-bg` | `#1f2335` | bg_dark |
+| `--ds-bg-subtle` | `#2e3348` | bg + 8% lighten |
+| `--ds-bg-active` | `#363b54` | bg + 14% lighten |
+| `--ds-separator` | `#3b4261` | border |
+| `--ds-border-strong` | `#545c7e` | comment-ish |
+| `--ds-control-bg` | `rgba(192,202,245,0.06)` | translucent |
+| `--ds-label` | `#c0caf5` | fg |
+| `--ds-secondary` | `#a9b1d6` | fg_dark |
+| `--ds-tertiary` | `#565f89` | comment |
+| `--ds-accent` | `#7aa2f7` | blue |
+| `--ds-accent-hover` | `#89b4fa` | blue lighten |
+| `--ds-accent-subtle` | `#3d59a1` | blue darken |
+| `--ds-success` | `#9ece6a` | green |
+| `--ds-warning` | `#e0af68` | yellow |
+| `--ds-destructive` | `#f7768e` | red |
+| `--ds-syntax-keyword` | `#bb9af7` | magenta |
+| `--ds-syntax-type` | `#e0af68` | yellow |
+| `--ds-syntax-string` | `#9ece6a` | green |
+| `--ds-syntax-number` | `#7dcfff` | cyan |
+| `--ds-syntax-enum` | `#ff9e64` | orange |
+| `--ds-syntax-special` | `#f7768e` | red |
+| `--ds-syntax-operator` | `#89ddff` | bright cyan |
+| `--ds-syntax-comment` | `#565f89` | comment |
 
-### Implementation decisions
+### Palette mapping (Day → `--ds-*` tokens)
 
-**Remove the filter bar**
-
-Delete the `{columns.length > 0 && (<div className="shrink-0 border-b ..."> ...FilterInput... </div>)}` block from `TableViewerTab.tsx`. The `FilterInput` component can be deleted or repurposed inside the popover.
-
-**Column header filter icon**
-
-The column header already shows a `<Filter size={9}>` icon when `isFiltered`. Change this: always show the filter icon on header hover (not just when filtered), and make it a button that opens the popover. Use `onClick` on the icon, `stopPropagation` to avoid triggering the sort.
-
-**Filter popover component**
-
-New `ColumnFilterPopover` component using Radix `Popover`. It receives:
-- `col: ResultColumn`
-- `driver: "postgres" | "mysql"` (to determine whether ILike is available)
-- `entry: FilterEntry | undefined`
-- `onApply: (entry: FilterEntry | null) => void`
-- `onClose: () => void`
-
-Inside:
-- Column name + type badge at the top (read-only).
-- Radix `Select` for the operator (styled to match the app).
-- Text input for the value (hidden when operator is IsNull/IsNotNull).
-- "Apply" button + "Clear filter" button (if a filter exists).
-- `autoFocus` on the value input when the popover opens.
-- Enter key in the input triggers Apply.
-- Escape closes without applying (Radix Popover handles this via `onEscapeKeyDown`).
-
-**Operator selector**
-
-Use Radix `Select` with `SelectTrigger`, `SelectContent`, `SelectItem`. Style the trigger to look like the app's `bg-control` buttons. Group operators by family (comparison, null checks) with a `SelectSeparator` between groups.
-
-**"Filter by this value" in context menu**
-
-In `CellContextMenu`, add after the existing items:
-
-```
-<div className="my-1 border-t border-separator" />
-<button onClick={filterByValue}>Filter by this value</button>  // shows cell value preview
-{cellValue === null && <button onClick={filterIsNull}>Filter: IS NULL</button>}
-```
-
-`filterByValue` calls `onFilterByValue(colName, cellValue)`. The parent wires this into `setFilterDraft`. The context menu already has `colIdx` and `columns`; no new props needed beyond a callback.
-
-**Chip → edit flow**
-
-In the active chip row, make each chip clickable. Clicking a chip sets a `editingFilterCol: string | null` state in `TableViewerTab`. The corresponding column header's popover opens (position it from a ref on that column header). This is the same popover; just triggered differently.
-
-**State shape stays the same**
-
-`filterDraft`, `activeFilters`, `apiFilters`, `removeFilter`, `clearAllFilters` — all unchanged. The popover just writes into `filterDraft` using the existing `setFilterDraft` callback.
-
-**Keyboard shortcut**
-
-`⌘F` when the table has focus: open the filter popover for the first column, or for the currently sorted column if one is set. Implement as a `keydown` listener in `TableViewerTab` (same pattern as the existing `⌘C` for copy).
-
-### What changes and what stays
-
-| What | Change |
+| Token | Day value |
 |---|---|
-| Horizontal filter bar | Removed |
-| `FilterInput` component | Removed (or inlined into popover) |
-| Active filter chips row | Kept; chips are now clickable |
-| `filterDraft` / `activeFilters` state | Unchanged |
-| 300ms debounce | Unchanged |
-| Filter icon in column headers | Now visible on hover; triggers popover |
-| Operator selector | Radix Select instead of native `<select>` |
-| Context menu | Gains "Filter by this value" and "Filter: IS NULL" |
+| `--ds-content-bg` | `#e1e2e7` |
+| `--ds-sidebar-bg` | `#d0d5e3` |
+| `--ds-bg-subtle` | `#cbd0e3` |
+| `--ds-bg-active` | `#b7c1e3` |
+| `--ds-separator` | `#a8aecb` |
+| `--ds-border-strong` | `#6172b0` |
+| `--ds-control-bg` | `#e9e9ed` |
+| `--ds-label` | `#3760bf` |
+| `--ds-secondary` | `#6172b0` |
+| `--ds-tertiary` | `#848cb5` |
+| `--ds-accent` | `#2e7de9` |
+| `--ds-accent-hover` | `#1a5fbf` |
+| `--ds-accent-subtle` | `#b7c5f0` |
+| `--ds-success` | `#587539` |
+| `--ds-warning` | `#8c6c3e` |
+| `--ds-destructive` | `#f52a65` |
+| `--ds-syntax-keyword` | `#9854f1` |
+| `--ds-syntax-type` | `#8c6c3e` |
+| `--ds-syntax-string` | `#587539` |
+| `--ds-syntax-number` | `#007197` |
+| `--ds-syntax-enum` | `#b15c00` |
+| `--ds-syntax-special` | `#f52a65` |
+| `--ds-syntax-operator` | `#7847bd` |
+| `--ds-syntax-comment` | `#848cb5` |
+
+### Implementation
+
+1. Extend `uiThemeValues` in `preferences.ts` with `tokyo-night` and `tokyo-night-day`.
+2. Extend `themeToDomAttribute` to return `"dark"` for `tokyo-night` and `"light"` for `tokyo-night-day` — the existing dark/light DOM split still applies for things like `prefers-color-scheme`-aware behavior.
+3. Add a separate selector that paints the palette:
+   ```css
+   :root[data-theme="dark"][data-palette="tokyo-night"] { /* Storm tokens */ }
+   :root[data-theme="light"][data-palette="tokyo-night-day"] { /* Day tokens */ }
+   ```
+   Set `data-palette` from `applyUiPreferencesToDocument`. The current code only sets `data-theme`; this PR adds a parallel attribute so each theme can override the base Tairiki tokens.
+4. Add the new themes to `THEME_OPTIONS` in `AppearanceSettings.tsx` with sensible icons (Moon for the dark variant, Sun for the light variant — same as Tairiki).
+5. Add the same two entries to `coreCommands` in `CommandPalette.tsx`.
 
 ### Out of scope
 
-- Multi-value filters (IN / NOT IN). The operator set stays as-is.
-- OR between filters for the same column. All active filters are AND-combined.
-- Saved filter presets.
-- Filtering by range with a date picker widget (type the date string for now).
-- Search-across-all-columns (a separate "Search" feature, not a filter).
+- Tokyo Night Night and Moon variants. Storm covers the dark case for v1.
+- Changing the editor syntax highlighting beyond what the token contract already exposes. The CodeMirror theme picks up `--editor-syntax-*` automatically.
+
+---
+
+## Feature 2: GitHub themes (dark + light)
+
+### Why
+
+Same reason as Tokyo Night — a lot of users live in GitHub all day, and a theme that matches the GitHub web UI lowers context-switching cost. The Primer color system is also one of the best-tested palettes for accessibility and contrast.
+
+### What we want
+
+Two new themes:
+
+- **GitHub Dark** — based on `github_dark_default` (the canonical GitHub dark mode).
+- **GitHub Light** — based on `github_light_default` (the canonical GitHub light mode).
+
+Both use Primer color values directly. No tweaks. The point is that it should feel like GitHub.
+
+### Palette mapping (GitHub Dark → `--ds-*` tokens)
+
+| Token | Value | Primer name |
+|---|---|---|
+| `--ds-content-bg` | `#0d1117` | canvas.default |
+| `--ds-sidebar-bg` | `#010409` | canvas.inset |
+| `--ds-bg-subtle` | `#161b22` | canvas.subtle |
+| `--ds-bg-active` | `#21262d` | neutral.muted |
+| `--ds-separator` | `#30363d` | border.default |
+| `--ds-border-strong` | `#6e7681` | border.muted |
+| `--ds-control-bg` | `#21262d` | btn.bg |
+| `--ds-label` | `#e6edf3` | fg.default |
+| `--ds-secondary` | `#7d8590` | fg.muted |
+| `--ds-tertiary` | `#6e7681` | fg.subtle |
+| `--ds-accent` | `#2f81f7` | accent.fg |
+| `--ds-accent-hover` | `#58a6ff` | accent.emphasis |
+| `--ds-accent-subtle` | `#1f6feb` | accent.muted |
+| `--ds-success` | `#3fb950` | success.fg |
+| `--ds-warning` | `#d29922` | attention.fg |
+| `--ds-destructive` | `#f85149` | danger.fg |
+| `--ds-syntax-keyword` | `#ff7b72` | red |
+| `--ds-syntax-type` | `#ffa657` | orange |
+| `--ds-syntax-string` | `#a5d6ff` | blue |
+| `--ds-syntax-number` | `#79c0ff` | bright blue |
+| `--ds-syntax-enum` | `#ffa657` | orange |
+| `--ds-syntax-special` | `#d2a8ff` | purple |
+| `--ds-syntax-operator` | `#ff7b72` | red |
+| `--ds-syntax-comment` | `#8b949e` | gray |
+
+### Palette mapping (GitHub Light → `--ds-*` tokens)
+
+| Token | Value | Primer name |
+|---|---|---|
+| `--ds-content-bg` | `#ffffff` | canvas.default |
+| `--ds-sidebar-bg` | `#f6f8fa` | canvas.subtle |
+| `--ds-bg-subtle` | `#eaeef2` | neutral.subtle |
+| `--ds-bg-active` | `#d8dee4` | neutral.muted |
+| `--ds-separator` | `#d0d7de` | border.default |
+| `--ds-border-strong` | `#8c959f` | border.muted |
+| `--ds-control-bg` | `#f6f8fa` | btn.bg |
+| `--ds-label` | `#1f2328` | fg.default |
+| `--ds-secondary` | `#656d76` | fg.muted |
+| `--ds-tertiary` | `#8c959f` | fg.subtle |
+| `--ds-accent` | `#0969da` | accent.fg |
+| `--ds-accent-hover` | `#0550ae` | accent.emphasis |
+| `--ds-accent-subtle` | `#ddf4ff` | accent.muted |
+| `--ds-success` | `#1a7f37` | success.fg |
+| `--ds-warning` | `#9a6700` | attention.fg |
+| `--ds-destructive` | `#cf222e` | danger.fg |
+| `--ds-syntax-keyword` | `#cf222e` | red |
+| `--ds-syntax-type` | `#953800` | orange |
+| `--ds-syntax-string` | `#0a3069` | dark blue |
+| `--ds-syntax-number` | `#0550ae` | blue |
+| `--ds-syntax-enum` | `#953800` | orange |
+| `--ds-syntax-special` | `#8250df` | purple |
+| `--ds-syntax-operator` | `#cf222e` | red |
+| `--ds-syntax-comment` | `#6e7781` | gray |
+
+### Implementation
+
+Same as Tokyo Night — add `github-dark` and `github-light` to `uiThemeValues`, drive the palette via `data-palette` attribute, list them in the picker and command palette.
+
+### Out of scope
+
+- High-contrast and colorblind GitHub variants. Defer.
+- Dimmed dark variant. Defer.
+
+---
+
+## Feature 3: Toast queue cap
+
+### Problem
+
+`ToastProvider` appends every toast to a list and never trims it. If something spams toasts (a connection retry loop, a cascade of save errors), the screen fills with cards bottom-to-top and the older ones don't go away until each one's 3.2s timer ticks. The result is a wall of toasts.
+
+### What we want
+
+At most 2 toasts visible at any moment. When a 3rd toast arrives, the oldest one fades out and the new one slides in.
+
+### Implementation
+
+In `ToastProvider`:
+
+```tsx
+const MAX_VISIBLE = 2;
+
+const toast = useCallback((message, variant = "info") => {
+  const id = crypto.randomUUID();
+  setItems((prev) => {
+    const next = [...prev, { id, message, variant }];
+    if (next.length <= MAX_VISIBLE) return next;
+    // Drop the oldest. The exit animation runs from the existing CSS class
+    // we'll add for `.is-leaving` (fades + slides down 4px over 160ms).
+    return next.slice(next.length - MAX_VISIBLE);
+  });
+}, []);
+```
+
+For a clean fade rather than a hard pop, render `MAX_VISIBLE + 1` items with the overflow item marked `is-leaving`. The simpler version above (just slice) is acceptable for v1 because new toasts arrive on top and the bottom one disappearing isn't jarring.
+
+If we want a graceful exit animation, add a `leavingIds: Set<string>` and a `data-leaving="true"` attribute on the overflowed toast. CSS handles the transition. Remove from `items` after 160ms.
+
+### Out of scope
+
+- A "see all" history pane. The toast log isn't a feature.
+- Per-variant priority (errors don't preempt info). Treat all toasts equally.
+- Pause on hover. Nice but separate.
+
+---
+
+## Feature 4: Typography pass
+
+### Problem
+
+The font sizes in a few places don't match the visual hierarchy of the app:
+
+- Tab titles render at `text-sm` (14px) — too big. Tabs are navigation chrome, not content. Compare with VS Code (~13px), TablePlus (~12px), DataGrip (~12px). Esploro tabs feel chunky next to those references.
+- Connection names render at `text-xs` (12px) with a `text-[10px]` meta line beneath. The connection name is the **primary** identifier in the sidebar, but it's the same size as the muted Saved Queries entries. The hierarchy is flat where it shouldn't be.
+
+### What we want
+
+| Element | Current | Target | Rationale |
+|---|---|---|---|
+| Tab title | 14px | **12px** | Matches VS Code / DataGrip; recovers vertical room |
+| Tab close icon | 11px | 11px | Keep |
+| Tab bar height | 36px (`h-9`) | **30px** (`h-[30px]`) | Drops with the smaller text |
+| Connection name | 12px | **13px** | Primary identifier — give it weight |
+| Connection meta line | 10px | 11px | One step up; legibility on hi-DPI |
+| Sidebar section header | 12px uppercase | 11px uppercase | Tighten the chrome |
+| Saved Queries / Recent items | 12px | 12px | Keep — already correct |
+| Status bar | 11px | 11px | Keep |
+
+### Implementation
+
+Concrete changes:
+
+- `src/components/TabBar.tsx`: change `text-sm` to `text-xs` on the tab title span; change `h-9` on the tablist container to `h-[30px]`. Bump the icon size from 11 to 11 (keep). Adjust `gap-1.5` to `gap-1`.
+- `src/features/connections/ConnectionList.tsx`: change `text-xs` on the name div to `text-[13px]`; bump the meta line from `text-[10px]` to `text-[11px]`.
+- `src/components/SidebarSection.tsx`: change `text-xs` to `text-[11px]` on the section header (the uppercase label already does most of the work).
+
+That's it for the audit. We're not redesigning anything — just nudging three sizes to match the visual hierarchy that's already implied.
+
+### Constraints
+
+- Don't break the existing user-controlled UI font size (`--font-ui-size`, default 14px). The classes above are explicit `text-[N]` values so they're independent of the global UI size, but the global size should still scale things like body copy, query results, schema tree text.
+- No font-family changes. Inter for UI, JetBrains Mono for code, both already shipped as variable fonts.
+
+### Out of scope
+
+- A full typographic scale tokenization. Worthwhile but not the scope here.
+- Adjusting the editor font size. Already user-controllable.
+
+---
+
+## Feature 5: About screen
+
+### Problem
+
+The app introduces itself nowhere. There's no place to find:
+
+- Who built it
+- The source code repo
+- The author's other tools
+- The version
+
+Users who like the app and want to find more from the same author have nowhere to go.
+
+### What we want
+
+A new **About** entry at the bottom of the Settings nav. It contains:
+
+- App icon (use the existing one in `assets`)
+- App name (**Esploro**) and version (**0.3.0**, read from `package.json` at build time)
+- One line: "A native macOS database client for PostgreSQL, MySQL, and MariaDB."
+- "Built by Matija Munjaković" — name links to `https://matija.eu`
+- "More tools at matija.eu/tools" — link
+- "Source on GitHub" — link to the repo
+- License tier badge that links to the License settings tab
+
+### Implementation
+
+1. New file `src/features/settings/AboutSettings.tsx` modeled on the other settings sections.
+2. Add `{ id: "about", label: "About", icon: <Info size={14} /> }` at the end of `NAV_ITEMS` in `SettingsView.tsx`. Add `"About": "about"` to `TITLE_TO_SECTION`.
+3. Render it conditionally below the existing sections.
+4. Inject the version at build time. Vite already exposes `import.meta.env`; expose `__APP_VERSION__` via `define` in `vite.config.ts` reading `package.json`.
+5. For external links, install `tauri-plugin-opener` (already in the Tauri 2 default scaffold). Wire it up in `src-tauri/src/lib.rs` (`.plugin(tauri_plugin_opener::init())`) and use the JS API:
+   ```ts
+   import { openUrl } from "@tauri-apps/plugin-opener";
+   <button onClick={() => openUrl("https://matija.eu/tools")}>...</button>
+   ```
+   Plain `<a target="_blank">` won't work — Tauri 2 doesn't navigate external URLs in the webview by default.
+6. Surface "About" in the command palette next to the other settings entries.
+
+### Layout sketch
+
+```
+┌──────────────────────────────────────────────────┐
+│  [icon]  Esploro                                 │
+│          0.3.0                                   │
+│                                                  │
+│  A native macOS database client for PostgreSQL,  │
+│  MySQL, and MariaDB.                             │
+│                                                  │
+│  Built by Matija Munjaković                      │
+│  More tools at matija.eu/tools                   │
+│  Source on GitHub                                │
+│                                                  │
+│  ─────────────────────────────────────────────   │
+│  License: Personal · Manage →                    │
+└──────────────────────────────────────────────────┘
+```
+
+Plain text and links. No marketing copy. The license row at the bottom is a courtesy hand-off into the existing License tab.
+
+### Out of scope
+
+- Auto-update copy. We don't have an update channel yet.
+- Acknowledgements / third-party licenses page. Worth doing eventually but not blocking on this PRD.
+- Sharing / "tweet about Esploro" widgets. No.
 
 ---
 
 ## Testing
 
-**MySQL** ✅ Implementation complete (manual testing pending live MySQL instance)
+**Themes**
 
-- [ ] Connect to a local MySQL 8 instance and a local MariaDB 10.6 instance. Verify schema tree, table viewer, query editor.
-- [ ] Connect to a Railway-hosted MySQL instance (tests TLS path once SSL is wired).
-- [ ] Verify `tinyint(1)` columns display as true/false, not 0/1.
-- [ ] Verify that LIKE operator is used for MySQL text filters (no ILIKE).
-- [ ] Verify error message when connection fails (wrong password, wrong host).
+- [ ] Pick each new theme from Appearance settings; the whole app re-skins without reload.
+- [ ] Pick each from the command palette; same result.
+- [ ] Switch from Tokyo Night → GitHub Dark → Tairiki Dark and back. No leaked tokens (e.g., a Tokyo Night background under a GitHub border).
+- [ ] Schema tree icons, type badges, query editor syntax all pick up the new palette.
+- [ ] Reset all preferences from Advanced Settings reverts to Tairiki Light.
 
-**Filtering** ✅ Implementation complete (manual testing pending live table data)
+**Toasts**
 
-- [ ] Open a wide table (10+ columns). Filter popover opens for any column via header click.
-- [ ] "Filter by this value" sets the filter and the chip appears.
-- [ ] Clicking a chip re-opens the popover pre-filled with the current operator and value.
-- [ ] Enter confirms, Escape cancels.
-- [ ] ⌘F opens the filter popover.
-- [ ] No filter bar visible when no filters are active.
+- [ ] Trigger 5 toasts in quick succession; only 2 are visible at any moment.
+- [ ] The fade-out on the displaced 3rd is smooth (no hard pop).
+
+**Typography**
+
+- [ ] Tabs are visibly smaller and the bar is tighter.
+- [ ] The connection name is the most prominent string in the sidebar at a glance.
+- [ ] Adjusting the global UI font size in settings still scales body copy, but tab and connection-name sizes hold their relative ratios.
+
+**About**
+
+- [ ] About is the last item in the Settings nav.
+- [ ] All three external links open in the system browser.
+- [ ] Version matches `package.json`.
+- [ ] License badge reflects the current license tier and click-through goes to License settings.
