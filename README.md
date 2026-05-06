@@ -1,6 +1,6 @@
 # Esploro
 
-A Postgres client for macOS.
+A Postgres and MySQL client for macOS.
 
 <p align="center">
   <img src="src-tauri/icons/icon.png" alt="Esploro icon" width="128" height="128" />
@@ -8,13 +8,13 @@ A Postgres client for macOS.
 
 ![Esploro](screenshots/esploro.png)
 
-DBeaver works, but it's slow and feels like enterprise software. Most alternatives are either Electron apps with web-app UIs or minimalist tools that sacrifice too much. I wanted something like [Yaak](https://yaak.app/) — fast, native-feeling, with the density and craft of a real desktop tool.
+DBeaver works, but it's slow and feels like enterprise software. Most alternatives are either Electron apps or minimalist tools that sacrifice too much. I wanted something like [Yaak](https://yaak.app/) — fast, native-feeling, with the craft of a real desktop app.
 
 Esploro is that attempt.
 
-## What it does (so far)
+## What it does
 
-- Connect to Postgres databases
+- Connect to Postgres and MySQL databases
 - Browse schemas and tables
 - Inspect table data in a grid
 - Write and run SQL
@@ -24,8 +24,7 @@ Esploro is that attempt.
 
 - [Tauri](https://tauri.app/) — Rust backend, React frontend
 - React + TypeScript
-- PostgreSQL only (for now)
 
 ## Status
 
-Heavily WIP. Not ready for daily use.
+Heavily WIP atm.
