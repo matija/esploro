@@ -268,7 +268,7 @@ That's it for the audit. We're not redesigning anything — just nudging three s
 
 ---
 
-## Feature 5: About screen
+## Feature 5: About screen [DONE]
 
 ### Problem
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor,
-  Settings, Loader2, Zap, Eye, Palette, Code2, Database, AlignJustify,
+  Settings, Loader2, Zap, Eye, Palette, Code2, Database, AlignJustify, Info,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "../store";
@@ -268,6 +268,13 @@ export function CommandPalette() {
       icon: <Settings size={13} />,
       title: "Advanced Settings",
       action: () => addTab({ type: "settings", title: "Advanced" }),
+    },
+    {
+      id: "open-about",
+      group: "Settings",
+      icon: <Info size={13} />,
+      title: "About",
+      action: () => addTab({ type: "settings", title: "About" }),
     },
     {
       id: "theme-light",

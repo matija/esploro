@@ -723,6 +723,15 @@ pub fn open_customer_portal() -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, String> {
     match read_prefs_json(&app) {
         Ok(Some(value)) => Ok(preferences_from_json(&value)),

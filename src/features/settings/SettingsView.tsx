@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import {
   Code2,
   Database,
+  Info,
   KeyRound,
   Palette,
   Settings,
@@ -13,6 +14,7 @@ import { EditorSettings } from "./EditorSettings";
 import { DataGridSettings } from "./DataGridSettings";
 import { ConnectionsSettings } from "./ConnectionsSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
+import { AboutSettings } from "./AboutSettings";
 import { LicenseSettings } from "../license";
 
 type SettingsSection =
@@ -21,7 +23,8 @@ type SettingsSection =
   | "grid"
   | "connections"
   | "licensing"
-  | "advanced";
+  | "advanced"
+  | "about";
 
 interface NavItem {
   id: SettingsSection;
@@ -36,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "connections", label: "Connections", icon: <Database size={14} /> },
   { id: "licensing", label: "Licensing", icon: <KeyRound size={14} /> },
   { id: "advanced", label: "Advanced", icon: <Settings size={14} /> },
+  { id: "about", label: "About", icon: <Info size={14} /> },
 ];
 
 const TITLE_TO_SECTION: Record<string, SettingsSection> = {
@@ -45,6 +49,7 @@ const TITLE_TO_SECTION: Record<string, SettingsSection> = {
   "Connections": "connections",
   "License": "licensing",
   "Advanced": "advanced",
+  "About": "about",
 };
 
 export function SettingsView({ initialSection }: { initialSection?: string }) {
@@ -90,6 +95,9 @@ export function SettingsView({ initialSection }: { initialSection?: string }) {
           {section === "connections" && <ConnectionsSettings />}
           {section === "licensing" && <LicenseSettings />}
           {section === "advanced" && <AdvancedSettings />}
+          {section === "about" && (
+            <AboutSettings onNavigateToLicense={() => setSection("licensing")} />
+          )}
         </div>
       </div>
     </div>

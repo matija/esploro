@@ -72,6 +72,7 @@ pub fn run() {
             commands::license::notify_connection_count,
             commands::license::open_checkout_url,
             commands::license::open_customer_portal,
+            commands::license::open_url,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
         ])

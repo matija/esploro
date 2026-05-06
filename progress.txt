@@ -1,3 +1,27 @@
+## Phase 40 — About Screen [DONE]
+- Implemented PRD Feature 5: About settings section.
+- vite.config.ts:
+  - Reads version from `package.json` at build time and injects it as `__APP_VERSION__` via Vite's `define`.
+- src/globals.d.ts (new):
+  - Global TypeScript declarations for `__APP_VERSION__` and PNG module imports.
+- src/assets/app-icon.png (new):
+  - Copied from `src-tauri/icons/128x128.png` for use in the web frontend.
+- src-tauri/src/commands/license.rs:
+  - Added `open_url(url: String)` Tauri command that shells out to macOS `open`, consistent with the existing checkout URL opener.
+- src-tauri/src/lib.rs:
+  - Registered `open_url` in the invoke handler.
+- src/features/settings/AboutSettings.tsx (new):
+  - App icon (128px, rounded squircle), name + version header.
+  - One-line description.
+  - Three external-link buttons (matija.eu, matija.eu/tools, GitHub) that call `open_url` via Tauri invoke.
+  - Separator + license tier badge + "Manage →" button that navigates to the Licensing settings section.
+- src/features/settings/SettingsView.tsx:
+  - Added `"about"` to `SettingsSection` union, `Info` icon import, About nav item at the bottom of `NAV_ITEMS`, `"About"` entry in `TITLE_TO_SECTION`.
+  - Renders `<AboutSettings>` and passes `onNavigateToLicense` callback.
+- src/components/CommandPalette.tsx:
+  - Added "About" command to `coreCommands` under the Settings group.
+- Checks passed: npm run type-check, npm run lint, cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 39 — Typography Pass [DONE]
 - Implemented PRD Feature 4: nudged three font sizes to sharpen visual hierarchy.
 - src/components/TabBar.tsx:
