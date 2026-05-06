@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import * as Select from "@radix-ui/react-select";
 import {
+  Check,
+  ChevronDown,
   Code2,
   Database,
   Monitor,
@@ -225,32 +228,15 @@ export function AppearanceSettings() {
 
       <div className="space-y-2">
         <SettingLabel icon={<Monitor size={13} />} label="Theme" />
-        <div className="flex w-fit gap-1 rounded-[var(--radius-control)] bg-control p-1 shadow-[var(--shadow-hairline)]">
-          {THEME_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() =>
-                updatePreferences((current) => ({
-                  ...current,
-                  ui: { ...current.ui, theme: opt.value },
-                }))
-              }
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 text-[12px]",
-                "transition-colors duration-[var(--motion-fast)]",
-                preferences.ui.theme === opt.value
-                  ? "bg-content text-label shadow-sm font-medium"
-                  : "text-secondary hover:bg-subtle hover:text-label active:bg-active",
-              )}
-            >
-              <span className={preferences.ui.theme === opt.value ? "text-accent" : ""}>
-                {opt.icon}
-              </span>
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <ThemePicker
+          value={preferences.ui.theme}
+          onChange={(theme) =>
+            updatePreferences((current) => ({
+              ...current,
+              ui: { ...current.ui, theme },
+            }))
+          }
+        />
       </div>
 
       <FontSection
@@ -348,6 +334,68 @@ export function AppearanceSettings() {
         </div>
       )}
     </section>
+  );
+}
+
+function ThemePicker({
+  value,
+  onChange,
+}: {
+  value: UiTheme;
+  onChange: (theme: UiTheme) => void;
+}) {
+  const selected =
+    THEME_OPTIONS.find((opt) => opt.value === value) ?? THEME_OPTIONS[0];
+
+  return (
+    <Select.Root value={value} onValueChange={(v) => onChange(v as UiTheme)}>
+      <Select.Trigger
+        className={cn(
+          "flex w-[220px] items-center justify-between gap-2 rounded-[var(--radius-control)]",
+          "h-8 px-2.5 text-[12px] text-label bg-control border border-separator",
+          "shadow-[var(--shadow-hairline)] transition-colors duration-[var(--motion-fast)]",
+          "hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
+        )}
+        aria-label="Theme"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="text-accent shrink-0">{selected.icon}</span>
+          <Select.Value className="truncate" />
+        </span>
+        <Select.Icon>
+          <ChevronDown size={12} className="text-secondary shrink-0" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper"
+          sideOffset={4}
+          className={cn(
+            "z-[60] min-w-[var(--radix-select-trigger-width)] max-h-[280px] overflow-y-auto",
+            "rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1 text-[12px]",
+          )}
+        >
+          <Select.Viewport>
+            {THEME_OPTIONS.map((opt) => (
+              <Select.Item
+                key={opt.value}
+                value={opt.value}
+                className={cn(
+                  "flex items-center gap-2 px-2.5 py-1.5 text-label cursor-default outline-none",
+                  "data-[highlighted]:bg-hover",
+                )}
+              >
+                <span className="text-secondary shrink-0">{opt.icon}</span>
+                <Select.ItemText>{opt.label}</Select.ItemText>
+                <Select.ItemIndicator className="ml-auto pl-3">
+                  <Check size={11} className="text-accent" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }
 

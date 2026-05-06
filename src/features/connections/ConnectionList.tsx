@@ -441,7 +441,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
         <div>
           <p className="text-xs font-medium text-label">No connections</p>
           <p className="text-[11px] text-tertiary mt-0.5 leading-snug">
-            Add a PostgreSQL database to get started
+            Add a PostgreSQL or MySQL database to get started
           </p>
         </div>
         <div className="flex flex-col gap-1.5">

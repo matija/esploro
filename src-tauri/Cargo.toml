@@ -1,7 +1,7 @@
 [package]
 name = "esploro"
-version = "0.3.0"
-description = "A native macOS PostgreSQL client"
+version = "0.3.1"
+description = "A native macOS database client for PostgreSQL, MySQL, and MariaDB."
 authors = ["Matija Munjaković"]
 edition = "2021"
 license = "MIT"
