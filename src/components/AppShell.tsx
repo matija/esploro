@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -370,6 +371,18 @@ export function AppShell() {
     tabs,
   ]);
 
+  useEffect(() => {
+    const unlisten = listen("menu:open-settings", () => {
+      const existing = tabs.find((t) => t.type === "settings");
+      if (existing) {
+        setActiveTab(existing.id);
+      } else {
+        addTab({ type: "settings", title: "Appearance" });
+      }
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, [addTab, setActiveTab, tabs]);
+
   return (
     <ToastProvider>
     <ConfirmProvider>
@@ -380,7 +393,7 @@ export function AppShell() {
         className="flex h-[38px] shrink-0 bg-sidebar border-b border-separator"
       >
         <div data-tauri-drag-region className="shrink-0" style={{ width: sidebarWidth }} />
-        <div className="flex flex-1 items-center justify-end border-l border-separator">
+        <div data-tauri-drag-region className="flex flex-1 items-center justify-end border-l border-separator">
           <Toolbar />
         </div>
       </div>

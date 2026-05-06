@@ -66,7 +66,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => void openUrl("https://github.com/mmunjako/esploro")}
+          onClick={() => void openUrl("https://github.com/matija/esploro")}
           className="flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
         >
           Source on GitHub

@@ -3,6 +3,8 @@ mod commands;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
+use tauri::Emitter;
 
 pub use commands::connections::ConnectionProfile;
 
@@ -37,6 +39,52 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
         .setup(|app| {
+            // Native macOS menu bar
+            let app_submenu = SubmenuBuilder::new(app, "Esploro")
+                .about(None)
+                .separator()
+                .item(&MenuItem::with_id(app, "settings", "Settings…", true, Some("cmd+,"))?)
+                .separator()
+                .services()
+                .separator()
+                .hide()
+                .hide_others()
+                .show_all()
+                .separator()
+                .quit()
+                .build()?;
+
+            let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+
+            let window_submenu = SubmenuBuilder::new(app, "Window")
+                .item(&PredefinedMenuItem::minimize(app, None)?)
+                .item(&PredefinedMenuItem::maximize(app, None)?)
+                .separator()
+                .item(&PredefinedMenuItem::fullscreen(app, None)?)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&app_submenu)
+                .item(&edit_submenu)
+                .item(&window_submenu)
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(|app, event| {
+                if event.id() == "settings" {
+                    let _ = app.emit("menu:open-settings", ());
+                }
+            });
+
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
