@@ -187,10 +187,10 @@ function ConnectionRow({
 
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-label truncate leading-[1.4]">
+          <div className="text-[13px] text-label truncate leading-[1.4]">
             {profile.displayName}
           </div>
-          <div className="text-[10px] text-tertiary truncate leading-[1.4]">
+          <div className="text-[11px] text-tertiary truncate leading-[1.4]">
             {profile.username}@{hostLabel}/{profile.database}
           </div>
         </div>

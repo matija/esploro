@@ -24,7 +24,7 @@ export function SidebarSection({
           onClick={() => setOpen((v) => !v)}
           className={cn(
             "flex flex-1 items-center gap-1",
-            "text-xs font-semibold uppercase tracking-wide text-secondary",
+            "text-[11px] font-semibold uppercase tracking-wide text-secondary",
             "hover:text-label transition-colors select-none",
           )}
         >

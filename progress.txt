@@ -1,3 +1,16 @@
+## Phase 39 — Typography Pass [DONE]
+- Implemented PRD Feature 4: nudged three font sizes to sharpen visual hierarchy.
+- src/components/TabBar.tsx:
+  - Changed tab title from `text-sm` (14px) to `text-xs` (12px).
+  - Changed tab row gap from `gap-1.5` to `gap-1`.
+  - Changed tablist container height from `h-9` (36px) to `h-[30px]`.
+- src/features/connections/ConnectionList.tsx:
+  - Bumped connection name from `text-xs` (12px) to `text-[13px]` — primary identifier now visually dominant.
+  - Bumped meta line from `text-[10px]` to `text-[11px]` for legibility on hi-DPI.
+- src/components/SidebarSection.tsx:
+  - Changed section header from `text-xs` (12px) to `text-[11px]` — tightens chrome without losing readability.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 38 — Toast Queue Cap [DONE]
 - Implemented PRD Feature 3: capped visible toasts at 2 at any moment.
 - src/components/Toast.tsx:

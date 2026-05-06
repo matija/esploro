@@ -224,7 +224,7 @@ If we want a graceful exit animation, add a `leavingIds: Set<string>` and a `dat
 
 ---
 
-## Feature 4: Typography pass
+## Feature 4: Typography pass [DONE]
 
 ### Problem
 

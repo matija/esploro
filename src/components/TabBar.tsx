@@ -122,8 +122,8 @@ function TabItem({
       onClick={() => setActiveTab(tab.id)}
       onContextMenu={onContextMenu}
       className={cn(
-        "group flex items-center gap-1.5 px-3 h-full",
-        "text-sm cursor-pointer select-none shrink-0",
+        "group flex items-center gap-1 px-3 h-full",
+        "text-xs cursor-pointer select-none shrink-0",
         "border-r border-separator border-b-2",
         active
           ? "bg-content text-label border-b-accent"
@@ -174,7 +174,7 @@ export function TabBar() {
       <div
         role="tablist"
         data-tauri-drag-region
-        className="flex h-9 items-stretch overflow-x-auto bg-sidebar border-b border-separator"
+        className="flex h-[30px] items-stretch overflow-x-auto bg-sidebar border-b border-separator"
         style={{ scrollbarWidth: "none" }}
       >
         {tabs.map((tab) => (
