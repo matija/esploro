@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -82,6 +82,12 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
   const [testState, setTestState] = useState<TestState>('idle');
   const [saving, setSaving] = useState(false);
 
+  // Tracks the form's current "context" so we only reset fields when it
+  // actually changes (different profile, different seed URL, or after a save).
+  // This lets a user close the dialog and reopen "New Connection" without
+  // losing the draft they were typing.
+  const contextKeyRef = useRef<string | null>(null);
+
   function applyParsedUrl(rawUrl: string) {
     if (!rawUrl.trim()) return;
     const parsed = parseConnectionUrl(rawUrl.trim());
@@ -102,6 +108,17 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
   useEffect(() => {
     if (!open) return;
+
+    const nextContextKey = profile ? `edit:${profile.id}` : `new:${initialUrl ?? ''}`;
+    if (contextKeyRef.current === nextContextKey) {
+      // Same context as last time the dialog was open — keep the draft
+      // (only clear transient UI state).
+      setErrors({});
+      setTestState('idle');
+      setSaving(false);
+      return;
+    }
+    contextKeyRef.current = nextContextKey;
 
     const d = profile?.driver ?? 'postgres';
     setDriver(d);
@@ -175,6 +192,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
       } else {
         await connectionsApi.create(buildInput(), password);
       }
+      // Reset draft on successful save so the next open starts fresh.
+      contextKeyRef.current = null;
       onSaved();
       onClose();
     } catch (e) {
