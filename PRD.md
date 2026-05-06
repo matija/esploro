@@ -183,7 +183,7 @@ Same as Tokyo Night — add `github-dark` and `github-light` to `uiThemeValues`,
 
 ---
 
-## Feature 3: Toast queue cap
+## Feature 3: Toast queue cap [DONE]
 
 ### Problem
 

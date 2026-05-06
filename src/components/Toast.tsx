@@ -77,9 +77,14 @@ function ToastItem({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
+  const MAX_VISIBLE = 2;
+
   const toast = useCallback((message: string, variant: ToastVariant = "info") => {
     const id = crypto.randomUUID();
-    setItems((prev) => [...prev, { id, message, variant }]);
+    setItems((prev) => {
+      const next = [...prev, { id, message, variant }];
+      return next.length <= MAX_VISIBLE ? next : next.slice(next.length - MAX_VISIBLE);
+    });
   }, []);
 
   const dismiss = useCallback((id: string) => {

@@ -1,3 +1,10 @@
+## Phase 38 — Toast Queue Cap [DONE]
+- Implemented PRD Feature 3: capped visible toasts at 2 at any moment.
+- src/components/Toast.tsx:
+  - Added `MAX_VISIBLE = 2` constant.
+  - Updated the `toast` callback's `setItems` updater to slice the accumulated list to the last `MAX_VISIBLE` entries whenever it would exceed the cap, dropping the oldest toast without any hard pop (React simply unmounts the removed ToastItem and its 3.2s timer).
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 37 — Tokyo Night and GitHub Themes [DONE]
 - Implemented PRD Features 1 and 2: four new themes using a `data-palette` attribute layered on top of the existing `data-theme` (light/dark) split.
 - src/features/settings/preferences.ts:
