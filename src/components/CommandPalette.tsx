@@ -223,6 +223,7 @@ export function CommandPalette() {
       group: "Connections",
       icon: <Plus size={13} />,
       title: "New Connection",
+      shortcut: "⌘N",
       action: () => setPendingNewConnection(true),
     },
     {
@@ -230,6 +231,7 @@ export function CommandPalette() {
       group: "Settings",
       icon: <Palette size={13} />,
       title: "Appearance Settings",
+      shortcut: "⌘,",
       action: () => addTab({ type: "settings", title: "Appearance" }),
     },
     {

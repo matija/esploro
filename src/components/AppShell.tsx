@@ -198,7 +198,7 @@ function Toolbar() {
         type="button"
         onClick={() => addTab({ type: "settings", title: "Appearance" })}
         className={toolbarBtnClass}
-        title="Settings"
+        title="Settings (⌘,)"
       >
         <Settings size={13} />
       </button>
@@ -213,6 +213,7 @@ export function AppShell() {
     activeTabId,
     addTab,
     closeTab,
+    setActiveTab,
     activeSessions,
     profiles,
     sidebarWidth,
@@ -220,6 +221,8 @@ export function AppShell() {
     setTheme,
     hydrateTheme,
     hydrateEditorAndGridPrefs,
+    setCommandPaletteOpen,
+    setPendingNewConnection,
   } = useAppStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
@@ -274,19 +277,97 @@ export function AppShell() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === "t") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      // Command palette: ⌘K (existing) and ⌘⇧P (VS Code style).
+      if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+        return;
+      }
+      if (e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+        return;
+      }
+
+      // ⌘, → Settings (focus existing tab if open, else create one).
+      if (!e.shiftKey && !e.altKey && e.key === ",") {
+        e.preventDefault();
+        const existing = tabs.find((t) => t.type === "settings");
+        if (existing) {
+          setActiveTab(existing.id);
+        } else {
+          addTab({ type: "settings", title: "Appearance" });
+        }
+        return;
+      }
+
+      // ⌘T → New query.
+      if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "t") {
         e.preventDefault();
         const sessionId = Object.values(activeSessions)[0];
         addTab({ type: "query", title: "Query", sessionId });
-      } else if (e.key === "w") {
+        return;
+      }
+
+      // ⌘N → New connection.
+      if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setPendingNewConnection(true);
+        return;
+      }
+
+      // ⌘W → Close active tab.
+      if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "w") {
         e.preventDefault();
         if (activeTabId && activeTabId !== "welcome") closeTab(activeTabId);
+        return;
+      }
+
+      // ⌘1..⌘8 → jump to tab N. ⌘9 → jump to last tab (browser convention).
+      if (!e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        const digit = Number(e.key);
+        const target = digit === 9 ? tabs[tabs.length - 1] : tabs[digit - 1];
+        if (target) setActiveTab(target.id);
+        return;
+      }
+
+      // Tab cycling. Use e.code so the ] / [ shortcuts work on non-US layouts
+      // where Shift turns those keys into } / {.
+      const isNextTab =
+        (e.shiftKey && !e.altKey && e.code === "BracketRight") ||
+        (e.altKey && !e.shiftKey && e.code === "ArrowRight");
+      const isPrevTab =
+        (e.shiftKey && !e.altKey && e.code === "BracketLeft") ||
+        (e.altKey && !e.shiftKey && e.code === "ArrowLeft");
+
+      if (isNextTab || isPrevTab) {
+        e.preventDefault();
+        if (tabs.length < 2 || !activeTabId) return;
+        const idx = tabs.findIndex((t) => t.id === activeTabId);
+        if (idx < 0) return;
+        const nextIdx = isNextTab
+          ? (idx + 1) % tabs.length
+          : (idx - 1 + tabs.length) % tabs.length;
+        setActiveTab(tabs[nextIdx].id);
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addTab, closeTab, activeTabId, activeSessions]);
+  }, [
+    addTab,
+    closeTab,
+    setActiveTab,
+    setCommandPaletteOpen,
+    setPendingNewConnection,
+    activeTabId,
+    activeSessions,
+    tabs,
+  ]);
 
   return (
     <ToastProvider>

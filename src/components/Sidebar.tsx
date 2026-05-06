@@ -114,7 +114,6 @@ export function Sidebar() {
   return (
     <>
       <aside
-        data-tauri-drag-region
         style={{ width: sidebarWidth }}
         className={cn(
           "relative flex flex-col h-full shrink-0",
@@ -122,7 +121,10 @@ export function Sidebar() {
           "border-r border-separator",
         )}
       >
-        <div data-tauri-drag-region className="flex-1 overflow-y-auto pt-2 pb-4">
+        {/* No drag region here — the 38px title bar in AppShell handles window
+         * dragging. Marking the scrollable body as a drag region steals
+         * scrollbar drags (Tauri intercepts them as window drags). */}
+        <div className="flex-1 overflow-y-auto pt-2 pb-4">
           <SidebarSection
             title="Connections"
             action={
