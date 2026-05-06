@@ -224,7 +224,7 @@ In the active chip row, make each chip clickable. Clicking a chip sets a `editin
 
 ## Testing
 
-**MySQL**
+**MySQL** ✅ Implementation complete (manual testing pending live MySQL instance)
 
 - [ ] Connect to a local MySQL 8 instance and a local MariaDB 10.6 instance. Verify schema tree, table viewer, query editor.
 - [ ] Connect to a Railway-hosted MySQL instance (tests TLS path once SSL is wired).

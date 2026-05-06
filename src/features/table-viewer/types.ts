@@ -73,19 +73,36 @@ export const OP_LABELS: Record<FilterOperator, string> = {
 };
 
 export function getTypeFamily(udt: string): TypeFamily {
-  const t = udt.toLowerCase().replace(/\[\]$/, ""); // strip array suffix
+  // MySQL: tinyint(1) is boolean
+  if (udt.toLowerCase() === "tinyint(1)") return "boolean";
+
+  // Strip array suffix (Postgres) and parenthesised length/precision (MySQL)
+  const t = udt.toLowerCase().replace(/\[\]$/, "").replace(/\(.*\)$/, "").trim();
+
+  // Postgres types
   if (["text", "varchar", "bpchar", "char", "name", "uuid", "citext"].includes(t)) return "text";
   if (["int2", "int4", "int8", "float4", "float8", "numeric", "money", "oid", "serial", "bigserial"].includes(t)) return "numeric";
   if (["date", "timestamp", "timestamptz", "timetz", "time", "interval"].includes(t)) return "date";
   if (["bool", "boolean"].includes(t)) return "boolean";
   if (["json", "jsonb"].includes(t)) return "json";
+
+  // MySQL types
+  if (["varchar", "char", "text", "tinytext", "mediumtext", "longtext", "enum", "set"].includes(t)) return "text";
+  if (["int", "bigint", "smallint", "tinyint", "mediumint", "float", "double", "decimal"].includes(t)) return "numeric";
+  if (["date", "datetime", "timestamp", "time", "year"].includes(t)) return "date";
+  if (["json"].includes(t)) return "json";
+  if (["binary", "varbinary", "blob", "tinyblob", "mediumblob", "longblob"].includes(t)) return "other";
+
   return "other"; // likely enum or custom type
 }
 
-export function getOperatorsForFamily(family: TypeFamily): FilterOperator[] {
+export function getOperatorsForFamily(family: TypeFamily, driver: "postgres" | "mysql" = "postgres"): FilterOperator[] {
   switch (family) {
     case "text":
-      return ["Eq", "Neq", "Like", "ILike", "IsNull", "IsNotNull"];
+      // MySQL LIKE is case-insensitive by default; ILike is not available
+      return driver === "mysql"
+        ? ["Eq", "Neq", "Like", "IsNull", "IsNotNull"]
+        : ["Eq", "Neq", "Like", "ILike", "IsNull", "IsNotNull"];
     case "numeric":
     case "date":
       return ["Eq", "Neq", "Gt", "Lt", "Gte", "Lte", "IsNull", "IsNotNull"];

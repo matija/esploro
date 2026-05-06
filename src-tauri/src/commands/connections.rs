@@ -8,7 +8,15 @@ use tauri::{AppHandle, Manager, State};
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-use crate::{AppState, SessionInfo};
+use crate::{AppState, DriverSession, SessionInfo};
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum DbDriver {
+    #[default]
+    Postgres,
+    Mysql,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +35,8 @@ pub struct ConnectionProfile {
     pub display_name: String,
     pub color: Option<String>,
     pub folder: Option<String>,
+    #[serde(default)]
+    pub driver: DbDriver,
     /// TCP hostname/IP; None when using socket_path
     pub host: Option<String>,
     pub port: u16,
@@ -46,6 +56,8 @@ pub struct ConnectionInput {
     pub display_name: String,
     pub color: Option<String>,
     pub folder: Option<String>,
+    #[serde(default)]
+    pub driver: DbDriver,
     pub host: Option<String>,
     pub port: u16,
     pub socket_path: Option<String>,
@@ -107,10 +119,10 @@ async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Resul
 }
 
 // ---------------------------------------------------------------------------
-// Pool builder
+// Pool builders
 // ---------------------------------------------------------------------------
 
-fn build_pool(profile: &ConnectionProfile, password: &str) -> Result<deadpool_postgres::Pool, String> {
+fn build_pg_pool(profile: &ConnectionProfile, password: &str) -> Result<deadpool_postgres::Pool, String> {
     let mut cfg = PoolConfig::new();
 
     // Unix socket path takes priority; tokio-postgres recognises a host
@@ -127,6 +139,17 @@ fn build_pool(profile: &ConnectionProfile, password: &str) -> Result<deadpool_po
 
     cfg.create_pool(Some(Runtime::Tokio1), NoTls)
         .map_err(|e| e.to_string())
+}
+
+fn build_mysql_pool(profile: &ConnectionProfile, password: &str) -> Result<mysql_async::Pool, String> {
+    let host = profile.host.as_deref().unwrap_or("localhost");
+    let opts = mysql_async::OptsBuilder::default()
+        .ip_or_hostname(host)
+        .tcp_port(profile.port)
+        .db_name(Some(profile.database.clone()))
+        .user(Some(profile.username.clone()))
+        .pass(Some(password.to_string()));
+    Ok(mysql_async::Pool::new(opts))
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +180,7 @@ pub async fn create_connection(
         display_name: input.display_name,
         color: input.color,
         folder: input.folder,
+        driver: input.driver,
         host: input.host,
         port: input.port,
         socket_path: input.socket_path,
@@ -190,6 +214,7 @@ pub async fn update_connection(
     profile.display_name = input.display_name;
     profile.color = input.color;
     profile.folder = input.folder;
+    profile.driver = input.driver;
     profile.host = input.host;
     profile.port = input.port;
     profile.socket_path = input.socket_path;
@@ -238,6 +263,7 @@ pub async fn test_connection(
         display_name: String::new(),
         color: None,
         folder: None,
+        driver: input.driver,
         host: input.host,
         port: input.port,
         socket_path: input.socket_path,
@@ -248,13 +274,20 @@ pub async fn test_connection(
         updated_at: String::new(),
     };
 
-    let pool = build_pool(&profile, &password)?;
     let start = Instant::now();
-    let client = pool.get().await.map_err(error_chain)?;
-    client
-        .execute("SELECT 1", &[])
-        .await
-        .map_err(error_chain)?;
+    match profile.driver {
+        DbDriver::Postgres => {
+            let pool = build_pg_pool(&profile, &password)?;
+            let client = pool.get().await.map_err(error_chain)?;
+            client.execute("SELECT 1", &[]).await.map_err(error_chain)?;
+        }
+        DbDriver::Mysql => {
+            use mysql_async::prelude::Queryable;
+            let pool = build_mysql_pool(&profile, &password)?;
+            let mut conn = pool.get_conn().await.map_err(error_chain)?;
+            conn.query_drop("SELECT 1").await.map_err(error_chain)?;
+        }
+    }
     Ok(start.elapsed().as_millis() as u64)
 }
 
@@ -274,24 +307,37 @@ pub async fn connect(
         .get_password()
         .map_err(|e| e.to_string())?;
 
-    let pool = build_pool(profile, &password)?;
-
-    // Verify connectivity before registering the session
-    let client = pool.get().await.map_err(error_chain)?;
-    client
-        .execute("SELECT 1", &[])
-        .await
-        .map_err(error_chain)?;
-    drop(client);
-
     let session_id = Uuid::new_v4().to_string();
-    state.sessions.lock().await.insert(
-        session_id.clone(),
-        SessionInfo {
-            pool: Arc::new(pool),
-            connection_id: id,
-        },
-    );
+
+    match profile.driver {
+        DbDriver::Postgres => {
+            let pool = build_pg_pool(profile, &password)?;
+            let client = pool.get().await.map_err(error_chain)?;
+            client.execute("SELECT 1", &[]).await.map_err(error_chain)?;
+            drop(client);
+            state.sessions.lock().await.insert(
+                session_id.clone(),
+                SessionInfo {
+                    driver: DriverSession::Postgres(Arc::new(pool)),
+                    connection_id: id,
+                },
+            );
+        }
+        DbDriver::Mysql => {
+            use mysql_async::prelude::Queryable;
+            let pool = build_mysql_pool(profile, &password)?;
+            let mut conn = pool.get_conn().await.map_err(error_chain)?;
+            conn.query_drop("SELECT 1").await.map_err(error_chain)?;
+            drop(conn);
+            state.sessions.lock().await.insert(
+                session_id.clone(),
+                SessionInfo {
+                    driver: DriverSession::Mysql(Arc::new(pool)),
+                    connection_id: id,
+                },
+            );
+        }
+    }
 
     Ok(session_id)
 }

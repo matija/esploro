@@ -6,8 +6,13 @@ use tokio::sync::Mutex;
 
 pub use commands::connections::ConnectionProfile;
 
+pub enum DriverSession {
+    Postgres(Arc<deadpool_postgres::Pool>),
+    Mysql(Arc<mysql_async::Pool>),
+}
+
 pub struct SessionInfo {
-    pub pool: Arc<deadpool_postgres::Pool>,
+    pub driver: DriverSession,
     pub connection_id: String,
 }
 

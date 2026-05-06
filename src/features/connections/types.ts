@@ -1,3 +1,4 @@
+export type DbDriver = 'postgres' | 'mysql';
 export type SslMode = 'disable' | 'prefer' | 'require' | 'verifyFull';
 
 export interface ConnectionProfile {
@@ -5,6 +6,7 @@ export interface ConnectionProfile {
   displayName: string;
   color?: string;
   folder?: string;
+  driver: DbDriver;
   host?: string;
   port: number;
   socketPath?: string;
@@ -19,6 +21,7 @@ export interface ConnectionInput {
   displayName: string;
   color?: string;
   folder?: string;
+  driver: DbDriver;
   host?: string;
   port: number;
   socketPath?: string;

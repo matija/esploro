@@ -1,3 +1,44 @@
+## Phase 35 — MySQL/MariaDB Connection Support [DONE]
+- Implemented PRD Feature 1 in full: MySQL/MariaDB connections from driver abstraction to UI.
+- src-tauri/Cargo.toml:
+  - Added `mysql_async = { version = "0.34", features = [] }`.
+- src-tauri/src/lib.rs:
+  - Added `DriverSession` enum (`Postgres(Arc<deadpool_postgres::Pool>)` | `Mysql(Arc<mysql_async::Pool>)`).
+  - Updated `SessionInfo.driver` to hold `DriverSession` instead of bare pool.
+- src-tauri/src/commands/connections.rs:
+  - Added `DbDriver` enum (`#[serde(rename_all = "camelCase")]`, `#[serde(default)]` → Postgres).
+  - Added `driver` field to `ConnectionProfile` and `ConnectionInput`.
+  - Added `build_mysql_pool()` using `mysql_async::OptsBuilder`.
+  - Updated `test_connection` and `connect` to dispatch on `profile.driver`.
+- src-tauri/src/commands/schema.rs:
+  - All 4 commands (`list_databases`, `list_schemas`, `list_objects`, `list_columns`) dispatch on `DriverSession`.
+  - MySQL `list_schemas` returns `[database]` (database = schema in MySQL).
+  - MySQL `list_columns` uses `COLUMN_TYPE`, `COLUMN_KEY = 'PRI'` / `'MUL'` for key detection.
+  - Added `mysql_str(row, idx)` helper using `row.as_ref(idx)` pattern-matched over `mysql_async::Value` variants.
+- src-tauri/src/commands/data.rs:
+  - Added `PoolHandle` local enum to clone pool reference out of sessions lock before async dispatch.
+  - Added `query_table_mysql()`: INFORMATION_SCHEMA with `?` params, backtick-quoted identifiers, `CAST(col AS CHAR)`, ILike treated as Like.
+  - Added `execute_sql_mysql()`: uses `conn.query::<Row, _>()`, `affected_rows()` for DML.
+- src/features/connections/types.ts:
+  - Added `DbDriver = 'postgres' | 'mysql'`.
+  - Added `driver: DbDriver` to `ConnectionProfile` and `ConnectionInput`.
+- src/features/connections/api.ts:
+  - Added `parseConnectionUrl()` handling both `postgres://` and `mysql://` (default port 3306).
+  - Kept `parsePostgresUrl` as deprecated alias.
+- src/features/connections/ConnectionForm.tsx:
+  - Added driver selector (PostgreSQL | MySQL / MariaDB) with auto port update.
+  - Hides Unix Socket and SSL Mode sections for MySQL.
+  - URL placeholder adapts to driver.
+- src/features/table-viewer/types.ts:
+  - Extended `getTypeFamily()` for MySQL types: `tinyint(1)` → boolean, strips `(...)`, maps all MySQL families.
+  - Updated `getOperatorsForFamily(family, driver)` to exclude ILike for MySQL.
+- src/features/schema/SchemaTree.tsx:
+  - Detects MySQL connections via profile lookup; skips schema-level queries and nodes.
+  - `schemasMap` populated directly from expanded databases for MySQL (database = schema).
+  - `depthAdj = -1` shifts all non-database nodes up one indent level for MySQL.
+  - "Open in query editor" uses backtick quoting for MySQL.
+- Checks passed: cargo clippy --workspace --all-targets -- -D warnings, npm run type-check, npm run lint.
+
 ## Phase 34 — License State-Machine Tests [DONE]
 - Implemented PRD Testing Decisions: state-machine transitions, error-code message mapping, and checkout URL construction tests.
 - src-tauri/src/commands/license.rs:

@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use mysql_async::prelude::Queryable;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio_postgres::SimpleQueryMessage;
 
-use crate::AppState;
+use crate::{AppState, DriverSession};
 
 fn validate_identifier(s: &str) -> Result<(), String> {
     if s.is_empty() {
@@ -39,7 +40,7 @@ fn pg_cast_for_udt(udt: &str) -> &'static str {
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryRequest {
     #[allow(dead_code)]
-    pub database: String, // pool is bound to the configured database at connect time
+    pub database: String,
     pub schema: String,
     pub table: String,
     pub filters: Vec<ColumnFilter>,
@@ -98,6 +99,13 @@ pub struct ResultColumn {
     pub is_foreign_key: bool,
 }
 
+// ─── query_table ──────────────────────────────────────────────────────────────
+
+enum PoolHandle {
+    Pg(std::sync::Arc<deadpool_postgres::Pool>),
+    Mysql(std::sync::Arc<mysql_async::Pool>),
+}
+
 #[tauri::command]
 pub async fn query_table(
     session_id: String,
@@ -107,18 +115,30 @@ pub async fn query_table(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let pool = {
+    // Clone pool handle out of the lock so we don't hold it during the query.
+    let handle = {
         let sessions = state.sessions.lock().await;
-        sessions
+        let info = sessions
             .get(&session_id)
-            .ok_or_else(|| "Session not found".to_string())?
-            .pool
-            .clone()
+            .ok_or_else(|| "Session not found".to_string())?;
+        match &info.driver {
+            DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
+            DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
+        }
     };
 
+    match handle {
+        PoolHandle::Pg(pool) => query_table_pg(pool, request).await,
+        PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
+    }
+}
+
+async fn query_table_pg(
+    pool: std::sync::Arc<deadpool_postgres::Pool>,
+    request: TableQueryRequest,
+) -> Result<TableQueryResult, String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    // Fetch column metadata with nullable, PK, and FK info
     let col_rows = client
         .query(
             "SELECT c.column_name, c.udt_name, c.is_nullable \
@@ -186,7 +206,6 @@ pub async fn query_table(
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
         .collect();
 
-    // Build WHERE clause with parameterised filter values
     let mut param_values: Vec<String> = vec![];
     let mut where_clauses: Vec<String> = vec![];
 
@@ -247,7 +266,6 @@ pub async fn query_table(
         _ => String::new(),
     };
 
-    // Cast every column to text so Rust can deserialise all types uniformly
     let col_select: String = result_columns
         .iter()
         .map(|c| format!("\"{}\"::text", c.name))
@@ -272,14 +290,11 @@ pub async fn query_table(
         .collect();
 
     let start = Instant::now();
-
-    // Run data and count concurrently on two pool connections
     let client2 = pool.get().await.map_err(|e| e.to_string())?;
     let (data_result, count_result) = tokio::join!(
         client.query(data_sql.as_str(), params.as_slice()),
         client2.query_one(count_sql.as_str(), params.as_slice()),
     );
-
     let execution_ms = start.elapsed().as_millis() as u64;
 
     let data_rows = data_result.map_err(|e| e.to_string())?;
@@ -291,6 +306,156 @@ pub async fn query_table(
         .map(|row| {
             (0..result_columns.len())
                 .map(|i| row.get::<_, Option<String>>(i))
+                .collect()
+        })
+        .collect();
+
+    Ok(TableQueryResult {
+        columns: result_columns,
+        rows,
+        total_count,
+        page: request.page,
+        page_size: request.page_size,
+        execution_ms,
+    })
+}
+
+async fn query_table_mysql(
+    pool: std::sync::Arc<mysql_async::Pool>,
+    request: TableQueryRequest,
+) -> Result<TableQueryResult, String> {
+    // For MySQL, `schema` is the database name.
+    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+
+    // Fetch column metadata from INFORMATION_SCHEMA
+    let col_rows: Vec<mysql_async::Row> = conn
+        .exec(
+            "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY \
+             FROM information_schema.COLUMNS \
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? \
+             ORDER BY ORDINAL_POSITION",
+            (&request.schema, &request.table),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if col_rows.is_empty() {
+        return Err(format!(
+            "Table `{}`.`{}` not found or has no columns",
+            request.schema, request.table
+        ));
+    }
+
+    let result_columns: Vec<ResultColumn> = col_rows
+        .iter()
+        .map(|r| {
+            let col_key = mysql_str(r, 3).unwrap_or_default();
+            ResultColumn {
+                name: mysql_str(r, 0).unwrap_or_default(),
+                data_type: mysql_str(r, 1).unwrap_or_default(),
+                is_nullable: mysql_str(r, 2).as_deref() == Some("YES"),
+                is_primary_key: col_key == "PRI",
+                is_foreign_key: col_key == "MUL",
+            }
+        })
+        .collect();
+
+    // Build WHERE clause using ? placeholders
+    let mut param_values: Vec<mysql_async::Value> = vec![];
+    let mut where_clauses: Vec<String> = vec![];
+
+    for filter in &request.filters {
+        validate_identifier(&filter.column)?;
+        let col_q = format!("`{}`", filter.column);
+
+        let clause = match filter.operator {
+            FilterOperator::IsNull => format!("{col_q} IS NULL"),
+            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
+            // MySQL LIKE is case-insensitive by default (UTF-8); treat ILike as Like
+            FilterOperator::Like | FilterOperator::ILike => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                format!("CAST({col_q} AS CHAR) LIKE ?")
+            }
+            _ => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                match filter.operator {
+                    FilterOperator::Eq => format!("{col_q} = ?"),
+                    FilterOperator::Neq => format!("{col_q} != ?"),
+                    FilterOperator::Gt => format!("{col_q} > ?"),
+                    FilterOperator::Lt => format!("{col_q} < ?"),
+                    FilterOperator::Gte => format!("{col_q} >= ?"),
+                    FilterOperator::Lte => format!("{col_q} <= ?"),
+                    _ => unreachable!(),
+                }
+            }
+        };
+        where_clauses.push(clause);
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+
+    let order_sql = match (&request.sort_column, &request.sort_direction) {
+        (Some(col), Some(dir)) => {
+            validate_identifier(col)?;
+            let d = match dir {
+                SortDirection::Asc => "ASC",
+                SortDirection::Desc => "DESC",
+            };
+            format!("ORDER BY `{col}` {d}")
+        }
+        _ => String::new(),
+    };
+
+    // CAST all columns to CHAR for uniform string serialization
+    let col_select: String = result_columns
+        .iter()
+        .map(|c| format!("CAST(`{}` AS CHAR)", c.name))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let offset = (request.page * request.page_size) as u64;
+    let limit = request.page_size as u64;
+
+    let data_sql = format!(
+        "SELECT {col_select} FROM `{}`.`{}` {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
+        request.schema, request.table
+    );
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM `{}`.`{}` {where_sql}",
+        request.schema, request.table
+    );
+
+    let start = Instant::now();
+
+    // Run data and count concurrently on two pool connections
+    let mut conn2 = pool.get_conn().await.map_err(|e| e.to_string())?;
+    let (data_result, count_result) = tokio::join!(
+        conn.exec::<mysql_async::Row, _, _>(data_sql.as_str(), param_values.clone()),
+        conn2.exec::<mysql_async::Row, _, _>(count_sql.as_str(), param_values.clone()),
+    );
+    let execution_ms = start.elapsed().as_millis() as u64;
+
+    let data_rows = data_result.map_err(|e| e.to_string())?;
+    let count_rows = count_result.map_err(|e| e.to_string())?;
+    let total_count: i64 = count_rows
+        .first()
+        .and_then(|r| mysql_str(r, 0))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+
+    let rows: Vec<Vec<Option<String>>> = data_rows
+        .iter()
+        .map(|row| {
+            (0..result_columns.len())
+                .map(|i| mysql_str(row, i))
                 .collect()
         })
         .collect();
@@ -331,14 +496,27 @@ pub async fn execute_sql(
     sql: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<QueryResult>, String> {
-    let pool = {
+    let handle = {
         let sessions = state.sessions.lock().await;
-        sessions
+        let info = sessions
             .get(&session_id)
-            .ok_or_else(|| "Session not found".to_string())?
-            .pool
-            .clone()
+            .ok_or_else(|| "Session not found".to_string())?;
+        match &info.driver {
+            DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
+            DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
+        }
     };
+
+    match handle {
+        PoolHandle::Pg(pool) => execute_sql_pg(pool, sql).await,
+        PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,
+    }
+}
+
+async fn execute_sql_pg(
+    pool: std::sync::Arc<deadpool_postgres::Pool>,
+    sql: String,
+) -> Result<Vec<QueryResult>, String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
     let statements: Vec<&str> = sql
@@ -405,9 +583,7 @@ pub async fn execute_sql(
                                 None
                             }
                         });
-                let code = e
-                    .as_db_error()
-                    .map(|db| db.code().code().to_string());
+                let code = e.as_db_error().map(|db| db.code().code().to_string());
                 results.push(QueryResult {
                     columns: vec![],
                     rows: vec![],
@@ -425,4 +601,105 @@ pub async fn execute_sql(
     }
 
     Ok(results)
+}
+
+async fn execute_sql_mysql(
+    pool: std::sync::Arc<mysql_async::Pool>,
+    sql: String,
+) -> Result<Vec<QueryResult>, String> {
+    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+
+    let statements: Vec<&str> = sql
+        .split(';')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut results: Vec<QueryResult> = vec![];
+
+    for stmt in statements {
+        let t0 = Instant::now();
+        match conn.query::<mysql_async::Row, _>(stmt).await {
+            Ok(rows) => {
+                let execution_ms = t0.elapsed().as_millis() as u64;
+                let rows_affected = if rows.is_empty() {
+                    Some(conn.affected_rows())
+                } else {
+                    None
+                };
+
+                let columns: Vec<ResultColumn> = if let Some(first) = rows.first() {
+                    first
+                        .columns_ref()
+                        .iter()
+                        .map(|c| ResultColumn {
+                            name: c.name_str().into_owned(),
+                            data_type: String::new(),
+                            is_nullable: false,
+                            is_primary_key: false,
+                            is_foreign_key: false,
+                        })
+                        .collect()
+                } else {
+                    vec![]
+                };
+
+                let row_data: Vec<Vec<Option<String>>> = rows
+                    .iter()
+                    .map(|row| (0..row.len()).map(|i| mysql_str(row, i)).collect())
+                    .collect();
+
+                results.push(QueryResult {
+                    columns,
+                    rows: row_data,
+                    rows_affected,
+                    execution_ms,
+                    error: None,
+                });
+            }
+            Err(e) => {
+                let execution_ms = t0.elapsed().as_millis() as u64;
+                results.push(QueryResult {
+                    columns: vec![],
+                    rows: vec![],
+                    rows_affected: None,
+                    execution_ms,
+                    error: Some(QueryError {
+                        message: e.to_string(),
+                        position: None,
+                        code: None,
+                    }),
+                });
+                break;
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn mysql_str(row: &mysql_async::Row, idx: usize) -> Option<String> {
+    use mysql_async::Value;
+    match row.as_ref(idx)? {
+        Value::NULL => None,
+        Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
+        Value::Int(n) => Some(n.to_string()),
+        Value::UInt(n) => Some(n.to_string()),
+        Value::Float(f) => Some(f.to_string()),
+        Value::Double(f) => Some(f.to_string()),
+        Value::Date(y, m, d, h, min, s, _) => {
+            if *h == 0 && *min == 0 && *s == 0 {
+                Some(format!("{y:04}-{m:02}-{d:02}"))
+            } else {
+                Some(format!("{y:04}-{m:02}-{d:02} {h:02}:{min:02}:{s:02}"))
+            }
+        }
+        Value::Time(neg, days, h, min, s, _) => {
+            let sign = if *neg { "-" } else { "" };
+            let total_h = days * 24 + *h as u32;
+            Some(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
+        }
+    }
 }

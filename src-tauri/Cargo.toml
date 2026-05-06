@@ -21,5 +21,6 @@ uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7"
 deadpool-postgres = { version = "0.12", features = ["rt_tokio_1"] }
+mysql_async = { version = "0.34", features = [] }
 keyring = "2"
 chrono = { version = "0.4", features = ["serde"] }

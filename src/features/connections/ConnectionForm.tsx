@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { connectionsApi, parsePostgresUrl } from './api';
+import { connectionsApi, parseConnectionUrl } from './api';
 import { DEFAULT_COLORS } from './types';
-import type { ConnectionInput, ConnectionProfile, SslMode } from './types';
+import type { ConnectionInput, ConnectionProfile, DbDriver, SslMode } from './types';
 
 interface Props {
   open: boolean;
@@ -24,6 +24,9 @@ const SSL_OPTIONS: { value: SslMode; label: string }[] = [
 
 type ConnectionType = 'host' | 'socket';
 type TestState = 'idle' | 'testing' | { ms: number } | { error: string };
+
+const DEFAULT_PORT: Record<DbDriver, number> = { postgres: 5432, mysql: 3306 };
+const DRIVER_LABELS: Record<DbDriver, string> = { postgres: 'PostgreSQL', mysql: 'MySQL / MariaDB' };
 
 function Field({
   label,
@@ -60,6 +63,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: Props) {
   const isEdit = !!profile;
 
+  const [driver, setDriver] = useState<DbDriver>(profile?.driver ?? 'postgres');
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [color, setColor] = useState<string>(profile?.color ?? DEFAULT_COLORS[0]);
   const [folder, setFolder] = useState(profile?.folder ?? '');
@@ -80,7 +84,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
   function applyParsedUrl(rawUrl: string) {
     if (!rawUrl.trim()) return;
-    const parsed = parsePostgresUrl(rawUrl.trim());
+    const parsed = parseConnectionUrl(rawUrl.trim());
+    if (parsed.driver) setDriver(parsed.driver);
     if (parsed.host) { setHost(parsed.host); setConnType('host'); }
     if (parsed.port) setPort(String(parsed.port));
     if (parsed.database) setDatabase(parsed.database);
@@ -98,12 +103,14 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
   useEffect(() => {
     if (!open) return;
 
+    const d = profile?.driver ?? 'postgres';
+    setDriver(d);
     setDisplayName(profile?.displayName ?? '');
     setColor(profile?.color ?? DEFAULT_COLORS[0]);
     setFolder(profile?.folder ?? '');
     setConnType(profile?.socketPath ? 'socket' : 'host');
     setHost(profile?.host ?? 'localhost');
-    setPort(String(profile?.port ?? 5432));
+    setPort(String(profile?.port ?? DEFAULT_PORT[d]));
     setSocketPath(profile?.socketPath ?? '');
     setDatabase(profile?.database ?? '');
     setUsername(profile?.username ?? '');
@@ -125,9 +132,10 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
       displayName: displayName.trim(),
       color: color || undefined,
       folder: folder.trim() || undefined,
+      driver,
       host: connType === 'host' ? host.trim() || undefined : undefined,
-      port: parseInt(port) || 5432,
-      socketPath: connType === 'socket' ? socketPath.trim() || undefined : undefined,
+      port: parseInt(port) || DEFAULT_PORT[driver],
+      socketPath: driver === 'postgres' && connType === 'socket' ? socketPath.trim() || undefined : undefined,
       database: database.trim(),
       username: username.trim(),
       sslMode,
@@ -204,12 +212,37 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {/* Driver selector */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-secondary">Database</label>
+              <div className="flex rounded-md overflow-hidden border border-separator w-fit">
+                {(['postgres', 'mysql'] as DbDriver[]).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      setDriver(d);
+                      setPort(String(DEFAULT_PORT[d]));
+                      if (d === 'mysql') setConnType('host');
+                    }}
+                    className={cn(
+                      'px-3 py-1 text-xs font-medium transition-colors',
+                      driver === d
+                        ? 'bg-accent text-white'
+                        : 'text-secondary hover:text-label hover:bg-control',
+                    )}
+                  >
+                    {DRIVER_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Quick-connect URL */}
             <div className="flex gap-2">
               <Input
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="postgres://user:pass@host:5432/db"
+                placeholder={driver === 'mysql' ? 'mysql://user:pass@host:3306/db' : 'postgres://user:pass@host:5432/db'}
                 className="flex-1"
               />
               <button
@@ -262,28 +295,38 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               </Field>
             </div>
 
-            {/* Connection type toggle */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-secondary">Connection Type</label>
-              <div className="flex rounded-md overflow-hidden border border-separator w-fit">
-                {(['host', 'socket'] as ConnectionType[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setConnType(t)}
-                    className={cn(
-                      'px-3 py-1 text-xs font-medium transition-colors',
-                      connType === t
-                        ? 'bg-accent text-white'
-                        : 'text-secondary hover:text-label hover:bg-control',
-                    )}
-                  >
-                    {t === 'host' ? 'Host / Port' : 'Unix Socket'}
-                  </button>
-                ))}
+            {/* Connection type toggle — Postgres only */}
+            {driver === 'postgres' && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-secondary">Connection Type</label>
+                <div className="flex rounded-md overflow-hidden border border-separator w-fit">
+                  {(['host', 'socket'] as ConnectionType[]).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setConnType(t)}
+                      className={cn(
+                        'px-3 py-1 text-xs font-medium transition-colors',
+                        connType === t
+                          ? 'bg-accent text-white'
+                          : 'text-secondary hover:text-label hover:bg-control',
+                      )}
+                    >
+                      {t === 'host' ? 'Host / Port' : 'Unix Socket'}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {connType === 'host' ? (
+            {driver === 'postgres' && connType === 'socket' ? (
+              <Field label="Socket Path" error={errors.socketPath}>
+                <Input
+                  value={socketPath}
+                  onChange={(e) => setSocketPath(e.target.value)}
+                  placeholder="/var/run/postgresql"
+                />
+              </Field>
+            ) : (
               <div className="flex gap-3">
                 <Field label="Host" error={errors.host}>
                   <Input
@@ -305,14 +348,6 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   </Field>
                 </div>
               </div>
-            ) : (
-              <Field label="Socket Path" error={errors.socketPath}>
-                <Input
-                  value={socketPath}
-                  onChange={(e) => setSocketPath(e.target.value)}
-                  placeholder="/var/run/postgresql"
-                />
-              </Field>
             )}
 
             <Field label="Database" error={errors.database}>
@@ -340,22 +375,24 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               />
             </Field>
 
-            <Field label="SSL Mode">
-              <select
-                value={sslMode}
-                onChange={(e) => setSslMode(e.target.value as SslMode)}
-                className={cn(
-                  'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
-                  'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
-                )}
-              >
-                {SSL_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {driver === 'postgres' && (
+              <Field label="SSL Mode">
+                <select
+                  value={sslMode}
+                  onChange={(e) => setSslMode(e.target.value as SslMode)}
+                  className={cn(
+                    'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
+                    'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
+                  )}
+                >
+                  {SSL_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             {errors._form && (
               <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">

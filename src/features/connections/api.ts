@@ -20,21 +20,37 @@ export const connectionsApi = {
   disconnect: (sessionId: string) => invoke<void>('disconnect', { sessionId }),
 };
 
-export type ParsedPostgresUrl = Partial<ConnectionInput> & {
+export type ParsedConnectionUrl = Partial<ConnectionInput> & {
   password?: string;
 };
 
-export function parsePostgresUrl(url: string): ParsedPostgresUrl {
+/** @deprecated use parseConnectionUrl */
+export const parsePostgresUrl = parseConnectionUrl;
+
+export function parseConnectionUrl(url: string): ParsedConnectionUrl {
   try {
     const u = new URL(url);
-    if (u.protocol !== 'postgres:' && u.protocol !== 'postgresql:') return {};
-    return {
-      host: u.hostname || undefined,
-      port: u.port ? parseInt(u.port) : 5432,
-      database: u.pathname.slice(1) || undefined,
-      username: u.username ? decodeURIComponent(u.username) : undefined,
-      password: u.password ? decodeURIComponent(u.password) : undefined,
-    };
+    if (u.protocol === 'postgres:' || u.protocol === 'postgresql:') {
+      return {
+        driver: 'postgres',
+        host: u.hostname || undefined,
+        port: u.port ? parseInt(u.port) : 5432,
+        database: u.pathname.slice(1) || undefined,
+        username: u.username ? decodeURIComponent(u.username) : undefined,
+        password: u.password ? decodeURIComponent(u.password) : undefined,
+      };
+    }
+    if (u.protocol === 'mysql:') {
+      return {
+        driver: 'mysql',
+        host: u.hostname || undefined,
+        port: u.port ? parseInt(u.port) : 3306,
+        database: u.pathname.slice(1) || undefined,
+        username: u.username ? decodeURIComponent(u.username) : undefined,
+        password: u.password ? decodeURIComponent(u.password) : undefined,
+      };
+    }
+    return {};
   } catch {
     return {};
   }
