@@ -18,7 +18,7 @@ const DODO_BASE: &str = if cfg!(debug_assertions) {
     "https://live.dodopayments.com"
 };
 
-const KEYCHAIN_SERVICE: &str = "com.esploro.app";
+const KEYCHAIN_SERVICE: &str = "app.esploro";
 const KEYCHAIN_ACCOUNT: &str = "commercial-license";
 
 const DEFAULT_UI_THEME: &str = "tairiki-light";
