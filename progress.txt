@@ -1,3 +1,31 @@
+## Phase 44 — C2: COUNT(*) caching + query split [DONE]
+- Implemented PRD Performance fix C2: make COUNT(*) optional and cached.
+- src-tauri/src/commands/data.rs:
+  - Renamed `query_table` → `query_table_data` (data rows only, no count).
+  - Added `query_table_count` command (PG: uses reltuples estimate when no filters, exact COUNT otherwise; MySQL: always COUNT(*)).
+  - New `TableCountResult { count: i64, is_estimate: bool }` struct.
+- src-tauri/src/commands/license.rs:
+  - Added `show_total_count: bool` (default true) to `UiGridConfig`.
+- src-tauri/src/lib.rs: registered new commands.
+- src/features/table-viewer/types.ts: removed `totalCount` from `TableQueryResult`, added `TableCountResult`.
+- src/features/table-viewer/api.ts: added `queryTableData` and `queryTableCount`.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Data query uses `queryTableData`. Separate count query with 60 s staleTime, page excluded from key.
+  - Footer shows exact count, estimate (~N rows), or range only (null count).
+  - `hasNext` falls back to checking if rows.length >= pageSize when count is unknown.
+- src/features/settings/preferences.ts: added `showTotalCount` to `UiPreferences.grid`.
+- src/store/index.ts: added `showTotalCount`/`setShowTotalCount`, `estimatedRows` in `tableContext`.
+- src/features/settings/DataGridSettings.tsx: toggle to enable/disable row count.
+- src/features/schema/SchemaTree.tsx: passes `estimatedRows` into `tableContext` when opening table tabs.
+- Checks passed: cargo clippy, npm run type-check, npm run lint.
+
+## Phase 43 — N1: Prune expandedNodes and recentObjects [DONE]
+- Implemented PRD Performance fix N1: localStorage pruning.
+- src/store/index.ts:
+  - Raised `MAX_RECENT_OBJECTS` cap from 12 to 50 (FIFO eviction already in place).
+  - `disconnectSession` now removes all `expandedNodes` keys whose prefix matches the disconnected `connectionId:`, eliminating stale schema-tree state accumulation.
+- Checks passed: npm run type-check, npm run lint.
+
 ## Phase 42 — M3: Async File I/O for Saved Queries [DONE]
 - Implemented PRD Performance fix M3: replaced blocking std::fs calls with tokio::fs in saved_queries.rs.
 - src-tauri/src/commands/saved_queries.rs:

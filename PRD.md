@@ -462,3 +462,47 @@ One-line change per call site. No interface changes.
 - Auto-complete / IntelliSense in the SQL editor — separate feature.
 - Any MySQL-specific optimizations beyond parity with PostgreSQL fixes.
 - Connection pooler integration (PgBouncer, ProxySQL) — out of scope; this is client-side pooling only.
+
+---
+
+---
+
+# PRD: Purchase Flow — Route Through esploro.app/pricing
+
+## Problem Statement
+
+The "Purchase app" button in Esploro currently opens a Dodo Payments checkout URL directly from the app. This couples the client binary to a specific payment provider and URL, making it hard to change pricing, run trials, add country-specific redirects, or swap providers without shipping a new app version.
+
+The fix is to point the button at `https://esploro.app/pricing` instead. A small backend web app at that URL handles routing to the actual payment provider.
+
+---
+
+## Goals
+
+- The app never hardcodes a payment provider URL again.
+- Pricing page URL (`https://esploro.app/pricing`) becomes the single durable redirect target from the app.
+- Future changes to payment provider, plan structure, or country-specific checkout require no app update.
+
+---
+
+## Non-Goals
+
+- Building the backend pricing/redirect app (separate project).
+- Changing the trigger point or appearance of the purchase button.
+- Any licensing validation logic — that is unchanged.
+
+---
+
+## Change
+
+**Single change in the app:** wherever the current code opens a Dodo Payments URL directly (likely via `tauri::api::shell::open` or a `open_url` command), replace the target URL with `https://esploro.app/pricing`.
+
+Find the call site, swap the URL, done. No new logic in the app.
+
+---
+
+## Implementation Checklist
+
+- [ ] Find where the "Purchase app" button opens the payment URL (search for `dodopayments` or the checkout URL in `src/` and `src-tauri/`)
+- [ ] Replace the hardcoded Dodo Payments URL with `https://esploro.app/pricing`
+- [ ] Smoke-test: clicking the button opens the pricing page in the default browser
