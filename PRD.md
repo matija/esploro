@@ -282,26 +282,6 @@ Issues are grouped by severity.
 
 ## Critical Fixes
 
-### C1 — Result streaming via Tauri channels (no more full-buffered IPC)
-
-**Problem:** Every query — table viewer and SQL editor — materializes the complete result set into a `Vec<Vec<Option<String>>>` in Rust before sending it to the frontend in a single IPC call. For large queries (e.g. `SELECT *` on a wide table, or a `RETURNING *` on a bulk insert) this means the entire result must fit in memory twice: once in Rust, once as serialized JSON in the IPC buffer.
-
-**Fix:** Use Tauri 2's `Channel` API to stream rows in chunks from Rust to the frontend as they arrive from the database.
-
-- Replace `client.query(...)` with `client.query_raw(...)` (tokio-postgres) to get a `RowStream`.
-- Iterate the stream and emit chunks of N rows (e.g. 500) via a `tauri::ipc::Channel<ChunkPayload>`.
-- The frontend receives chunks incrementally and appends them to the result state; the grid renders what's available immediately.
-- Define a `ChunkPayload` enum: `Rows { columns, rows }`, `Done { total_rows, execution_ms }`, `Error { message, position, code }`.
-
-**Outcome:** Memory usage stays proportional to chunk size, not result size. The UI shows data immediately rather than after a full round-trip. `SELECT *` on a 10M-row table no longer OOMs the process.
-
-**Scope:**
-- `src-tauri/src/commands/data.rs`: `execute_sql_pg`, `execute_sql_mysql`
-- `src/features/query-editor/`: replace `useMutation` result state with streaming state machine
-- For the **table viewer**, keep the current paginated model (LIMIT/OFFSET) — the page size cap means streaming is less critical there; fix C2 instead.
-
----
-
 ### C2 — Make `COUNT(*)` optional and cached
 
 **Problem:** The table viewer fires a `COUNT(*)` query on every page change to populate the "X of Y rows" footer. On a large table without a covering index, this is a full sequential scan — potentially seconds of latency per page flip. The count is also redundant across pages when filters haven't changed.
@@ -382,26 +362,6 @@ Issues are grouped by severity.
 
 ---
 
-### M2 — Keyset pagination option for deep pages
-
-**Problem:** `LIMIT n OFFSET m` forces the database to scan and discard the first `m` rows. At page 500 with page size 200 that's `OFFSET 100000` — a full scan even with an index on the sort column.
-
-**Fix:** Add optional keyset pagination for the table viewer when a single primary-key sort column is active.
-
-- If `sort_column` is a primary key and all PKs are single-column integers or UUIDs, use `WHERE pk_col > $last` instead of `OFFSET`.
-- Track `last_pk_value` in the frontend alongside `current_page`.
-- Fall back to OFFSET pagination for multi-column PKs, non-PK sorts, or when the user jumps to an arbitrary page.
-- This is an optimization, not a replacement — OFFSET pagination stays for all non-eligible cases.
-
-**Outcome:** Deep page navigation is O(1) instead of O(n) for the common case (integer PK, ascending sort).
-
-**Scope:**
-- `src-tauri/src/commands/data.rs`: `query_table_pg` WHERE clause builder
-- `src/features/table-viewer/`: track last-seen PK value, pass to request
-- Only implement for PostgreSQL initially; MySQL can follow
-
----
-
 ### M3 — Async file I/O for saved queries
 
 **Problem:** `saved_queries.rs` reads and writes `saved_queries.json` with blocking (non-async) `std::fs` calls inside async Tauri command handlers. This blocks a Tokio thread for the duration of the I/O.
@@ -449,9 +409,7 @@ One-line change per call site. No interface changes.
 | 4 | C2 — COUNT caching + split | High-impact for table browser UX, self-contained |
 | 5 | M1 — Schema cache + pg_catalog | High-impact for large DBs, self-contained |
 | 6 | C3 — Typed cell values | Required before cell editing; largest change |
-| 7 | C1 — Result streaming | Requires C3 (streaming typed values); largest change |
-| 8 | M2 — Keyset pagination | Depends on C3 (need PK type info); optional optimization |
-| 9 | N2 — Stale data indicator | Polish; do last |
+| 7 | N2 — Stale data indicator | Polish; do last |
 
 ---
 

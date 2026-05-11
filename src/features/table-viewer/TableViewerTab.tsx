@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useCallback,
+  useReducer,
 } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -580,7 +581,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const { showTotalCount } = useAppStore();
 
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: [
       "table-viewer",
       sessionId,
@@ -630,6 +631,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
+
+  // Tick every 10s so the "last fetched" label stays current
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    const id = setInterval(() => tick(), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Sync loading state into tab strip
   useEffect(() => {
@@ -854,23 +862,36 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           </div>
         )}
 
-        {/* Refresh button */}
-        <button
-          onClick={() => void refetch()}
-          disabled={isLoading || isFetching}
-          className={cn(
-            "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0",
-            "text-secondary hover:bg-control hover:text-label active:bg-subtle",
-            "disabled:opacity-40 disabled:cursor-not-allowed",
-          )}
-          title="Refresh table data (⌘R)"
-        >
-          <RefreshCw
-            size={12}
-            className={cn(isFetching && !isLoading && "animate-spin")}
-          />
-          <span>Refresh</span>
-        </button>
+        {/* Refresh button with stale indicator */}
+        {(() => {
+          const ageMs = dataUpdatedAt > 0 ? Date.now() - dataUpdatedAt : null;
+          const isStale = ageMs !== null && ageMs > 30_000;
+          const ageLabel = ageMs === null || isFetching
+            ? null
+            : ageMs < 60_000
+              ? `${Math.floor(ageMs / 1000)}s ago`
+              : `${Math.floor(ageMs / 60_000)}m ago`;
+          return (
+            <button
+              onClick={() => void refetch()}
+              disabled={isLoading || isFetching}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0",
+                isStale
+                  ? "text-label bg-control hover:bg-subtle active:bg-subtle"
+                  : "text-secondary hover:bg-control hover:text-label active:bg-subtle",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+              )}
+              title="Refresh table data (⌘R)"
+            >
+              <RefreshCw
+                size={12}
+                className={cn(isFetching && !isLoading && "animate-spin")}
+              />
+              {ageLabel ? <span>{ageLabel}</span> : <span>Refresh</span>}
+            </button>
+          );
+        })()}
       </div>
 
       {/* Active filter chips */}
