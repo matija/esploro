@@ -265,3 +265,200 @@ Use a **macOS runner** (`runs-on: macos-latest`). Notarization must happen on ma
 **D-U-N-S for the LLC:** Apple requires a D-U-N-S number for organisation enrollment. Request it at dnb.com/duns-number/get-a-duns.html. It can take up to 5 business days; do this in parallel with getting the developer account ready.
 
 **Certificate expiry:** Developer ID certs are valid for 5 years. Timestamps embedded by notarization mean already-distributed apps remain valid even after the cert expires — but new builds require a valid cert. Calendar reminder: your cert expires in 2031.
+
+---
+
+---
+
+# PRD: Performance & Scaling Fixes
+
+## Problem Statement
+
+Esploro has several architectural issues that cause visible degradation when used against production-scale databases (millions of rows, hundreds of tables, wide schemas). These were surfaced during an architecture review and are documented in `ARCHITECTURE.md`. This PRD defines the plan to fix each one.
+
+Issues are grouped by severity.
+
+---
+
+## Critical Fixes
+
+### C1 — Result streaming via Tauri channels (no more full-buffered IPC)
+
+**Problem:** Every query — table viewer and SQL editor — materializes the complete result set into a `Vec<Vec<Option<String>>>` in Rust before sending it to the frontend in a single IPC call. For large queries (e.g. `SELECT *` on a wide table, or a `RETURNING *` on a bulk insert) this means the entire result must fit in memory twice: once in Rust, once as serialized JSON in the IPC buffer.
+
+**Fix:** Use Tauri 2's `Channel` API to stream rows in chunks from Rust to the frontend as they arrive from the database.
+
+- Replace `client.query(...)` with `client.query_raw(...)` (tokio-postgres) to get a `RowStream`.
+- Iterate the stream and emit chunks of N rows (e.g. 500) via a `tauri::ipc::Channel<ChunkPayload>`.
+- The frontend receives chunks incrementally and appends them to the result state; the grid renders what's available immediately.
+- Define a `ChunkPayload` enum: `Rows { columns, rows }`, `Done { total_rows, execution_ms }`, `Error { message, position, code }`.
+
+**Outcome:** Memory usage stays proportional to chunk size, not result size. The UI shows data immediately rather than after a full round-trip. `SELECT *` on a 10M-row table no longer OOMs the process.
+
+**Scope:**
+- `src-tauri/src/commands/data.rs`: `execute_sql_pg`, `execute_sql_mysql`
+- `src/features/query-editor/`: replace `useMutation` result state with streaming state machine
+- For the **table viewer**, keep the current paginated model (LIMIT/OFFSET) — the page size cap means streaming is less critical there; fix C2 instead.
+
+---
+
+### C2 — Make `COUNT(*)` optional and cached
+
+**Problem:** The table viewer fires a `COUNT(*)` query on every page change to populate the "X of Y rows" footer. On a large table without a covering index, this is a full sequential scan — potentially seconds of latency per page flip. The count is also redundant across pages when filters haven't changed.
+
+**Fix:**
+
+1. **Cache the count in React Query** — include `{ filters, schema, table }` in the query key for the count, but separate it from the page key so navigating pages doesn't re-run it. Use a `staleTime` of 60 seconds for the count query.
+2. **Run count asynchronously and lazily** — split `query_table` into two Tauri commands: `query_table_data` (returns rows only) and `query_table_count` (returns count only). The frontend calls both in parallel but renders data immediately without waiting for the count.
+3. **Add a `show_total_count: bool` setting** (default `true`) so power users on very large tables can disable it entirely.
+4. **Use `pg_class.reltuples` as a fast estimate** when exact count is disabled — already fetched during schema introspection, surfaced in the footer as "~N rows".
+
+**Outcome:** Page navigation latency drops to the data query only. Count runs once per filter change, not per page.
+
+**Scope:**
+- `src-tauri/src/commands/data.rs`: split `query_table` into data + count commands
+- `src/features/table-viewer/`: parallel queries, count cache, fallback to estimate
+- `src/store/`: add `showTotalCount` preference
+
+---
+
+### C3 — Preserve column types through the query pipeline
+
+**Problem:** All columns are cast to `text`/`CHAR` in the SQL layer (`col::text` for PG, `CAST(col AS CHAR)` for MySQL). Type information is discarded before it reaches the frontend. This makes NULL vs empty-string rendering ambiguous, breaks numeric sorting, and will block cell editing.
+
+**Fix:** Stop casting to text in SQL. Instead, read native column types from the `tokio-postgres` row metadata and convert to a typed enum on the Rust side before serialization.
+
+- Define a `CellValue` enum: `Null`, `Bool(bool)`, `Int(i64)`, `Float(f64)`, `Text(String)`, `Bytes(Vec<u8>)`, `Json(serde_json::Value)`, `Other(String)` (fallback for intervals, arrays, etc.).
+- Use `row.try_get::<_, Option<T>>(i)` with type dispatch based on `column.type_()` (from tokio-postgres `Type`).
+- Serialize `CellValue` as a tagged JSON union: `{ "t": "int", "v": 42 }` or `{ "t": "null" }`.
+- Frontend renders and sorts based on the type tag, not string heuristics.
+
+**Outcome:** Correct NULL rendering, correct numeric sort, foundation for cell editing.
+
+**Scope:**
+- `src-tauri/src/commands/data.rs`: new `cell_value` module, replace `Vec<Option<String>>` with `Vec<CellValue>`
+- `src/features/table-viewer/` and `src/features/query-editor/`: update grid cell renderer and sort logic
+- This is the largest change; do it after C1 so streaming and typing land together
+
+---
+
+### C4 — Configurable pool size
+
+**Problem:** Connection pool sizes use library defaults (deadpool: 16, mysql_async: undocumented). There is no way to configure them. A user connecting to a small RDS instance with `max_connections=20` can accidentally saturate it.
+
+**Fix:**
+
+- Add `pool_min_connections: u32` (default 1) and `pool_max_connections: u32` (default 5) fields to `ConnectionProfile`.
+- Pass these to `deadpool_postgres::PoolConfig` and `mysql_async::PoolOpts`.
+- Expose them in the connection editor UI under an "Advanced" section.
+- Apply a hard cap of 10 in the backend to prevent misconfiguration.
+
+**Outcome:** User has explicit control; safe default of 5 prevents pool exhaustion on small servers.
+
+**Scope:**
+- `src-tauri/src/commands/connections.rs`: `build_pg_pool`, `build_mysql_pool`
+- `src/features/connections/`: connection edit form
+- `connections.json` schema: new fields (backward-compatible with default fallback)
+
+---
+
+## Moderate Fixes
+
+### M1 — Cache schema introspection results
+
+**Problem:** `list_objects` and `list_columns` query `information_schema` tables on every schema browser expand. `information_schema` is slow on databases with thousands of tables. TanStack Query's 30-second cache helps within a session but there is no configurable cache.
+
+**Fix:**
+
+- Increase `staleTime` for schema queries to 5 minutes (from the global 30s default) by using per-query `staleTime` overrides in the respective hooks.
+- Add a "Refresh schema" button to the schema browser that calls `queryClient.invalidateQueries` for the schema keys.
+- For `list_columns`, use PostgreSQL's `pg_catalog` tables (`pg_attribute`, `pg_class`, `pg_namespace`) instead of `information_schema.columns` — they are faster and avoid the view overhead.
+
+**Outcome:** Schema browser loads near-instantly after first open; large databases are usable.
+
+**Scope:**
+- `src/features/schema-browser/`: query option overrides, refresh button
+- `src-tauri/src/commands/schema.rs`: replace `information_schema.columns` with `pg_catalog` queries for PG
+
+---
+
+### M2 — Keyset pagination option for deep pages
+
+**Problem:** `LIMIT n OFFSET m` forces the database to scan and discard the first `m` rows. At page 500 with page size 200 that's `OFFSET 100000` — a full scan even with an index on the sort column.
+
+**Fix:** Add optional keyset pagination for the table viewer when a single primary-key sort column is active.
+
+- If `sort_column` is a primary key and all PKs are single-column integers or UUIDs, use `WHERE pk_col > $last` instead of `OFFSET`.
+- Track `last_pk_value` in the frontend alongside `current_page`.
+- Fall back to OFFSET pagination for multi-column PKs, non-PK sorts, or when the user jumps to an arbitrary page.
+- This is an optimization, not a replacement — OFFSET pagination stays for all non-eligible cases.
+
+**Outcome:** Deep page navigation is O(1) instead of O(n) for the common case (integer PK, ascending sort).
+
+**Scope:**
+- `src-tauri/src/commands/data.rs`: `query_table_pg` WHERE clause builder
+- `src/features/table-viewer/`: track last-seen PK value, pass to request
+- Only implement for PostgreSQL initially; MySQL can follow
+
+---
+
+### M3 — Async file I/O for saved queries
+
+**Problem:** `saved_queries.rs` reads and writes `saved_queries.json` with blocking (non-async) `std::fs` calls inside async Tauri command handlers. This blocks a Tokio thread for the duration of the I/O.
+
+**Fix:** Replace `std::fs::read_to_string` / `std::fs::write` with `tokio::fs::read_to_string` / `tokio::fs::write`.
+
+One-line change per call site. No interface changes.
+
+**Scope:** `src-tauri/src/commands/saved_queries.rs` only.
+
+---
+
+## Minor Fixes
+
+### N1 — Prune `expandedNodes` and `recentObjects` in localStorage
+
+**Problem:** `expandedNodes` (schema tree state) and `recentObjects` accumulate indefinitely in localStorage with no eviction policy.
+
+**Fix:**
+
+- Cap `recentObjects` at 50 entries (FIFO eviction) in the Zustand store's `addRecentObject` action.
+- Prune `expandedNodes` on session disconnect: remove all keys whose prefix matches the disconnected `connectionId`.
+
+**Scope:** `src/store/index.ts`
+
+---
+
+### N2 — Clarify stale data UX (React Query stale time)
+
+**Problem:** React Query's 30-second stale time means the table viewer can silently show stale data after another session or external tool modifies the table.
+
+**Fix:** Add a subtle "Last fetched X seconds ago" indicator to the table viewer toolbar that updates every 10 seconds. When data is stale (>30s), show a refresh button. No change to the stale time itself.
+
+**Scope:** `src/features/table-viewer/TableViewerTab.tsx`
+
+---
+
+## Implementation Order
+
+| Priority | Item | Why first |
+|---|---|---|
+| 1 | C4 — Pool size config | Two-line backend change, immediate safety benefit |
+| 2 | M3 — Async file I/O | Trivial, eliminate a latent bug |
+| 3 | N1 — localStorage pruning | Trivial, eliminate creep |
+| 4 | C2 — COUNT caching + split | High-impact for table browser UX, self-contained |
+| 5 | M1 — Schema cache + pg_catalog | High-impact for large DBs, self-contained |
+| 6 | C3 — Typed cell values | Required before cell editing; largest change |
+| 7 | C1 — Result streaming | Requires C3 (streaming typed values); largest change |
+| 8 | M2 — Keyset pagination | Depends on C3 (need PK type info); optional optimization |
+| 9 | N2 — Stale data indicator | Polish; do last |
+
+---
+
+## Non-Goals
+
+- Query plan visualization (`EXPLAIN ANALYZE`) — separate feature.
+- Result set export (CSV/JSON) — separate feature.
+- Auto-complete / IntelliSense in the SQL editor — separate feature.
+- Any MySQL-specific optimizations beyond parity with PostgreSQL fixes.
+- Connection pooler integration (PgBouncer, ProxySQL) — out of scope; this is client-side pooling only.
