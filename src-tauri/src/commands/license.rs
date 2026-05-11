@@ -7,10 +7,6 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 
-const LIFETIME_PRODUCT_ID: &str = "pdt_0NeCDJbPgj9avsXtryxJt";
-const ANNUAL_PRODUCT_ID: &str = "pdt_0NeCDnINEsohTubKMTSQ0";
-const CHECKOUT_BASE: &str = "https://checkout.dodopayments.com/buy";
-const CHECKOUT_COUNTRY_CODE: &str = "US";
 const CUSTOMER_PORTAL_URL: &str = "https://app.dodopayments.com/customer-portal";
 
 const DODO_BASE: &str = if cfg!(debug_assertions) {
@@ -556,21 +552,6 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Checkout URL helpers
-// ---------------------------------------------------------------------------
-
-fn checkout_url_for_plan(plan: &str) -> Result<String, String> {
-    let product_id = match plan {
-        "lifetime" => LIFETIME_PRODUCT_ID,
-        "annual" => ANNUAL_PRODUCT_ID,
-        other => return Err(format!("Unknown plan: {other}")),
-    };
-    Ok(format!(
-        "{CHECKOUT_BASE}/{product_id}?quantity=1&country={CHECKOUT_COUNTRY_CODE}&minimalAddress=true"
-    ))
-}
-
-// ---------------------------------------------------------------------------
 // Error message helpers
 // ---------------------------------------------------------------------------
 
@@ -716,16 +697,6 @@ pub async fn notify_connection_count(
     }
     let dismissed = *state.banner_dismissed.lock().await;
     Ok(compute_status(&app, dismissed))
-}
-
-#[tauri::command]
-pub fn open_checkout_url(plan: String) -> Result<(), String> {
-    let url = checkout_url_for_plan(&plan)?;
-    std::process::Command::new("open")
-        .arg(&url)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -893,32 +864,4 @@ mod tests {
         );
     }
 
-    // -- Checkout URL construction --
-
-    #[test]
-    fn lifetime_url_contains_correct_product_id() {
-        let url = checkout_url_for_plan("lifetime").unwrap();
-        assert_eq!(
-            url,
-            format!(
-                "{CHECKOUT_BASE}/{LIFETIME_PRODUCT_ID}?quantity=1&country=US&minimalAddress=true"
-            )
-        );
-    }
-
-    #[test]
-    fn annual_url_contains_correct_product_id() {
-        let url = checkout_url_for_plan("annual").unwrap();
-        assert_eq!(
-            url,
-            format!(
-                "{CHECKOUT_BASE}/{ANNUAL_PRODUCT_ID}?quantity=1&country=US&minimalAddress=true"
-            )
-        );
-    }
-
-    #[test]
-    fn unknown_plan_returns_error() {
-        assert!(checkout_url_for_plan("enterprise").is_err());
-    }
 }
