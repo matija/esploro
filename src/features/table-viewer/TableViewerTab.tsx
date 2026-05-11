@@ -590,6 +590,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const enabled = !!sessionId && !!ctx;
 
+  const { showTotalCount } = useAppStore();
+
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: [
       "table-viewer",
@@ -603,7 +605,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       page,
     ],
     queryFn: () =>
-      tableApi.queryTable(sessionId!, {
+      tableApi.queryTableData(sessionId!, {
         database: ctx!.database,
         schema: ctx!.schema,
         table: ctx!.table,
@@ -614,6 +616,30 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         pageSize: gridPageSize,
       }),
     enabled,
+    placeholderData: (prev) => prev,
+  });
+
+  const countRequest = useMemo(() => ({
+    database: ctx?.database ?? "",
+    schema: ctx?.schema ?? "",
+    table: ctx?.table ?? "",
+    filters: apiFilters,
+    page: 0,
+    pageSize: gridPageSize,
+  }), [ctx?.database, ctx?.schema, ctx?.table, apiFilters, gridPageSize]);
+
+  const { data: countData } = useQuery({
+    queryKey: [
+      "table-viewer-count",
+      sessionId,
+      ctx?.database,
+      ctx?.schema,
+      ctx?.table,
+      apiFilters,
+    ],
+    queryFn: () => tableApi.queryTableCount(sessionId!, countRequest),
+    enabled: enabled && showTotalCount,
+    staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
 
@@ -633,10 +659,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setLastAction({
       label: ctx?.table ? `${ctx.table}` : "Table loaded",
       durationMs: data.executionMs,
-      rowCount: data.totalCount,
+      rowCount: countData?.count,
       timestamp: Date.now(),
     });
-  }, [data, isLoading, ctx?.table, setLastAction]);
+  }, [data, isLoading, countData?.count, ctx?.table, setLastAction]);
 
   useEffect(() => () => {
     setTabLoading(tab.id, false);
@@ -714,16 +740,16 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   // ── Pagination helpers ─────────────────────────────────────────────────────
 
-  const totalCount = data?.totalCount ?? 0;
+  const totalCount = showTotalCount
+    ? (countData?.count ?? null)
+    : (ctx?.estimatedRows ?? null);
+  const isEstimate = showTotalCount ? (countData?.isEstimate ?? false) : true;
   const pageSize = data?.pageSize ?? 200;
   const currentPage = data?.page ?? page;
   const start = currentPage * pageSize + 1;
-  const end = Math.min(
-    currentPage * pageSize + (data?.rows.length ?? 0),
-    totalCount,
-  );
+  const end = currentPage * pageSize + (data?.rows.length ?? 0);
   const hasPrev = currentPage > 0;
-  const hasNext = end < totalCount;
+  const hasNext = totalCount !== null ? end < totalCount : (data?.rows.length ?? 0) >= pageSize;
 
   // ── Filter chip helpers ────────────────────────────────────────────────────
 
@@ -1091,7 +1117,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           {data
             ? totalCount === 0
               ? "No rows"
-              : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalCount.toLocaleString()} rows`
+              : totalCount === null
+                ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} rows`
+                : isEstimate
+                  ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ~${totalCount.toLocaleString()} rows`
+                  : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalCount.toLocaleString()} rows`
             : ""}
           {data && data.executionMs > 0 && (
             <span className="ml-2 text-secondary/60">{data.executionMs} ms</span>

@@ -1,4 +1,4 @@
-import { AlignJustify, Table2 } from "lucide-react";
+import { AlignJustify, Table2, Hash } from "lucide-react";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
 import {
@@ -82,7 +82,7 @@ function DensityCard({
 }
 
 export function DataGridSettings() {
-  const { gridRowDensity, setGridRowDensity, gridPageSize, setGridPageSize } =
+  const { gridRowDensity, setGridRowDensity, gridPageSize, setGridPageSize, showTotalCount, setShowTotalCount } =
     useAppStore();
 
   return (
@@ -145,6 +145,37 @@ export function DataGridSettings() {
         </div>
         <p className="text-[11px] text-tertiary">
           Number of rows fetched and displayed per page.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+          <span className="text-accent">
+            <Hash size={13} />
+          </span>
+          Row count
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowTotalCount(!showTotalCount)}
+          className={cn(
+            "flex items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-[12px]",
+            "transition-colors duration-[var(--motion-fast)]",
+            showTotalCount
+              ? "border-accent bg-accent/8 shadow-[0_0_0_1px_var(--ds-accent)] text-accent"
+              : "border-separator bg-content text-secondary hover:bg-subtle",
+          )}
+        >
+          <span className={cn(
+            "inline-block h-4 w-4 rounded border-2 flex items-center justify-center",
+            showTotalCount ? "border-accent bg-accent" : "border-separator bg-transparent",
+          )}>
+            {showTotalCount && <span className="block w-2 h-2 rounded-sm bg-content" />}
+          </span>
+          Show total row count
+        </button>
+        <p className="text-[11px] text-tertiary">
+          Runs COUNT(*) on each table open. Disable for very large tables where counts are slow.
         </p>
       </div>
     </section>

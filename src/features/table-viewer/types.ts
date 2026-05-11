@@ -40,10 +40,14 @@ export interface ResultColumn {
 export interface TableQueryResult {
   columns: ResultColumn[];
   rows: (string | null)[][];
-  totalCount: number;
   page: number;
   pageSize: number;
   executionMs: number;
+}
+
+export interface TableCountResult {
+  count: number;
+  isEstimate: boolean;
 }
 
 export type TypeFamily = "text" | "numeric" | "date" | "boolean" | "json" | "other";

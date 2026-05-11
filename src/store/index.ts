@@ -49,6 +49,7 @@ export interface Tab {
     schema: string;
     table: string;
     connectionId: string;
+    estimatedRows?: number | null;
   };
   queryContext?: {
     sql: string;
@@ -80,12 +81,15 @@ interface AppState {
   setGridRowDensity: (density: RowDensity) => void;
   gridPageSize: GridPageSize;
   setGridPageSize: (size: GridPageSize) => void;
+  showTotalCount: boolean;
+  setShowTotalCount: (show: boolean) => void;
 
   hydrateEditorAndGridPrefs: (
     tabSize: EditorTabSize,
     wordWrap: boolean,
     rowDensity: RowDensity,
     pageSize: GridPageSize,
+    showTotalCount: boolean,
   ) => void;
 
   // UI — ephemeral
@@ -222,8 +226,24 @@ export const useAppStore = create<AppState>()(
           .catch(console.error);
       },
 
-      hydrateEditorAndGridPrefs: (tabSize, wordWrap, rowDensity, pageSize) =>
-        set({ editorTabSize: tabSize, editorWordWrap: wordWrap, gridRowDensity: rowDensity, gridPageSize: pageSize }),
+      showTotalCount: defaultUiPreferences.grid.showTotalCount,
+      setShowTotalCount: (showTotalCount) => {
+        set({ showTotalCount });
+        invoke<UiPreferences>("get_ui_preferences")
+          .catch(() => defaultUiPreferences)
+          .then((preferences) => {
+            const next = normalizeUiPreferences({
+              ...preferences,
+              grid: { ...preferences.grid, showTotalCount },
+            });
+            cacheUiPreferencesForBootstrap(next);
+            return invoke("set_ui_preferences", { preferences: next });
+          })
+          .catch(console.error);
+      },
+
+      hydrateEditorAndGridPrefs: (tabSize, wordWrap, rowDensity, pageSize, showTotalCount) =>
+        set({ editorTabSize: tabSize, editorWordWrap: wordWrap, gridRowDensity: rowDensity, gridPageSize: pageSize, showTotalCount }),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

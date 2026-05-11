@@ -86,10 +86,16 @@ pub enum SortDirection {
 pub struct TableQueryResult {
     pub columns: Vec<ResultColumn>,
     pub rows: Vec<Vec<Option<String>>>,
-    pub total_count: i64,
     pub page: u32,
     pub page_size: u32,
     pub execution_ms: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableCountResult {
+    pub count: i64,
+    pub is_estimate: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -102,15 +108,28 @@ pub struct ResultColumn {
     pub is_foreign_key: bool,
 }
 
-// ─── query_table ──────────────────────────────────────────────────────────────
+// ─── query_table_data / query_table_count ────────────────────────────────────
 
 enum PoolHandle {
     Pg(std::sync::Arc<deadpool_postgres::Pool>),
     Mysql(std::sync::Arc<mysql_async::Pool>),
 }
 
+fn resolve_pool(
+    sessions: &std::collections::HashMap<String, crate::SessionInfo>,
+    session_id: &str,
+) -> Result<PoolHandle, String> {
+    let info = sessions
+        .get(session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+    Ok(match &info.driver {
+        DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
+        DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
+    })
+}
+
 #[tauri::command]
-pub async fn query_table(
+pub async fn query_table_data(
     session_id: String,
     request: TableQueryRequest,
     state: State<'_, AppState>,
@@ -118,21 +137,34 @@ pub async fn query_table(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    // Clone pool handle out of the lock so we don't hold it during the query.
     let handle = {
         let sessions = state.sessions.lock().await;
-        let info = sessions
-            .get(&session_id)
-            .ok_or_else(|| "Session not found".to_string())?;
-        match &info.driver {
-            DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
-            DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
-        }
+        resolve_pool(&sessions, &session_id)?
     };
 
     match handle {
         PoolHandle::Pg(pool) => query_table_pg(pool, request).await,
         PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
+    }
+}
+
+#[tauri::command]
+pub async fn query_table_count(
+    session_id: String,
+    request: TableQueryRequest,
+    state: State<'_, AppState>,
+) -> Result<TableCountResult, String> {
+    validate_identifier(&request.schema)?;
+    validate_identifier(&request.table)?;
+
+    let handle = {
+        let sessions = state.sessions.lock().await;
+        resolve_pool(&sessions, &session_id)?
+    };
+
+    match handle {
+        PoolHandle::Pg(pool) => count_table_pg(pool, request).await,
+        PoolHandle::Mysql(pool) => count_table_mysql(pool, request).await,
     }
 }
 
@@ -282,10 +314,6 @@ async fn query_table_pg(
         "SELECT {col_select} FROM \"{}\".\"{}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
         request.schema, request.table
     );
-    let count_sql = format!(
-        "SELECT COUNT(*) FROM \"{}\".\"{}\" {where_sql}",
-        request.schema, request.table
-    );
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
         .iter()
@@ -293,16 +321,11 @@ async fn query_table_pg(
         .collect();
 
     let start = Instant::now();
-    let client2 = pool.get().await.map_err(|e| e.to_string())?;
-    let (data_result, count_result) = tokio::join!(
-        client.query(data_sql.as_str(), params.as_slice()),
-        client2.query_one(count_sql.as_str(), params.as_slice()),
-    );
+    let data_rows = client
+        .query(data_sql.as_str(), params.as_slice())
+        .await
+        .map_err(|e| e.to_string())?;
     let execution_ms = start.elapsed().as_millis() as u64;
-
-    let data_rows = data_result.map_err(|e| e.to_string())?;
-    let count_row = count_result.map_err(|e| e.to_string())?;
-    let total_count: i64 = count_row.get(0);
 
     let rows: Vec<Vec<Option<String>>> = data_rows
         .iter()
@@ -316,11 +339,105 @@ async fn query_table_pg(
     Ok(TableQueryResult {
         columns: result_columns,
         rows,
-        total_count,
         page: request.page,
         page_size: request.page_size,
         execution_ms,
     })
+}
+
+async fn count_table_pg(
+    pool: std::sync::Arc<deadpool_postgres::Pool>,
+    request: TableQueryRequest,
+) -> Result<TableCountResult, String> {
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    // Build WHERE from filters (same logic as query_table_pg)
+    let col_type_map: HashMap<String, String> = client
+        .query(
+            "SELECT column_name, udt_name FROM information_schema.columns \
+             WHERE table_schema = $1 AND table_name = $2",
+            &[&request.schema, &request.table],
+        )
+        .await
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
+        .collect();
+
+    let mut param_values: Vec<String> = vec![];
+    let mut where_clauses: Vec<String> = vec![];
+    for filter in &request.filters {
+        validate_identifier(&filter.column)?;
+        let col_q = format!("\"{}\"", filter.column);
+        let udt = col_type_map
+            .get(&filter.column)
+            .map(|s| s.as_str())
+            .unwrap_or("text");
+        let clause = match filter.operator {
+            FilterOperator::IsNull => format!("{col_q} IS NULL"),
+            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
+            FilterOperator::Like => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                format!("{col_q}::text LIKE ${}", param_values.len())
+            }
+            FilterOperator::ILike => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                format!("{col_q}::text ILIKE ${}", param_values.len())
+            }
+            _ => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                let p = param_values.len();
+                let cast = pg_cast_for_udt(udt);
+                match filter.operator {
+                    FilterOperator::Eq => format!("{col_q} = ${p}::{cast}"),
+                    FilterOperator::Neq => format!("{col_q} != ${p}::{cast}"),
+                    FilterOperator::Gt => format!("{col_q} > ${p}::{cast}"),
+                    FilterOperator::Lt => format!("{col_q} < ${p}::{cast}"),
+                    FilterOperator::Gte => format!("{col_q} >= ${p}::{cast}"),
+                    FilterOperator::Lte => format!("{col_q} <= ${p}::{cast}"),
+                    _ => unreachable!(),
+                }
+            }
+        };
+        where_clauses.push(clause);
+    }
+
+    let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
+        .iter()
+        .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+
+    // When there are no filters, use reltuples as an instant estimate.
+    if where_clauses.is_empty() {
+        let estimate_row = client
+            .query_opt(
+                "SELECT reltuples::bigint FROM pg_class \
+                 WHERE relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1) \
+                   AND relname = $2 AND reltuples >= 0",
+                &[&request.schema, &request.table],
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if let Some(row) = estimate_row {
+            let count: i64 = row.get(0);
+            return Ok(TableCountResult { count, is_estimate: true });
+        }
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM \"{}\".\"{}\" {where_sql}",
+        request.schema, request.table
+    );
+    let row = client
+        .query_one(count_sql.as_str(), params.as_slice())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(TableCountResult { count: row.get(0), is_estimate: false })
 }
 
 async fn query_table_mysql(
@@ -431,28 +548,13 @@ async fn query_table_mysql(
         "SELECT {col_select} FROM `{}`.`{}` {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
         request.schema, request.table
     );
-    let count_sql = format!(
-        "SELECT COUNT(*) FROM `{}`.`{}` {where_sql}",
-        request.schema, request.table
-    );
 
     let start = Instant::now();
-
-    // Run data and count concurrently on two pool connections
-    let mut conn2 = pool.get_conn().await.map_err(|e| e.to_string())?;
-    let (data_result, count_result) = tokio::join!(
-        conn.exec::<mysql_async::Row, _, _>(data_sql.as_str(), param_values.clone()),
-        conn2.exec::<mysql_async::Row, _, _>(count_sql.as_str(), param_values.clone()),
-    );
+    let data_rows = conn
+        .exec::<mysql_async::Row, _, _>(data_sql.as_str(), param_values)
+        .await
+        .map_err(|e| e.to_string())?;
     let execution_ms = start.elapsed().as_millis() as u64;
-
-    let data_rows = data_result.map_err(|e| e.to_string())?;
-    let count_rows = count_result.map_err(|e| e.to_string())?;
-    let total_count: i64 = count_rows
-        .first()
-        .and_then(|r| mysql_str(r, 0))
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
 
     let rows: Vec<Vec<Option<String>>> = data_rows
         .iter()
@@ -466,11 +568,69 @@ async fn query_table_mysql(
     Ok(TableQueryResult {
         columns: result_columns,
         rows,
-        total_count,
         page: request.page,
         page_size: request.page_size,
         execution_ms,
     })
+}
+
+async fn count_table_mysql(
+    pool: std::sync::Arc<mysql_async::Pool>,
+    request: TableQueryRequest,
+) -> Result<TableCountResult, String> {
+    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+
+    let mut param_values: Vec<mysql_async::Value> = vec![];
+    let mut where_clauses: Vec<String> = vec![];
+    for filter in &request.filters {
+        validate_identifier(&filter.column)?;
+        let col_q = format!("`{}`", filter.column);
+        let clause = match filter.operator {
+            FilterOperator::IsNull => format!("{col_q} IS NULL"),
+            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
+            FilterOperator::Like | FilterOperator::ILike => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                format!("CAST({col_q} AS CHAR) LIKE ?")
+            }
+            _ => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                match filter.operator {
+                    FilterOperator::Eq => format!("{col_q} = ?"),
+                    FilterOperator::Neq => format!("{col_q} != ?"),
+                    FilterOperator::Gt => format!("{col_q} > ?"),
+                    FilterOperator::Lt => format!("{col_q} < ?"),
+                    FilterOperator::Gte => format!("{col_q} >= ?"),
+                    FilterOperator::Lte => format!("{col_q} <= ?"),
+                    _ => unreachable!(),
+                }
+            }
+        };
+        where_clauses.push(clause);
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM `{}`.`{}` {where_sql}",
+        request.schema, request.table
+    );
+    let count_rows = conn
+        .exec::<mysql_async::Row, _, _>(count_sql.as_str(), param_values)
+        .await
+        .map_err(|e| e.to_string())?;
+    let count = count_rows
+        .first()
+        .and_then(|r| mysql_str(r, 0))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    Ok(TableCountResult { count, is_estimate: false })
 }
 
 // ─── execute_sql ─────────────────────────────────────────────────────────────

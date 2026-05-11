@@ -37,6 +37,7 @@ export type UiPreferences = {
   grid: {
     rowDensity: RowDensity;
     pageSize: GridPageSize;
+    showTotalCount: boolean;
   };
 };
 
@@ -64,6 +65,7 @@ export const defaultUiPreferences: UiPreferences = {
   grid: {
     rowDensity: "compact",
     pageSize: 200,
+    showTotalCount: true,
   },
 };
 
@@ -174,6 +176,10 @@ export function normalizeUiPreferences(value: unknown): UiPreferences {
       pageSize: isGridPageSize(grid.pageSize)
         ? grid.pageSize
         : defaultUiPreferences.grid.pageSize,
+      showTotalCount:
+        typeof grid.showTotalCount === "boolean"
+          ? grid.showTotalCount
+          : defaultUiPreferences.grid.showTotalCount,
     },
   };
 }

@@ -107,6 +107,12 @@ pub struct UiGridConfig {
     pub row_density: String,
     #[serde(default = "default_grid_page_size")]
     pub page_size: u16,
+    #[serde(default = "default_show_total_count")]
+    pub show_total_count: bool,
+}
+
+fn default_show_total_count() -> bool {
+    true
 }
 
 impl Default for UiGridConfig {
@@ -114,6 +120,7 @@ impl Default for UiGridConfig {
         UiGridConfig {
             row_density: default_grid_row_density(),
             page_size: default_grid_page_size(),
+            show_total_count: default_show_total_count(),
         }
     }
 }
@@ -282,6 +289,7 @@ fn normalize_ui_preferences(preferences: UiPreferences) -> UiPreferences {
         grid: UiGridConfig {
             row_density: normalize_grid_row_density(&preferences.grid.row_density),
             page_size: normalize_grid_page_size(preferences.grid.page_size),
+            show_total_count: preferences.grid.show_total_count,
         },
     }
 }
@@ -348,6 +356,10 @@ fn preferences_from_json(root: &Value) -> UiPreferences {
                 .and_then(Value::as_u64)
                 .and_then(|v| u16::try_from(v).ok())
                 .unwrap_or(defaults.grid.page_size),
+            show_total_count: grid
+                .and_then(|v| v.get("showTotalCount"))
+                .and_then(Value::as_bool)
+                .unwrap_or(defaults.grid.show_total_count),
         },
     })
 }

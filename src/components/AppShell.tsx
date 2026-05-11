@@ -260,6 +260,7 @@ export function AppShell() {
           normalizedPreferences.editor.wordWrap,
           normalizedPreferences.grid.rowDensity,
           normalizedPreferences.grid.pageSize,
+          normalizedPreferences.grid.showTotalCount,
         );
       })
       .catch(console.error);

@@ -28,6 +28,7 @@ export function AdvancedSettings() {
       defaultUiPreferences.editor.wordWrap,
       defaultUiPreferences.grid.rowDensity,
       defaultUiPreferences.grid.pageSize,
+      defaultUiPreferences.grid.showTotalCount,
     );
     try {
       await invoke("set_ui_preferences", { preferences: defaultUiPreferences });

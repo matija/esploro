@@ -862,6 +862,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
             schema: node.schema,
             table: node.name,
             connectionId,
+            estimatedRows: node.kind === "table" ? node.estimatedRows : null,
           },
         });
         addRecentObject({
@@ -907,6 +908,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           schema: node.schema,
           table: node.name,
           connectionId,
+          estimatedRows: node.kind === "table" ? node.estimatedRows : null,
         },
       });
     }
