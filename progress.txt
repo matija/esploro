@@ -1128,3 +1128,24 @@
   - Added missing Tailwind @theme inline mappings: `--color-data-empty`, `--color-data-boolean-false`, `--color-data-date`, `--color-data-number`, `--color-data-text`, `--color-data-sorted`
 - Previously, the light theme used a cold navy-blue palette with the corporate #0070c1 accent, and the dark theme used a cold near-black bg with muted syntax colors. The refreshed palette uses warm grays, Tailwind-v6-inspired accent/semantic colors, and saturated syntax colors that work in both themes. Color changes flow through the existing ds-* → craft token → Tailwind mapping so no component code changes were needed.
 - Checks passed: npm run type-check, npm run lint.
+
+## C3 — Typed Cell Values [DONE]
+- Rust: CellValue enum with serde tagged serialization {"t":"int","v":42} etc.
+  Variants: Null, Bool(bool), Int(i64), Float(f64), Text(String), Json(serde_json::Value), Other(String)
+- src-tauri/Cargo.toml: added with-serde_json-1 feature to tokio-postgres
+- src-tauri/src/commands/data.rs:
+  - TableQueryResult.rows and QueryResult.rows changed from Vec<Vec<Option<String>>> to Vec<Vec<CellValue>>
+  - pg_native_udt(): returns true for bool, int2/4/8, float4/8, text/varchar/bpchar/char/name/citext/uuid, json/jsonb
+  - query_table_pg: SELECT clause casts only non-native columns to ::text; pg_cell_value() dispatches reads
+  - query_table_mysql: removed CAST AS CHAR; mysql_cell_value() maps mysql_async::Value natively
+  - execute_sql_pg: simple_query rows wrapped as CellValue::Text / CellValue::Null
+  - execute_sql_mysql: rows converted via mysql_cell_value()
+- src/features/table-viewer/types.ts: added CellValue tagged union type and cellToString() helper
+- src/features/table-viewer/TableViewerTab.tsx:
+  - CellValue component renamed to CellRenderer; takes CellValue union, renders by type tag
+  - Bool rendered as true/false badge; Int/Float right-aligned monospace; Json shows raw preview
+  - Copy ⌘C, copy row as JSON/CSV, filter-by-value all use cellToString()
+  - CellContextMenu.rowData typed as CellValue[]
+- src/features/query-editor/types.ts: QueryResult.rows typed as CellValue[][]
+- src/features/query-editor/QueryEditorTab.tsx: same CellRenderer pattern, same copy/paste fixes
+- All CI checks pass (cargo check, tsc --noEmit, eslint)
