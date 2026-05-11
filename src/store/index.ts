@@ -30,7 +30,7 @@ export interface RecentObject {
   timestamp: number;
 }
 
-const MAX_RECENT_OBJECTS = 12;
+const MAX_RECENT_OBJECTS = 50;
 
 export interface LastAction {
   label: string;
@@ -299,7 +299,11 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [connectionId]: _removed, ...rest } = s.activeSessions;
-          return { activeSessions: rest };
+          const prefix = `${connectionId}:`;
+          const expandedNodes = Object.fromEntries(
+            Object.entries(s.expandedNodes).filter(([k]) => !k.startsWith(prefix)),
+          ) as Record<string, true>;
+          return { activeSessions: rest, expandedNodes };
         }),
       pendingNewConnection: false,
       setPendingNewConnection: (v) => set({ pendingNewConnection: v }),
