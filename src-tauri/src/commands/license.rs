@@ -10,6 +10,7 @@ use crate::AppState;
 const LIFETIME_PRODUCT_ID: &str = "pdt_0NeCDJbPgj9avsXtryxJt";
 const ANNUAL_PRODUCT_ID: &str = "pdt_0NeCDnINEsohTubKMTSQ0";
 const CHECKOUT_BASE: &str = "https://checkout.dodopayments.com/buy";
+const CHECKOUT_COUNTRY_CODE: &str = "US";
 const CUSTOMER_PORTAL_URL: &str = "https://app.dodopayments.com/customer-portal";
 
 const DODO_BASE: &str = if cfg!(debug_assertions) {
@@ -552,7 +553,9 @@ fn checkout_url_for_plan(plan: &str) -> Result<String, String> {
         "annual" => ANNUAL_PRODUCT_ID,
         other => return Err(format!("Unknown plan: {other}")),
     };
-    Ok(format!("{CHECKOUT_BASE}/{product_id}?quantity=1"))
+    Ok(format!(
+        "{CHECKOUT_BASE}/{product_id}?quantity=1&country={CHECKOUT_COUNTRY_CODE}&minimalAddress=true"
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -885,7 +888,9 @@ mod tests {
         let url = checkout_url_for_plan("lifetime").unwrap();
         assert_eq!(
             url,
-            format!("{CHECKOUT_BASE}/{LIFETIME_PRODUCT_ID}?quantity=1")
+            format!(
+                "{CHECKOUT_BASE}/{LIFETIME_PRODUCT_ID}?quantity=1&country=US&minimalAddress=true"
+            )
         );
     }
 
@@ -894,7 +899,9 @@ mod tests {
         let url = checkout_url_for_plan("annual").unwrap();
         assert_eq!(
             url,
-            format!("{CHECKOUT_BASE}/{ANNUAL_PRODUCT_ID}?quantity=1")
+            format!(
+                "{CHECKOUT_BASE}/{ANNUAL_PRODUCT_ID}?quantity=1&country=US&minimalAddress=true"
+            )
         );
     }
 

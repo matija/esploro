@@ -2,9 +2,9 @@ mod commands;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Emitter;
+use tokio::sync::Mutex;
 
 pub use commands::connections::ConnectionProfile;
 
@@ -43,7 +43,13 @@ pub fn run() {
             let app_submenu = SubmenuBuilder::new(app, "Esploro")
                 .about(None)
                 .separator()
-                .item(&MenuItem::with_id(app, "settings", "Settings…", true, Some("cmd+,"))?)
+                .item(&MenuItem::with_id(
+                    app,
+                    "settings",
+                    "Settings…",
+                    true,
+                    Some("cmd+,"),
+                )?)
                 .separator()
                 .services()
                 .separator()

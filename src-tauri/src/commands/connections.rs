@@ -122,7 +122,10 @@ async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Resul
 // Pool builders
 // ---------------------------------------------------------------------------
 
-fn build_pg_pool(profile: &ConnectionProfile, password: &str) -> Result<deadpool_postgres::Pool, String> {
+fn build_pg_pool(
+    profile: &ConnectionProfile,
+    password: &str,
+) -> Result<deadpool_postgres::Pool, String> {
     let mut cfg = PoolConfig::new();
 
     // Unix socket path takes priority; tokio-postgres recognises a host
@@ -141,7 +144,10 @@ fn build_pg_pool(profile: &ConnectionProfile, password: &str) -> Result<deadpool
         .map_err(|e| e.to_string())
 }
 
-fn build_mysql_pool(profile: &ConnectionProfile, password: &str) -> Result<mysql_async::Pool, String> {
+fn build_mysql_pool(
+    profile: &ConnectionProfile,
+    password: &str,
+) -> Result<mysql_async::Pool, String> {
     let host = profile.host.as_deref().unwrap_or("localhost");
     let opts = mysql_async::OptsBuilder::default()
         .ip_or_hostname(host)
@@ -254,10 +260,7 @@ pub async fn delete_connection(
 }
 
 #[tauri::command]
-pub async fn test_connection(
-    input: ConnectionInput,
-    password: String,
-) -> Result<u64, String> {
+pub async fn test_connection(input: ConnectionInput, password: String) -> Result<u64, String> {
     let profile = ConnectionProfile {
         id: String::new(),
         display_name: String::new(),
@@ -343,10 +346,7 @@ pub async fn connect(
 }
 
 #[tauri::command]
-pub async fn disconnect(
-    session_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), String> {
     state.sessions.lock().await.remove(&session_id);
     Ok(())
 }

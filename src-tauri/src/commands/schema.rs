@@ -77,10 +77,7 @@ pub async fn list_databases(
                 )
                 .await
                 .map_err(|e| e.to_string())?;
-            Ok(rows
-                .iter()
-                .filter_map(|r| mysql_str(r, 0))
-                .collect())
+            Ok(rows.iter().filter_map(|r| mysql_str(r, 0)).collect())
         }
     }
 }
@@ -164,7 +161,10 @@ pub async fn list_objects(
                 let table_type: String = row.get(1);
                 let estimated_rows: Option<i64> = row.get(2);
                 if table_type == "BASE TABLE" {
-                    tables.push(TableSummary { name, estimated_row_count: estimated_rows });
+                    tables.push(TableSummary {
+                        name,
+                        estimated_row_count: estimated_rows,
+                    });
                 } else {
                     views.push(name);
                 }
@@ -193,10 +193,18 @@ pub async fn list_objects(
                 .map_err(|e| e.to_string())?;
             let functions: Vec<FunctionSummary> = fn_rows
                 .iter()
-                .map(|r| FunctionSummary { name: r.get(0), result_type: r.get(1) })
+                .map(|r| FunctionSummary {
+                    name: r.get(0),
+                    result_type: r.get(1),
+                })
                 .collect();
 
-            Ok(SchemaObjects { tables, views, sequences, functions })
+            Ok(SchemaObjects {
+                tables,
+                views,
+                sequences,
+                functions,
+            })
         }
         DriverSession::Mysql(pool) => {
             // For MySQL, `schema` is the database name.
@@ -218,7 +226,10 @@ pub async fn list_objects(
                 let name = mysql_str(row, 0).unwrap_or_default();
                 let table_type = mysql_str(row, 1).unwrap_or_default();
                 if table_type == "BASE TABLE" {
-                    tables.push(TableSummary { name, estimated_row_count: None });
+                    tables.push(TableSummary {
+                        name,
+                        estimated_row_count: None,
+                    });
                 } else if table_type == "VIEW" {
                     views.push(name);
                 }

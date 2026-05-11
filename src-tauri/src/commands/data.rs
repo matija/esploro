@@ -17,7 +17,10 @@ fn validate_identifier(s: &str) -> Result<(), String> {
     if !first.is_alphabetic() && first != '_' {
         return Err(format!("Invalid identifier: '{s}'"));
     }
-    if !s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+    if !s
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    {
         return Err(format!("Invalid identifier: '{s}'"));
     }
     Ok(())
@@ -573,16 +576,13 @@ async fn execute_sql_pg(
             }
             Err(e) => {
                 let execution_ms = t0.elapsed().as_millis() as u64;
-                let position =
-                    e.as_db_error()
-                        .and_then(|db| db.position())
-                        .and_then(|p| {
-                            if let tokio_postgres::error::ErrorPosition::Original(pos) = p {
-                                Some(*pos)
-                            } else {
-                                None
-                            }
-                        });
+                let position = e.as_db_error().and_then(|db| db.position()).and_then(|p| {
+                    if let tokio_postgres::error::ErrorPosition::Original(pos) = p {
+                        Some(*pos)
+                    } else {
+                        None
+                    }
+                });
                 let code = e.as_db_error().map(|db| db.code().code().to_string());
                 results.push(QueryResult {
                     columns: vec![],
