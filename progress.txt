@@ -1,3 +1,15 @@
+## Phase 46 — N2: Stale data indicator in table viewer toolbar [DONE]
+- Implemented PRD Performance fix N2: subtle last-fetched label on the Refresh button.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added `dataUpdatedAt` from the React Query result.
+  - Added a `useReducer` tick every 10 seconds to keep the label current.
+  - Refresh button label now shows "Xs ago" / "Xm ago" after first fetch.
+  - Button highlights (text-label + bg-control) when data is stale (>30s).
+  - While fetching or before first load, label falls back to "Refresh".
+- Also removed C1 (result streaming) and M2 (keyset pagination) from PRD.md:
+  both were deemed too complex for their narrow benefit.
+- All CI checks pass (tsc --noEmit, cargo check).
+
 ## Phase 45 — M1: Schema cache + pg_catalog for list_columns [DONE]
 - Implemented PRD Performance fix M1: faster schema queries and longer cache.
 - src/features/schema/SchemaTree.tsx:
@@ -1149,3 +1161,13 @@
 - src/features/query-editor/types.ts: QueryResult.rows typed as CellValue[][]
 - src/features/query-editor/QueryEditorTab.tsx: same CellRenderer pattern, same copy/paste fixes
 - All CI checks pass (cargo check, tsc --noEmit, eslint)
+
+## Purchase Flow — Route Through esploro.app/pricing [DONE]
+- PRD: replace hardcoded Dodo Payments checkout URL with https://esploro.app/pricing
+- "Purchase license" buttons in LicenseBanner and LicenseSettings now call licenseApi.openPricingPage()
+  which invokes the existing open_url Tauri command with https://esploro.app/pricing
+- Removed PlanPickerDialog.tsx (plan picker modal that called Dodo directly)
+- Removed open_checkout_url Tauri command and checkout_url_for_plan helper from license.rs
+- Removed CHECKOUT_BASE, LIFETIME_PRODUCT_ID, ANNUAL_PRODUCT_ID, CHECKOUT_COUNTRY_CODE constants
+- Removed 3 unit tests that tested the deleted URL construction logic
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint)
