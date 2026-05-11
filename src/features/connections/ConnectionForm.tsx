@@ -77,6 +77,9 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
   const [username, setUsername] = useState(profile?.username ?? '');
   const [password, setPassword] = useState('');
   const [sslMode, setSslMode] = useState<SslMode>(profile?.sslMode ?? 'prefer');
+  const [poolMaxConnections, setPoolMaxConnections] = useState(
+    String(profile?.poolMaxConnections ?? 5),
+  );
   const [urlInput, setUrlInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [testState, setTestState] = useState<TestState>('idle');
@@ -133,6 +136,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     setUsername(profile?.username ?? '');
     setPassword('');
     setSslMode(profile?.sslMode ?? 'prefer');
+    setPoolMaxConnections(String(profile?.poolMaxConnections ?? 5));
     setUrlInput(initialUrl ?? '');
     setErrors({});
     setTestState('idle');
@@ -145,6 +149,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
   }, [open, profile?.id, initialUrl]);
 
   function buildInput(): ConnectionInput {
+    const maxConn = parseInt(poolMaxConnections);
     return {
       displayName: displayName.trim(),
       color: color || undefined,
@@ -156,6 +161,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
       database: database.trim(),
       username: username.trim(),
       sslMode,
+      poolMaxConnections: maxConn > 0 ? Math.min(maxConn, 10) : 5,
     };
   }
 
@@ -412,6 +418,22 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 </select>
               </Field>
             )}
+
+            <div className="border-t border-separator" />
+
+            <div className="flex flex-col gap-3">
+              <label className="text-xs font-medium text-secondary uppercase tracking-wide">Advanced</label>
+              <Field label="Max connections (1–10, default 5)">
+                <Input
+                  value={poolMaxConnections}
+                  onChange={(e) => setPoolMaxConnections(e.target.value)}
+                  type="number"
+                  min={1}
+                  max={10}
+                  className="w-24"
+                />
+              </Field>
+            </div>
 
             {errors._form && (
               <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">

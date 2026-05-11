@@ -45,6 +45,8 @@ pub struct ConnectionProfile {
     pub database: String,
     pub username: String,
     pub ssl_mode: SslMode,
+    #[serde(default)]
+    pub pool_max_connections: u32,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -64,6 +66,8 @@ pub struct ConnectionInput {
     pub database: String,
     pub username: String,
     pub ssl_mode: SslMode,
+    #[serde(default)]
+    pub pool_max_connections: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -140,8 +144,24 @@ fn build_pg_pool(
     cfg.user = Some(profile.username.clone());
     cfg.password = Some(password.to_string());
 
+    let max = pool_max_size(profile.pool_max_connections);
+    cfg.pool = Some(deadpool_postgres::PoolConfig {
+        max_size: max,
+        ..Default::default()
+    });
+
     cfg.create_pool(Some(Runtime::Tokio1), NoTls)
         .map_err(|e| e.to_string())
+}
+
+fn pool_max_size(configured: u32) -> usize {
+    const DEFAULT: usize = 5;
+    const HARD_CAP: usize = 10;
+    if configured == 0 {
+        DEFAULT
+    } else {
+        (configured as usize).min(HARD_CAP)
+    }
 }
 
 fn build_mysql_pool(
@@ -149,12 +169,17 @@ fn build_mysql_pool(
     password: &str,
 ) -> Result<mysql_async::Pool, String> {
     let host = profile.host.as_deref().unwrap_or("localhost");
+    let max = pool_max_size(profile.pool_max_connections);
+    let constraints = mysql_async::PoolConstraints::new(1, max)
+        .unwrap_or_else(|| mysql_async::PoolConstraints::new(1, 5).unwrap());
+    let pool_opts = mysql_async::PoolOpts::default().with_constraints(constraints);
     let opts = mysql_async::OptsBuilder::default()
         .ip_or_hostname(host)
         .tcp_port(profile.port)
         .db_name(Some(profile.database.clone()))
         .user(Some(profile.username.clone()))
-        .pass(Some(password.to_string()));
+        .pass(Some(password.to_string()))
+        .pool_opts(pool_opts);
     Ok(mysql_async::Pool::new(opts))
 }
 
@@ -193,6 +218,7 @@ pub async fn create_connection(
         database: input.database,
         username: input.username,
         ssl_mode: input.ssl_mode,
+        pool_max_connections: input.pool_max_connections,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -227,6 +253,7 @@ pub async fn update_connection(
     profile.database = input.database;
     profile.username = input.username;
     profile.ssl_mode = input.ssl_mode;
+    profile.pool_max_connections = input.pool_max_connections;
     profile.updated_at = chrono::Utc::now().to_rfc3339();
 
     if let Some(pwd) = password {
@@ -273,6 +300,7 @@ pub async fn test_connection(input: ConnectionInput, password: String) -> Result
         database: input.database,
         username: input.username,
         ssl_mode: input.ssl_mode,
+        pool_max_connections: input.pool_max_connections,
         created_at: String::new(),
         updated_at: String::new(),
     };

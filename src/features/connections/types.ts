@@ -13,6 +13,7 @@ export interface ConnectionProfile {
   database: string;
   username: string;
   sslMode: SslMode;
+  poolMaxConnections?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +29,7 @@ export interface ConnectionInput {
   database: string;
   username: string;
   sslMode: SslMode;
+  poolMaxConnections?: number;
 }
 
 export const DEFAULT_COLORS = [
