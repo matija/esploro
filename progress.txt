@@ -1,3 +1,14 @@
+## Phase 42 — M3: Async File I/O for Saved Queries [DONE]
+- Implemented PRD Performance fix M3: replaced blocking std::fs calls with tokio::fs in saved_queries.rs.
+- src-tauri/src/commands/saved_queries.rs:
+  - Converted `load()` and `persist()` helpers to `async fn`.
+  - Replaced `std::fs::read_to_string` with `tokio::fs::read_to_string`.
+  - Replaced `std::fs::create_dir_all` with `tokio::fs::create_dir_all`.
+  - Replaced `std::fs::write` with `tokio::fs::write`.
+  - All four Tauri command handlers updated to `.await` the async helpers.
+- Tauri command handlers no longer block a Tokio thread during file reads and writes.
+- Checks passed: cargo clippy --workspace --all-targets -- -D warnings.
+
 ## Phase 41 — C4: Configurable Pool Size [DONE]
 - Implemented PRD Performance fix C4: configurable connection pool max size.
 - src-tauri/src/commands/connections.rs:
