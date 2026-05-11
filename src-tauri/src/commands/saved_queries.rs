@@ -23,22 +23,23 @@ fn queries_path(app: &AppHandle) -> PathBuf {
         .join("saved_queries.json")
 }
 
-fn load(app: &AppHandle) -> Vec<SavedQuery> {
+async fn load(app: &AppHandle) -> Vec<SavedQuery> {
     let path = queries_path(app);
-    if !path.exists() {
-        return vec![];
-    }
-    let data = std::fs::read_to_string(&path).unwrap_or_default();
+    let data = tokio::fs::read_to_string(&path).await.unwrap_or_default();
     serde_json::from_str(&data).unwrap_or_default()
 }
 
-fn persist(app: &AppHandle, queries: &[SavedQuery]) -> Result<(), String> {
+async fn persist(app: &AppHandle, queries: &[SavedQuery]) -> Result<(), String> {
     let path = queries_path(app);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     let data = serde_json::to_string_pretty(queries).map_err(|e| e.to_string())?;
-    std::fs::write(&path, data).map_err(|e| e.to_string())?;
+    tokio::fs::write(&path, data)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -50,7 +51,7 @@ pub async fn save_query(
     folder: Option<String>,
     sql: String,
 ) -> Result<String, String> {
-    let mut queries = load(&app);
+    let mut queries = load(&app).await;
     let now = Utc::now().to_rfc3339();
 
     if let Some(existing_id) = id {
@@ -60,7 +61,7 @@ pub async fn save_query(
             q.sql = sql;
             q.updated_at = now;
             let ret_id = q.id.clone();
-            persist(&app, &queries)?;
+            persist(&app, &queries).await?;
             return Ok(ret_id);
         }
     }
@@ -74,18 +75,19 @@ pub async fn save_query(
         created_at: now.clone(),
         updated_at: now,
     });
-    persist(&app, &queries)?;
+    persist(&app, &queries).await?;
     Ok(new_id)
 }
 
 #[tauri::command]
 pub async fn list_saved_queries(app: AppHandle) -> Result<Vec<SavedQuery>, String> {
-    Ok(load(&app))
+    Ok(load(&app).await)
 }
 
 #[tauri::command]
 pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, String> {
     load(&app)
+        .await
         .into_iter()
         .find(|q| q.id == id)
         .ok_or_else(|| format!("Query not found: {id}"))
@@ -93,12 +95,12 @@ pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, S
 
 #[tauri::command]
 pub async fn delete_saved_query(app: AppHandle, id: String) -> Result<(), String> {
-    let mut queries = load(&app);
+    let mut queries = load(&app).await;
     let before = queries.len();
     queries.retain(|q| q.id != id);
     if queries.len() == before {
         return Err(format!("Query not found: {id}"));
     }
-    persist(&app, &queries)?;
+    persist(&app, &queries).await?;
     Ok(())
 }
