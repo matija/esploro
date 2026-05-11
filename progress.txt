@@ -1,3 +1,19 @@
+## Phase 41 — C4: Configurable Pool Size [DONE]
+- Implemented PRD Performance fix C4: configurable connection pool max size.
+- src-tauri/src/commands/connections.rs:
+  - Added `pool_max_connections: u32` field (serde default = 0 → treated as 5) to `ConnectionProfile` and `ConnectionInput`.
+  - Added `pool_max_size(configured)` helper: returns configured value clamped to 1–10, or default of 5 when 0.
+  - `build_pg_pool`: sets `deadpool_postgres::PoolConfig.pool.max_size` from `pool_max_size`.
+  - `build_mysql_pool`: applies `mysql_async::PoolConstraints::new(1, max)` via `PoolOpts`.
+  - All `ConnectionProfile` construction sites (create, update, test) pass through the new field.
+- src/features/connections/types.ts:
+  - Added optional `poolMaxConnections?: number` to `ConnectionProfile` and `ConnectionInput`.
+- src/features/connections/ConnectionForm.tsx:
+  - Added `poolMaxConnections` state (default 5), reset on profile/URL context change.
+  - `buildInput()` clamps value to 1–10 before sending.
+  - Added "Advanced" section at the bottom of the form body with a "Max connections (1–10, default 5)" number input.
+- Checks passed: cargo clippy --workspace --all-targets -- -D warnings, npm run type-check, npm run lint.
+
 ## Phase 40 — About Screen [DONE]
 - Implemented PRD Feature 5: About settings section.
 - vite.config.ts:
