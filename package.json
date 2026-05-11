@@ -1,7 +1,7 @@
 {
   "name": "esploro",
   "version": "0.4.0",
-  "description": "A beautiful, fast database client for PostgreSQL, MySQL, and MariaDB.",
+  "description": "A modern, sleek and fast database client for PostgreSQL, MySQL, and MariaDB.",
   "author": "Matija Munjaković",
   "license": "MIT",
   "type": "module",
