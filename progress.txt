@@ -1,3 +1,22 @@
+## Phase 45 — M1: Schema cache + pg_catalog for list_columns [DONE]
+- Implemented PRD Performance fix M1: faster schema queries and longer cache.
+- src/features/schema/SchemaTree.tsx:
+  - All four schema query levels (databases, schemas, objects, columns) now set
+    `staleTime: 5 * 60 * 1000` (5 minutes), up from the global 30s default.
+  - Added a "Refresh schema" button (RotateCw icon) next to the search input.
+    Clicking it calls `queryClient.invalidateQueries` for all four schema key
+    prefixes scoped to the current sessionId, forcing a fresh fetch.
+  - Imported `useQueryClient` from `@tanstack/react-query`.
+- src-tauri/src/commands/schema.rs:
+  - Replaced the `list_columns` PG implementation's `information_schema.columns`
+    query (which joins multiple slow views) with a direct `pg_catalog` query:
+    `pg_attribute` JOIN `pg_class`, `pg_namespace`, `pg_type`, LEFT JOIN `pg_attrdef`.
+  - PK/FK detection via `pg_constraint` EXISTS subqueries instead of joining
+    `information_schema.key_column_usage` + `information_schema.table_constraints`.
+  - Enum detection via `pg_type.typtype = 'e'` directly on the already-joined type row.
+  - Column ordering uses `pg_attribute.attnum`; dropped columns excluded via `attisdropped`.
+- All CI checks pass (cargo clippy, tsc --noEmit, eslint).
+
 ## Phase 44 — C2: COUNT(*) caching + query split [DONE]
 - Implemented PRD Performance fix C2: make COUNT(*) optional and cached.
 - src-tauri/src/commands/data.rs:
