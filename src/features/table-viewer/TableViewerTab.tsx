@@ -20,11 +20,12 @@ import {
   type SortDirection,
   type ColumnFilter,
   type ResultColumn,
-  type TypeFamily,
+  type CellValue,
   OP_LABELS,
   getTypeFamily,
   getOperatorsForFamily,
   typeFamilyBadgeClass,
+  cellToString,
 } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -37,16 +38,10 @@ const ROW_HEIGHT_BY_DENSITY = {
   spacious: 56,
 } as const;
 
-// ─── CellValue ────────────────────────────────────────────────────────────────
+// ─── CellRenderer ────────────────────────────────────────────────────────────
 
-function CellValue({
-  value,
-  family,
-}: {
-  value: string | null;
-  family: TypeFamily;
-}) {
-  if (value === null) {
+function CellRenderer({ cell }: { cell: CellValue }) {
+  if (cell.t === "null") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
         NULL
@@ -54,62 +49,53 @@ function CellValue({
     );
   }
 
-  if (value === "") {
-    return (
-      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none italic border border-separator/50">
-        {'\'\''}
-      </span>
-    );
-  }
-
-  if (family === "boolean") {
-    const isTrue =
-      value === "t" || value.toLowerCase() === "true" || value === "1";
+  if (cell.t === "bool") {
     return (
       <span
         className={cn(
           "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded leading-none tracking-wide",
-          isTrue
+          cell.v
             ? "bg-success/10 text-success"
             : "bg-control text-tertiary border border-separator/50",
         )}
       >
-        {isTrue ? "true" : "false"}
+        {cell.v ? "true" : "false"}
       </span>
     );
   }
 
-  if (family === "json") {
-    const preview = value.length > 100 ? value.slice(0, 100) + "…" : value;
+  if (cell.t === "int" || cell.t === "float") {
     return (
-      <span className="font-mono text-[11px] text-data-json truncate block" title={value}>
+      <span className="font-mono text-xs text-label tabular-nums truncate block text-right w-full">
+        {String(cell.v)}
+      </span>
+    );
+  }
+
+  if (cell.t === "json") {
+    const raw = JSON.stringify(cell.v);
+    const preview = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
+    return (
+      <span className="font-mono text-[11px] text-data-json truncate block" title={raw}>
         {preview}
       </span>
     );
   }
 
-  if (family === "date") {
+  // text / other
+  const raw = cell.v;
+  if (raw === "") {
     return (
-      <span className="font-mono text-xs text-label tabular-nums truncate block">
-        {value}
+      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none italic border border-separator/50">
+        {"''"}
       </span>
     );
   }
-
-  if (family === "numeric") {
-    return (
-      <span className="font-mono text-xs text-label tabular-nums truncate block text-right w-full">
-        {value}
-      </span>
-    );
-  }
-
-  // text / other — truncate very long values
-  const display = value.length > 300 ? value.slice(0, 300) + "…" : value;
+  const display = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
   return (
     <span
       className="text-xs text-label truncate block"
-      title={value.length > 300 ? value : undefined}
+      title={raw.length > 300 ? raw : undefined}
     >
       {display}
     </span>
@@ -409,7 +395,7 @@ function CellContextMenu({
   onClose,
   onFilterByValue,
 }: {
-  rowData: (string | null)[];
+  rowData: CellValue[];
   columns: ResultColumn[];
   colIdx: number;
   x: number;
@@ -430,7 +416,8 @@ function CellContextMenu({
     };
   }, [onClose]);
 
-  const cellValue = rowData[colIdx] ?? null;
+  const rawCell = rowData[colIdx] ?? { t: "null" as const };
+  const cellValue = cellToString(rawCell);
   const colName = columns[colIdx]?.name ?? "";
 
   const copyValue = () => {
@@ -446,7 +433,7 @@ function CellContextMenu({
   const copyJson = () => {
     const obj: Record<string, string | null> = {};
     columns.forEach((c, i) => {
-      obj[c.name] = rowData[i] ?? null;
+      obj[c.name] = cellToString(rowData[i] ?? { t: "null" });
     });
     navigator.clipboard.writeText(JSON.stringify(obj));
     onClose();
@@ -454,7 +441,8 @@ function CellContextMenu({
 
   const copyCsv = () => {
     const csv = rowData
-      .map((v) => {
+      .map((cell) => {
+        const v = cellToString(cell);
         if (v === null) return "";
         if (v.includes(",") || v.includes('"') || v.includes("\n")) {
           return `"${v.replace(/"/g, '""')}"`;
@@ -721,8 +709,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedCell && data) {
         e.preventDefault();
-        const value = data.rows[selectedCell.row]?.[selectedCell.col];
-        navigator.clipboard.writeText(value ?? "");
+        const cell = data.rows[selectedCell.row]?.[selectedCell.col];
+        navigator.clipboard.writeText(cell ? (cellToString(cell) ?? "") : "");
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -732,7 +720,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // ── Cell context menu ──────────────────────────────────────────────────────
 
   const [cellMenu, setCellMenu] = useState<{
-    rowData: (string | null)[];
+    rowData: CellValue[];
     colIdx: number;
     x: number;
     y: number;
@@ -1062,7 +1050,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                         }}
                       >
                         {columns.map((col, ci) => {
-                          const family = getTypeFamily(col.dataType);
                           const isSelected =
                             selectedCell?.row === vr.index &&
                             selectedCell?.col === ci;
@@ -1094,9 +1081,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 });
                               }}
                             >
-                              <CellValue
-                                value={rowData[ci] ?? null}
-                                family={family}
+                              <CellRenderer
+                                cell={rowData[ci] ?? { t: "null" }}
                               />
                             </div>
                           );

@@ -24,7 +24,7 @@ import { useAppStore } from "../../store";
 import { queryEditorApi, savedQueriesApi } from "./api";
 import { SqlEditor } from "./SqlEditor";
 import type { QueryResult, ResultColumn } from "./types";
-import { getTypeFamily, type TypeFamily } from "../table-viewer/types";
+import { type CellValue, cellToString } from "../table-viewer/types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/Toast";
 
@@ -40,16 +40,10 @@ const RESULT_HEIGHT_KEY = "esploro-query-result-height";
 
 type RunState = "idle" | "pending" | "success" | "error";
 
-// ─── CellValue ────────────────────────────────────────────────────────────────
+// ─── CellRenderer ────────────────────────────────────────────────────────────
 
-function CellValue({
-  value,
-  family,
-}: {
-  value: string | null;
-  family: TypeFamily;
-}) {
-  if (value === null) {
+function CellRenderer({ cell }: { cell: CellValue }) {
+  if (cell.t === "null") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
         NULL
@@ -57,61 +51,53 @@ function CellValue({
     );
   }
 
-  if (value === "") {
+  if (cell.t === "bool") {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded leading-none tracking-wide",
+          cell.v
+            ? "bg-success/10 text-success"
+            : "bg-control text-tertiary border border-separator/50",
+        )}
+      >
+        {cell.v ? "true" : "false"}
+      </span>
+    );
+  }
+
+  if (cell.t === "int" || cell.t === "float") {
+    return (
+      <span className="font-mono text-xs text-label tabular-nums truncate block text-right w-full">
+        {String(cell.v)}
+      </span>
+    );
+  }
+
+  if (cell.t === "json") {
+    const raw = JSON.stringify(cell.v);
+    const preview = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
+    return (
+      <span className="font-mono text-[11px] text-data-json truncate block" title={raw}>
+        {preview}
+      </span>
+    );
+  }
+
+  // text / other
+  const raw = cell.v;
+  if (raw === "") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none italic border border-separator/50">
         {"''"}
       </span>
     );
   }
-
-  if (family === "boolean") {
-    const isTrue =
-      value === "t" || value.toLowerCase() === "true" || value === "1";
-    return (
-      <span
-        className={cn(
-          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded leading-none tracking-wide",
-          isTrue
-            ? "bg-success/10 text-success"
-            : "bg-control text-tertiary border border-separator/50",
-        )}
-      >
-        {isTrue ? "true" : "false"}
-      </span>
-    );
-  }
-
-  if (family === "json") {
-    const preview = value.length > 100 ? value.slice(0, 100) + "…" : value;
-    return (
-      <span className="font-mono text-[11px] text-data-json truncate block" title={value}>
-        {preview}
-      </span>
-    );
-  }
-
-  if (family === "date") {
-    return (
-      <span className="font-mono text-xs text-label tabular-nums truncate block">
-        {value}
-      </span>
-    );
-  }
-
-  if (family === "numeric") {
-    return (
-      <span className="font-mono text-xs text-label tabular-nums truncate block text-right w-full">
-        {value}
-      </span>
-    );
-  }
-
-  const display = value.length > 300 ? value.slice(0, 300) + "…" : value;
+  const display = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
   return (
     <span
       className="text-xs text-label truncate block"
-      title={value.length > 300 ? value : undefined}
+      title={raw.length > 300 ? raw : undefined}
     >
       {display}
     </span>
@@ -128,7 +114,7 @@ function ResultCellContextMenu({
   y,
   onClose,
 }: {
-  rowData: (string | null)[];
+  rowData: CellValue[];
   columns: ResultColumn[];
   colIdx: number;
   x: number;
@@ -148,7 +134,7 @@ function ResultCellContextMenu({
     };
   }, [onClose]);
 
-  const cellValue = rowData[colIdx] ?? null;
+  const cellValue = cellToString(rowData[colIdx] ?? { t: "null" });
   const colName = columns[colIdx]?.name ?? "";
 
   const copyValue = () => {
@@ -164,7 +150,7 @@ function ResultCellContextMenu({
   const copyJson = () => {
     const obj: Record<string, string | null> = {};
     columns.forEach((column, index) => {
-      obj[column.name] = rowData[index] ?? null;
+      obj[column.name] = cellToString(rowData[index] ?? { t: "null" });
     });
     navigator.clipboard.writeText(JSON.stringify(obj));
     onClose();
@@ -172,7 +158,8 @@ function ResultCellContextMenu({
 
   const copyCsv = () => {
     const csv = rowData
-      .map((value) => {
+      .map((cell) => {
+        const value = cellToString(cell);
         if (value === null) return "";
         if (value.includes(",") || value.includes('"') || value.includes("\n")) {
           return `"${value.replace(/"/g, '""')}"`;
@@ -233,7 +220,7 @@ function ResultGrid({
   rows,
 }: {
   columns: ResultColumn[];
-  rows: (string | null)[][];
+  rows: CellValue[][];
 }) {
   const { gridRowDensity } = useAppStore();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
@@ -271,20 +258,15 @@ function ResultGrid({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedCell) {
-        const val = rows[selectedCell.row]?.[selectedCell.col];
-        if (val !== undefined) {
-          navigator.clipboard.writeText(val ?? "");
+        const cell = rows[selectedCell.row]?.[selectedCell.col];
+        if (cell !== undefined) {
+          navigator.clipboard.writeText(cellToString(cell) ?? "");
         }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedCell, rows]);
-
-  const families = useMemo(
-    () => columns.map((col) => getTypeFamily(col.dataType ?? "")),
-    [columns],
-  );
 
   if (columns.length === 0) return null;
 
@@ -364,7 +346,7 @@ function ResultGrid({
                     )}
                     style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: rowHeight }}
                   >
-                    <CellValue value={rowData?.[ci] ?? null} family={families[ci]} />
+                    <CellRenderer cell={rowData?.[ci] ?? { t: "null" }} />
                   </div>
                 ))}
               </div>

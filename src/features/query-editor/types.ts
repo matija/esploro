@@ -14,7 +14,7 @@ export interface QueryError {
 
 export interface QueryResult {
   columns: ResultColumn[];
-  rows: (string | null)[][];
+  rows: import("../table-viewer/types").CellValue[][];
   rowsAffected: number | null;
   executionMs: number;
   error: QueryError | null;

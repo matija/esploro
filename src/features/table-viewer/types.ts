@@ -37,9 +37,24 @@ export interface ResultColumn {
   isForeignKey: boolean;
 }
 
+export type CellValue =
+  | { t: "null" }
+  | { t: "bool"; v: boolean }
+  | { t: "int"; v: number }
+  | { t: "float"; v: number }
+  | { t: "text"; v: string }
+  | { t: "json"; v: unknown }
+  | { t: "other"; v: string };
+
+export function cellToString(cell: CellValue): string | null {
+  if (cell.t === "null") return null;
+  if (cell.t === "json") return JSON.stringify(cell.v);
+  return String(cell.v);
+}
+
 export interface TableQueryResult {
   columns: ResultColumn[];
-  rows: (string | null)[][];
+  rows: CellValue[][];
   page: number;
   pageSize: number;
   executionMs: number;

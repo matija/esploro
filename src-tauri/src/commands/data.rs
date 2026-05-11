@@ -81,11 +81,25 @@ pub enum SortDirection {
     Desc,
 }
 
+// Tagged cell value sent to the frontend.
+// serde serialises as {"t":"null"} or {"t":"int","v":42} etc.
+#[derive(Serialize, Clone)]
+#[serde(tag = "t", content = "v", rename_all = "lowercase")]
+pub enum CellValue {
+    Null,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Text(String),
+    Json(serde_json::Value),
+    Other(String),
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryResult {
     pub columns: Vec<ResultColumn>,
-    pub rows: Vec<Vec<Option<String>>>,
+    pub rows: Vec<Vec<CellValue>>,
     pub page: u32,
     pub page_size: u32,
     pub execution_ms: u64,
@@ -301,9 +315,17 @@ async fn query_table_pg(
         _ => String::new(),
     };
 
+    // Select natively-typed columns without cast; cast everything else to text.
     let col_select: String = result_columns
         .iter()
-        .map(|c| format!("\"{}\"::text", c.name))
+        .map(|c| {
+            let udt = col_type_map.get(&c.name).map(|s| s.as_str()).unwrap_or("text");
+            if pg_native_udt(udt) {
+                format!("\"{}\"", c.name)
+            } else {
+                format!("\"{}\"::text", c.name)
+            }
+        })
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -327,11 +349,16 @@ async fn query_table_pg(
         .map_err(|e| e.to_string())?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
-    let rows: Vec<Vec<Option<String>>> = data_rows
+    let rows: Vec<Vec<CellValue>> = data_rows
         .iter()
         .map(|row| {
-            (0..result_columns.len())
-                .map(|i| row.get::<_, Option<String>>(i))
+            result_columns
+                .iter()
+                .enumerate()
+                .map(|(i, col)| {
+                    let udt = col_type_map.get(&col.name).map(|s| s.as_str()).unwrap_or("text");
+                    pg_cell_value(row, i, udt)
+                })
                 .collect()
         })
         .collect();
@@ -534,10 +561,9 @@ async fn query_table_mysql(
         _ => String::new(),
     };
 
-    // CAST all columns to CHAR for uniform string serialization
     let col_select: String = result_columns
         .iter()
-        .map(|c| format!("CAST(`{}` AS CHAR)", c.name))
+        .map(|c| format!("`{}`", c.name))
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -556,11 +582,11 @@ async fn query_table_mysql(
         .map_err(|e| e.to_string())?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
-    let rows: Vec<Vec<Option<String>>> = data_rows
+    let rows: Vec<Vec<CellValue>> = data_rows
         .iter()
         .map(|row| {
             (0..result_columns.len())
-                .map(|i| mysql_str(row, i))
+                .map(|i| mysql_cell_value(row, i))
                 .collect()
         })
         .collect();
@@ -639,7 +665,7 @@ async fn count_table_mysql(
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub columns: Vec<ResultColumn>,
-    pub rows: Vec<Vec<Option<String>>>,
+    pub rows: Vec<Vec<CellValue>>,
     pub rows_affected: Option<u64>,
     pub execution_ms: u64,
     pub error: Option<QueryError>,
@@ -696,7 +722,7 @@ async fn execute_sql_pg(
             Ok(messages) => {
                 let execution_ms = t0.elapsed().as_millis() as u64;
                 let mut columns: Vec<ResultColumn> = vec![];
-                let mut rows: Vec<Vec<Option<String>>> = vec![];
+                let mut rows: Vec<Vec<CellValue>> = vec![];
                 let mut rows_affected: Option<u64> = None;
 
                 for msg in messages {
@@ -715,7 +741,10 @@ async fn execute_sql_pg(
                             }
                             rows.push(
                                 (0..row.len())
-                                    .map(|i| row.get(i).map(|s| s.to_string()))
+                                    .map(|i| match row.get(i) {
+                                        None => CellValue::Null,
+                                        Some(s) => CellValue::Text(s.to_string()),
+                                    })
                                     .collect(),
                             );
                         }
@@ -804,9 +833,9 @@ async fn execute_sql_mysql(
                     vec![]
                 };
 
-                let row_data: Vec<Vec<Option<String>>> = rows
+                let row_data: Vec<Vec<CellValue>> = rows
                     .iter()
-                    .map(|row| (0..row.len()).map(|i| mysql_str(row, i)).collect())
+                    .map(|row| (0..row.len()).map(|i| mysql_cell_value(row, i)).collect())
                     .collect();
 
                 results.push(QueryResult {
@@ -839,6 +868,74 @@ async fn execute_sql_mysql(
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn pg_native_udt(udt: &str) -> bool {
+    matches!(
+        udt,
+        "bool" | "boolean"
+            | "int2" | "int4" | "int8"
+            | "float4" | "float8"
+            | "text" | "varchar" | "bpchar" | "char" | "name" | "citext" | "uuid"
+            | "json" | "jsonb"
+    )
+}
+
+fn pg_cell_value(row: &tokio_postgres::Row, i: usize, udt: &str) -> CellValue {
+    macro_rules! get_opt {
+        ($T:ty, $variant:expr) => {
+            match row.try_get::<_, Option<$T>>(i) {
+                Ok(None) => CellValue::Null,
+                Ok(Some(v)) => $variant(v),
+                Err(_) => CellValue::Null,
+            }
+        };
+    }
+    match udt {
+        "bool" | "boolean" => get_opt!(bool, CellValue::Bool),
+        "int2" => get_opt!(i16, |v: i16| CellValue::Int(v as i64)),
+        "int4" => get_opt!(i32, |v: i32| CellValue::Int(v as i64)),
+        "int8" => get_opt!(i64, CellValue::Int),
+        "float4" => get_opt!(f32, |v: f32| CellValue::Float(v as f64)),
+        "float8" => get_opt!(f64, CellValue::Float),
+        "json" | "jsonb" => get_opt!(serde_json::Value, CellValue::Json),
+        // text-like types: String FromSql works for text, varchar, bpchar, char, name, citext, uuid
+        "text" | "varchar" | "bpchar" | "char" | "name" | "citext" | "uuid" => {
+            get_opt!(String, CellValue::Text)
+        }
+        // Everything else was cast ::text in the SELECT; read as Other.
+        _ => match row.try_get::<_, Option<String>>(i) {
+            Ok(None) => CellValue::Null,
+            Ok(Some(s)) => CellValue::Other(s),
+            Err(_) => CellValue::Null,
+        },
+    }
+}
+
+fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue {
+    use mysql_async::Value;
+    match row.as_ref(idx) {
+        None | Some(Value::NULL) => CellValue::Null,
+        Some(Value::Int(n)) => CellValue::Int(*n),
+        Some(Value::UInt(n)) => CellValue::Int(*n as i64),
+        Some(Value::Float(f)) => CellValue::Float(*f as f64),
+        Some(Value::Double(f)) => CellValue::Float(*f),
+        Some(Value::Bytes(b)) => {
+            CellValue::Text(String::from_utf8_lossy(b).into_owned())
+        }
+        Some(Value::Date(y, m, d, h, min, s, _)) => {
+            if *h == 0 && *min == 0 && *s == 0 {
+                CellValue::Other(format!("{y:04}-{m:02}-{d:02}"))
+            } else {
+                CellValue::Other(format!("{y:04}-{m:02}-{d:02} {h:02}:{min:02}:{s:02}"))
+            }
+        }
+        Some(Value::Time(neg, days, h, min, s, _)) => {
+            let sign = if *neg { "-" } else { "" };
+            let total_h = days * 24 + *h as u32;
+            CellValue::Other(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
+        }
+    }
+}
 
 fn mysql_str(row: &mysql_async::Row, idx: usize) -> Option<String> {
     use mysql_async::Value;
