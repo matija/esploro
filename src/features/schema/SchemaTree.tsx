@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
   Database,
@@ -433,15 +433,26 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const driver = profiles.find((p) => p.id === connectionId)?.driver ?? "postgres";
   const isMysql = driver === "mysql";
 
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
 
+  const SCHEMA_STALE_MS = 5 * 60 * 1000;
+
+  function refreshSchema() {
+    void queryClient.invalidateQueries({ queryKey: ["databases", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["objects", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["columns", sessionId] });
+  }
+
   // Level 1 — databases
   const dbsQuery = useQuery({
     queryKey: ["databases", sessionId],
     queryFn: () => schemaApi.listDatabases(sessionId),
+    staleTime: SCHEMA_STALE_MS,
   });
   const databases = dbsQuery.data ?? [];
 
@@ -451,6 +462,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     queries: (isMysql ? [] : expandedDbs).map((db) => ({
       queryKey: ["schemas", sessionId, db],
       queryFn: () => schemaApi.listSchemas(sessionId, db),
+      staleTime: SCHEMA_STALE_MS,
     })),
   });
   const schemasMap: Record<string, string[]> = {};
@@ -477,6 +489,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     queries: expandedSchemaEntries.map(({ db, schema }) => ({
       queryKey: ["objects", sessionId, db, schema],
       queryFn: () => schemaApi.listObjects(sessionId, db, schema),
+      staleTime: SCHEMA_STALE_MS,
     })),
   });
   const objectsMap: Record<string, SchemaObjects> = {};
@@ -502,6 +515,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     queries: expandedTableEntries.map(({ db, schema, table }) => ({
       queryKey: ["columns", sessionId, db, schema, table],
       queryFn: () => schemaApi.listColumns(sessionId, db, schema, table),
+      staleTime: SCHEMA_STALE_MS,
     })),
   });
   const columnsMap: Record<string, ColumnDef[]> = {};
@@ -952,8 +966,8 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }}
     >
       {/* Search input */}
-      <div className="px-2 pt-1 pb-1.5">
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-control">
+      <div className="px-2 pt-1 pb-1.5 flex items-center gap-1">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-control flex-1 min-w-0">
           <Search size={10} className="text-secondary shrink-0" />
           <input
             value={searchQuery}
@@ -970,6 +984,14 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
             </button>
           )}
         </div>
+        <button
+          type="button"
+          title="Refresh schema"
+          onClick={refreshSchema}
+          className="shrink-0 p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)]"
+        >
+          <RotateCw size={11} />
+        </button>
       </div>
 
       {/* Tree nodes */}

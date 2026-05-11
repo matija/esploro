@@ -266,43 +266,34 @@ pub async fn list_columns(
             let rows = client
                 .query(
                     "SELECT \
-                       c.column_name, \
-                       c.udt_name AS data_type, \
-                       (c.is_nullable = 'YES') AS is_nullable, \
-                       c.column_default, \
-                       ( \
-                         SELECT count(*) > 0 \
-                         FROM information_schema.key_column_usage k \
-                         JOIN information_schema.table_constraints tc \
-                           ON tc.constraint_name = k.constraint_name \
-                          AND tc.constraint_type = 'PRIMARY KEY' \
-                          AND tc.table_schema = c.table_schema \
-                          AND tc.table_name = c.table_name \
-                         WHERE k.column_name = c.column_name \
-                           AND k.table_schema = c.table_schema \
-                           AND k.table_name = c.table_name \
-                       ) AS is_primary_key, \
-                       ( \
-                         SELECT count(*) > 0 \
-                         FROM information_schema.key_column_usage k2 \
-                         JOIN information_schema.table_constraints tc2 \
-                           ON tc2.constraint_name = k2.constraint_name \
-                          AND tc2.constraint_type = 'FOREIGN KEY' \
-                         WHERE k2.column_name = c.column_name \
-                           AND k2.table_schema = c.table_schema \
-                           AND k2.table_name = c.table_name \
-                       ) AS is_foreign_key, \
+                       a.attname, \
+                       t.typname, \
+                       NOT a.attnotnull, \
+                       pg_get_expr(d.adbin, d.adrelid), \
                        EXISTS ( \
-                         SELECT 1 \
-                         FROM pg_type t \
-                         JOIN pg_namespace n ON n.oid = t.typnamespace \
-                         WHERE t.typname = c.udt_name \
-                           AND n.nspname = c.udt_schema \
-                           AND t.typtype = 'e' \
-                       ) AS is_enum \
-                     FROM information_schema.columns c \
-                     WHERE c.table_schema = $1 AND c.table_name = $2 \
-                     ORDER BY c.ordinal_position",
+                         SELECT 1 FROM pg_constraint con \
+                         WHERE con.conrelid = a.attrelid \
+                           AND con.contype = 'p' \
+                           AND a.attnum = ANY(con.conkey) \
+                       ), \
+                       EXISTS ( \
+                         SELECT 1 FROM pg_constraint con \
+                         WHERE con.conrelid = a.attrelid \
+                           AND con.contype = 'f' \
+                           AND a.attnum = ANY(con.conkey) \
+                       ), \
+                       t.typtype = 'e' \
+                     FROM pg_attribute a \
+                     JOIN pg_class c ON c.oid = a.attrelid \
+                     JOIN pg_namespace n ON n.oid = c.relnamespace \
+                     JOIN pg_type t ON t.oid = a.atttypid \
+                     LEFT JOIN pg_attrdef d \
+                       ON d.adrelid = a.attrelid AND d.adnum = a.attnum \
+                     WHERE n.nspname = $1 \
+                       AND c.relname = $2 \
+                       AND a.attnum > 0 \
+                       AND NOT a.attisdropped \
+                     ORDER BY a.attnum",
                     &[&schema, &table],
                 )
                 .await
