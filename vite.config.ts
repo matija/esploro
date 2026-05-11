@@ -24,4 +24,21 @@ export default defineConfig({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("@codemirror")) return "codemirror";
+          if (id.includes("@radix-ui")) return "radix-ui";
+          if (id.includes("@tanstack")) return "tanstack";
+          if (id.includes("lucide-react")) return "icons";
+          if (id.includes("react") || id.includes("react-dom")) {
+            return "react-vendor";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
 });

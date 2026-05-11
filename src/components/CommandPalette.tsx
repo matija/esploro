@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Plus, Plug, Table2, FileCode, KeyRound, Sun, Moon, Monitor,
   Settings, Loader2, Zap, Eye, Palette, Code2, Database, AlignJustify, Info,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { connectionsApi } from "../features/connections";
 import { cn } from "../lib/utils";
@@ -15,6 +16,7 @@ import type { SavedQuery } from "../features/query-editor";
 type CommandGroup = "Connections" | "Schema" | "Queries" | "Commands" | "Settings";
 
 const GROUP_ORDER: CommandGroup[] = ["Commands", "Connections", "Schema", "Queries", "Settings"];
+const MAX_SEARCH_RESULTS = 80;
 
 interface CommandResult {
   id: string;
@@ -54,7 +56,19 @@ export function CommandPalette() {
     addTab,
     addRecentObject,
     setTheme,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((state) => ({
+      commandPaletteOpen: state.commandPaletteOpen,
+      setCommandPaletteOpen: state.setCommandPaletteOpen,
+      profiles: state.profiles,
+      activeSessions: state.activeSessions,
+      connectSession: state.connectSession,
+      setPendingNewConnection: state.setPendingNewConnection,
+      addTab: state.addTab,
+      addRecentObject: state.addRecentObject,
+      setTheme: state.setTheme,
+    })),
+  );
   const [query, setQuery] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,100 +77,112 @@ export function CommandPalette() {
   const queryClient = useQueryClient();
 
   // Check if any schema queries are in-flight
-  const isSchemaLoading =
-    Object.keys(activeSessions).length > 0 &&
-    queryClient
-      .getQueryCache()
-      .getAll()
-      .some(
-        (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey[0] === "objects" &&
-          q.state.fetchStatus === "fetching",
-      );
+  const isSchemaLoading = useMemo(
+    () =>
+      commandPaletteOpen &&
+      Object.keys(activeSessions).length > 0 &&
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .some(
+          (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey[0] === "objects" &&
+            q.state.fetchStatus === "fetching",
+        ),
+    [activeSessions, commandPaletteOpen, queryClient],
+  );
 
   // Build table commands from React Query cache (loaded schemas only)
-  const tableCommands: CommandResult[] = [];
-  for (const [connectionId, sessionId] of Object.entries(activeSessions)) {
-    const profile = profiles.find((p) => p.id === connectionId);
-    const profileName = profile?.displayName ?? connectionId;
-    const host = profile ? `${profile.host ?? "localhost"}:${profile.port}` : "";
+  const tableCommands = useMemo(() => {
+    if (!commandPaletteOpen) return [];
 
+    const commands: CommandResult[] = [];
     const cache = queryClient.getQueryCache();
-    const objectQueries = cache
-      .getAll()
-      .filter(
-        (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey[0] === "objects" &&
-          q.queryKey[1] === sessionId &&
-          q.state.status === "success",
-      );
 
-    for (const oq of objectQueries) {
-      const [, , db, schema] = oq.queryKey as string[];
-      const data = oq.state.data as SchemaObjects;
-      if (!data) continue;
+    for (const [connectionId, sessionId] of Object.entries(activeSessions)) {
+      const profile = profiles.find((p) => p.id === connectionId);
+      const profileName = profile?.displayName ?? connectionId;
+      const host = profile ? `${profile.host ?? "localhost"}:${profile.port}` : "";
 
-      for (const table of data.tables) {
-        tableCommands.push({
-          id: `table-${connectionId}-${db}-${schema}-${table.name}`,
-          group: "Schema",
-          icon: <Table2 size={13} />,
-          title: `${schema}.${table.name}`,
-          subtitle: `${profileName} · ${host}`,
-          action: () => {
-            addTab({
-              type: "table",
-              title: `${schema}.${table.name}`,
-              sessionId,
-              tableContext: { database: db, schema, table: table.name, connectionId },
-            });
-            addRecentObject({
-              type: "table",
-              title: `${schema}.${table.name}`,
-              schema,
-              table: table.name,
-              database: db,
-              connectionId,
-              sessionId,
-            });
-          },
-        });
-      }
+      const objectQueries = cache
+        .getAll()
+        .filter(
+          (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey[0] === "objects" &&
+            q.queryKey[1] === sessionId &&
+            q.state.status === "success",
+        );
 
-      for (const viewName of data.views) {
-        tableCommands.push({
-          id: `view-${connectionId}-${db}-${schema}-${viewName}`,
-          group: "Schema",
-          icon: <Eye size={13} />,
-          title: `${schema}.${viewName}`,
-          subtitle: `${profileName} · ${host} · view`,
-          action: () => {
-            addTab({
-              type: "table",
-              title: `${schema}.${viewName}`,
-              sessionId,
-              tableContext: { database: db, schema, table: viewName, connectionId },
-            });
-            addRecentObject({
-              type: "view",
-              title: `${schema}.${viewName}`,
-              schema,
-              table: viewName,
-              database: db,
-              connectionId,
-              sessionId,
-            });
-          },
-        });
+      for (const oq of objectQueries) {
+        const [, , db, schema] = oq.queryKey as string[];
+        const data = oq.state.data as SchemaObjects;
+        if (!data) continue;
+
+        for (const table of data.tables) {
+          commands.push({
+            id: `table-${connectionId}-${db}-${schema}-${table.name}`,
+            group: "Schema",
+            icon: <Table2 size={13} />,
+            title: `${schema}.${table.name}`,
+            subtitle: `${profileName} · ${host}`,
+            action: () => {
+              addTab({
+                type: "table",
+                title: `${schema}.${table.name}`,
+                sessionId,
+                tableContext: { database: db, schema, table: table.name, connectionId },
+              });
+              addRecentObject({
+                type: "table",
+                title: `${schema}.${table.name}`,
+                schema,
+                table: table.name,
+                database: db,
+                connectionId,
+                sessionId,
+              });
+            },
+          });
+        }
+
+        for (const viewName of data.views) {
+          commands.push({
+            id: `view-${connectionId}-${db}-${schema}-${viewName}`,
+            group: "Schema",
+            icon: <Eye size={13} />,
+            title: `${schema}.${viewName}`,
+            subtitle: `${profileName} · ${host} · view`,
+            action: () => {
+              addTab({
+                type: "table",
+                title: `${schema}.${viewName}`,
+                sessionId,
+                tableContext: { database: db, schema, table: viewName, connectionId },
+              });
+              addRecentObject({
+                type: "view",
+                title: `${schema}.${viewName}`,
+                schema,
+                table: viewName,
+                database: db,
+                connectionId,
+                sessionId,
+              });
+            },
+          });
+        }
       }
     }
-  }
+
+    return commands;
+  }, [activeSessions, addRecentObject, addTab, commandPaletteOpen, profiles, queryClient]);
 
   // Saved query commands
-  const savedQueryData =
-    queryClient
+  const savedQueryData = useMemo(() => {
+    if (!commandPaletteOpen) return undefined;
+    return queryClient
       .getQueryCache()
       .getAll()
       .find(
@@ -165,8 +191,9 @@ export function CommandPalette() {
           q.queryKey[0] === "saved-queries" &&
           q.state.status === "success",
       )?.state.data as SavedQuery[] | undefined;
+  }, [commandPaletteOpen, queryClient]);
 
-  const savedQueryCommands: CommandResult[] = (savedQueryData ?? []).map((sq) => ({
+  const savedQueryCommands: CommandResult[] = useMemo(() => (savedQueryData ?? []).map((sq) => ({
     id: `saved-query-${sq.id}`,
     group: "Queries",
     icon: <FileCode size={13} />,
@@ -188,9 +215,9 @@ export function CommandPalette() {
         sessionId,
       });
     },
-  }));
+  })), [activeSessions, addRecentObject, addTab, savedQueryData]);
 
-  const connectionCommands: CommandResult[] = profiles.map((p) => ({
+  const connectionCommands: CommandResult[] = useMemo(() => profiles.map((p) => ({
     id: `connect-${p.id}`,
     group: "Connections",
     icon: <Plug size={13} />,
@@ -204,9 +231,9 @@ export function CommandPalette() {
         console.error("Connect failed", e);
       }
     },
-  }));
+  })), [connectSession, profiles]);
 
-  const coreCommands: CommandResult[] = [
+  const coreCommands: CommandResult[] = useMemo(() => [
     {
       id: "new-query",
       group: "Commands",
@@ -325,17 +352,17 @@ export function CommandPalette() {
       title: "Theme: GitHub Light",
       action: () => setTheme("github-light"),
     },
-  ];
+  ], [activeSessions, addTab, setPendingNewConnection, setTheme]);
 
-  const allCommands: CommandResult[] = [
+  const allCommands: CommandResult[] = useMemo(() => [
     ...coreCommands,
     ...connectionCommands,
     ...tableCommands,
     ...savedQueryCommands,
-  ];
+  ], [connectionCommands, coreCommands, savedQueryCommands, tableCommands]);
 
   // Default commands shown when query is empty (curated, no tables)
-  const defaultCommands: CommandResult[] = [
+  const defaultCommands: CommandResult[] = useMemo(() => [
     ...coreCommands.filter((c) => c.id === "new-query"),
     ...connectionCommands,
     ...coreCommands.filter((c) => c.id === "new-connection"),
@@ -344,23 +371,31 @@ export function CommandPalette() {
   ].reduce<CommandResult[]>((acc, cmd) => {
     if (!acc.find((c) => c.id === cmd.id)) acc.push(cmd);
     return acc;
-  }, []);
+  }, []), [connectionCommands, coreCommands, savedQueryCommands]);
 
   // Sort default commands by GROUP_ORDER
-  const sortedDefaultCommands = [...defaultCommands].sort(
-    (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group),
+  const sortedDefaultCommands = useMemo(
+    () =>
+      [...defaultCommands].sort(
+        (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group),
+      ),
+    [defaultCommands],
   );
 
-  const filtered: CommandResult[] = query.trim()
-    ? allCommands
-        .map((c) => ({ cmd: c, score: fuzzyScore(c.title, query.trim()) }))
+  const filtered: CommandResult[] = useMemo(() => {
+    const trimmedQuery = query.trim();
+    return trimmedQuery
+      ? allCommands
+        .map((c) => ({ cmd: c, score: fuzzyScore(c.title, trimmedQuery) }))
         .filter(({ score }) => score > 0)
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
           return GROUP_ORDER.indexOf(a.cmd.group) - GROUP_ORDER.indexOf(b.cmd.group);
         })
         .map(({ cmd }) => cmd)
-    : sortedDefaultCommands;
+        .slice(0, MAX_SEARCH_RESULTS)
+      : sortedDefaultCommands;
+  }, [allCommands, query, sortedDefaultCommands]);
 
   // Reset selection when results change
   useEffect(() => {
@@ -399,7 +434,7 @@ export function CommandPalette() {
     if (!commandPaletteOpen) setQuery("");
   }, [commandPaletteOpen]);
 
-  const renderItems = buildRenderList(filtered);
+  const renderItems = useMemo(() => buildRenderList(filtered), [filtered]);
 
   return (
     <Dialog.Root open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen}>

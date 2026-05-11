@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useShallow } from "zustand/react/shallow";
 import {
   Play,
   Save,
@@ -222,7 +223,7 @@ function ResultGrid({
   columns: ResultColumn[];
   rows: CellValue[][];
 }) {
-  const { gridRowDensity } = useAppStore();
+  const gridRowDensity = useAppStore((state) => state.gridRowDensity);
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
   const bodyRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
@@ -626,7 +627,15 @@ function RunButton({
 
 export function QueryEditorTab({ tab }: { tab: Tab }) {
   const { toast } = useToast();
-  const { profiles, activeSessions, setTabDirty, setTabError, setLastAction } = useAppStore();
+  const { profiles, activeSessions, setTabDirty, setTabError, setLastAction } = useAppStore(
+    useShallow((state) => ({
+      profiles: state.profiles,
+      activeSessions: state.activeSessions,
+      setTabDirty: state.setTabDirty,
+      setTabError: state.setTabError,
+      setLastAction: state.setLastAction,
+    })),
+  );
   const rqClient = useQueryClient();
 
   const [sql, setSql] = useState(tab.queryContext?.sql ?? "");

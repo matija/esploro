@@ -3,6 +3,7 @@ import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -31,7 +32,7 @@ import { ToastProvider } from "./Toast";
 import { ConfirmProvider } from "./ConfirmDialog";
 
 function WelcomeView() {
-  const { activeSessions } = useAppStore();
+  const activeSessions = useAppStore((state) => state.activeSessions);
   const hasSession = Object.keys(activeSessions).length > 0;
 
   return (
@@ -62,7 +63,15 @@ function WelcomeView() {
 }
 
 function StatusBar() {
-  const { tabs, activeTabId, profiles, activeSessions, lastAction } = useAppStore();
+  const { tabs, activeTabId, profiles, activeSessions, lastAction } = useAppStore(
+    useShallow((state) => ({
+      tabs: state.tabs,
+      activeTabId: state.activeTabId,
+      profiles: state.profiles,
+      activeSessions: state.activeSessions,
+      lastAction: state.lastAction,
+    })),
+  );
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const sessionId =
@@ -171,7 +180,13 @@ function LicenseBadge() {
 }
 
 function Toolbar() {
-  const { addTab, activeSessions, setCommandPaletteOpen } = useAppStore();
+  const { addTab, activeSessions, setCommandPaletteOpen } = useAppStore(
+    useShallow((state) => ({
+      addTab: state.addTab,
+      activeSessions: state.activeSessions,
+      setCommandPaletteOpen: state.setCommandPaletteOpen,
+    })),
+  );
 
   return (
     <div className="flex items-center gap-1 px-2">
@@ -225,7 +240,24 @@ export function AppShell() {
     hydrateEditorAndGridPrefs,
     setCommandPaletteOpen,
     setPendingNewConnection,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((state) => ({
+      tabs: state.tabs,
+      activeTabId: state.activeTabId,
+      addTab: state.addTab,
+      closeTab: state.closeTab,
+      setActiveTab: state.setActiveTab,
+      activeSessions: state.activeSessions,
+      profiles: state.profiles,
+      sidebarWidth: state.sidebarWidth,
+      theme: state.theme,
+      setTheme: state.setTheme,
+      hydrateTheme: state.hydrateTheme,
+      hydrateEditorAndGridPrefs: state.hydrateEditorAndGridPrefs,
+      setCommandPaletteOpen: state.setCommandPaletteOpen,
+      setPendingNewConnection: state.setPendingNewConnection,
+    })),
+  );
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
 

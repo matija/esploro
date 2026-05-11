@@ -6,6 +6,7 @@ import { bracketMatching, foldGutter, indentUnit } from "@codemirror/language";
 import { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap } from "@codemirror/autocomplete";
 import { lintKeymap, setDiagnostics } from "@codemirror/lint";
 import { sql, type SQLConfig } from "@codemirror/lang-sql";
+import { useShallow } from "zustand/react/shallow";
 import { tairikiTheme } from "./tairikiTheme";
 import type { QueryError } from "./types";
 import { useAppStore } from "../../store";
@@ -32,7 +33,12 @@ export function SqlEditor({
   onRunRef.current = onRun;
   onChangeRef.current = onChange;
 
-  const { editorTabSize, editorWordWrap } = useAppStore();
+  const { editorTabSize, editorWordWrap } = useAppStore(
+    useShallow((state) => ({
+      editorTabSize: state.editorTabSize,
+      editorWordWrap: state.editorWordWrap,
+    })),
+  );
 
   const extensions = useMemo(
     () => [

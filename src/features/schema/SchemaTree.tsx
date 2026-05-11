@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useShallow } from "zustand/react/shallow";
 import {
   ChevronRight,
   Database,
@@ -427,7 +428,25 @@ function nodeDepth(node: TreeNode): number {
 }
 
 export function SchemaTree({ sessionId, connectionId }: Props) {
-  const { expandedNodes, toggleNode, addTab, setActiveTab, addRecentObject, tabs, profiles } = useAppStore();
+  const {
+    expandedNodes,
+    toggleNode,
+    addTab,
+    setActiveTab,
+    addRecentObject,
+    tabs,
+    profiles,
+  } = useAppStore(
+    useShallow((state) => ({
+      expandedNodes: state.expandedNodes,
+      toggleNode: state.toggleNode,
+      addTab: state.addTab,
+      setActiveTab: state.setActiveTab,
+      addRecentObject: state.addRecentObject,
+      tabs: state.tabs,
+      profiles: state.profiles,
+    })),
+  );
   const isExp = (key: string) => !!expandedNodes[key];
 
   const driver = profiles.find((p) => p.id === connectionId)?.driver ?? "postgres";
@@ -435,6 +454,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
@@ -454,10 +474,17 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     queryFn: () => schemaApi.listDatabases(sessionId),
     staleTime: SCHEMA_STALE_MS,
   });
-  const databases = dbsQuery.data ?? [];
+  const databases = useMemo(() => dbsQuery.data ?? [], [dbsQuery.data]);
+  const dbsIsLoading = dbsQuery.isLoading;
+  const dbsIsError = dbsQuery.isError;
+  const dbsError = dbsQuery.error;
+  const refetchDbs = dbsQuery.refetch;
 
   // Level 2 — schemas (one query per expanded database; skipped for MySQL)
-  const expandedDbs = databases.filter((db) => isExp(dbKey(connectionId, db)));
+  const expandedDbs = useMemo(
+    () => databases.filter((db) => !!expandedNodes[dbKey(connectionId, db)]),
+    [connectionId, databases, expandedNodes],
+  );
   const schemaQueries = useQueries({
     queries: (isMysql ? [] : expandedDbs).map((db) => ({
       queryKey: ["schemas", sessionId, db],
@@ -465,26 +492,32 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       staleTime: SCHEMA_STALE_MS,
     })),
   });
-  const schemasMap: Record<string, string[]> = {};
-  if (isMysql) {
-    // For MySQL there is no schema level; use the database name as the pseudo-schema
-    expandedDbs.forEach((db) => { schemasMap[db] = [db]; });
-  } else {
-    expandedDbs.forEach((db, i) => {
-      schemasMap[db] = sortSchemas(schemaQueries[i]?.data ?? []);
-    });
-  }
+  const schemasMap = useMemo(() => {
+    const next: Record<string, string[]> = {};
+    if (isMysql) {
+      // For MySQL there is no schema level; use the database name as the pseudo-schema
+      expandedDbs.forEach((db) => { next[db] = [db]; });
+    } else {
+      expandedDbs.forEach((db, i) => {
+        next[db] = sortSchemas(schemaQueries[i]?.data ?? []);
+      });
+    }
+    return next;
+  }, [expandedDbs, isMysql, schemaQueries]);
 
   // Level 3 — objects (one query per expanded schema)
-  const expandedSchemaEntries: { db: string; schema: string }[] = [];
-  for (const db of expandedDbs) {
-    for (const s of schemasMap[db] ?? []) {
-      // MySQL: the db is always "expanded" (no schema node to click)
-      if (isMysql || isExp(schemaKey(connectionId, db, s))) {
-        expandedSchemaEntries.push({ db, schema: s });
+  const expandedSchemaEntries = useMemo(() => {
+    const entries: { db: string; schema: string }[] = [];
+    for (const db of expandedDbs) {
+      for (const s of schemasMap[db] ?? []) {
+        // MySQL: the db is always "expanded" (no schema node to click)
+        if (isMysql || !!expandedNodes[schemaKey(connectionId, db, s)]) {
+          entries.push({ db, schema: s });
+        }
       }
     }
-  }
+    return entries;
+  }, [connectionId, expandedDbs, expandedNodes, isMysql, schemasMap]);
   const objectQueries = useQueries({
     queries: expandedSchemaEntries.map(({ db, schema }) => ({
       queryKey: ["objects", sessionId, db, schema],
@@ -492,25 +525,30 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       staleTime: SCHEMA_STALE_MS,
     })),
   });
-  const objectsMap: Record<string, SchemaObjects> = {};
-  expandedSchemaEntries.forEach(({ db, schema }, i) => {
-    const data = objectQueries[i]?.data;
-    if (data) objectsMap[`${db}:${schema}`] = data;
-  });
+  const objectsMap = useMemo(() => {
+    const next: Record<string, SchemaObjects> = {};
+    expandedSchemaEntries.forEach(({ db, schema }, i) => {
+      const data = objectQueries[i]?.data;
+      if (data) next[`${db}:${schema}`] = data;
+    });
+    return next;
+  }, [expandedSchemaEntries, objectQueries]);
 
   // Level 4 — columns (one query per expanded table)
-  const expandedTableEntries: { db: string; schema: string; table: string }[] =
-    [];
-  for (const { db, schema } of expandedSchemaEntries) {
-    const objs = objectsMap[`${db}:${schema}`];
-    if (!objs) continue;
-    if (!isExp(groupKey(connectionId, db, schema, "Tables"))) continue;
-    for (const t of objs.tables) {
-      if (isExp(tableKey(connectionId, db, schema, t.name))) {
-        expandedTableEntries.push({ db, schema, table: t.name });
+  const expandedTableEntries = useMemo(() => {
+    const entries: { db: string; schema: string; table: string }[] = [];
+    for (const { db, schema } of expandedSchemaEntries) {
+      const objs = objectsMap[`${db}:${schema}`];
+      if (!objs) continue;
+      if (!expandedNodes[groupKey(connectionId, db, schema, "Tables")]) continue;
+      for (const t of objs.tables) {
+        if (expandedNodes[tableKey(connectionId, db, schema, t.name)]) {
+          entries.push({ db, schema, table: t.name });
+        }
       }
     }
-  }
+    return entries;
+  }, [connectionId, expandedNodes, expandedSchemaEntries, objectsMap]);
   const columnQueries = useQueries({
     queries: expandedTableEntries.map(({ db, schema, table }) => ({
       queryKey: ["columns", sessionId, db, schema, table],
@@ -518,20 +556,25 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       staleTime: SCHEMA_STALE_MS,
     })),
   });
-  const columnsMap: Record<string, ColumnDef[]> = {};
-  expandedTableEntries.forEach(({ db, schema, table }, i) => {
-    const data = columnQueries[i]?.data;
-    if (data) columnsMap[`${db}:${schema}:${table}`] = data;
-  });
+  const columnsMap = useMemo(() => {
+    const next: Record<string, ColumnDef[]> = {};
+    expandedTableEntries.forEach(({ db, schema, table }, i) => {
+      const data = columnQueries[i]?.data;
+      if (data) next[`${db}:${schema}:${table}`] = data;
+    });
+    return next;
+  }, [columnQueries, expandedTableEntries]);
 
   // ── Build flat list ──────────────────────────────────────────────────────────
 
   type FlatItem = { key: string; node: TreeNode };
-  const items: FlatItem[] = [];
+  const items = useMemo(() => {
+    const items: FlatItem[] = [];
+    const trimmedSearchQuery = deferredSearchQuery.trim();
 
-  if (searchQuery.trim()) {
+  if (trimmedSearchQuery) {
     // Search mode: fuzzy-filter tables/views across all loaded schemas, sorted by score
-    const q = searchQuery.trim();
+    const q = trimmedSearchQuery;
     type ScoredLeaf = { score: number; db: string; schema: string; oKey: string } & (
       | { kind: "table"; t: { name: string; estimatedRowCount: number | null } }
       | { kind: "view"; name: string }
@@ -588,22 +631,22 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     }
   } else {
     // Normal tree mode
-    if (dbsQuery.isLoading) {
+    if (dbsIsLoading) {
       items.push({ key: "loading-dbs", node: { kind: "loading", depth: 0 } });
-    } else if (dbsQuery.isError) {
+    } else if (dbsIsError) {
       items.push({
         key: "error-dbs",
         node: {
           kind: "error",
           depth: 0,
-          message: errorMessage(dbsQuery.error, "Could not load databases"),
-          onRetry: () => { void dbsQuery.refetch(); },
+          message: errorMessage(dbsError, "Could not load databases"),
+          onRetry: () => { void refetchDbs(); },
         },
       });
     } else {
       for (const db of databases) {
         const dk = dbKey(connectionId, db);
-        const dbExpanded = isExp(dk);
+        const dbExpanded = !!expandedNodes[dk];
         items.push({
           key: dk,
           node: { kind: "database", name: db, sessionId, connectionId },
@@ -638,7 +681,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           const sk = schemaKey(connectionId, db, schema);
           // MySQL: skip rendering the schema node (it's the database itself)
           if (!isMysql) {
-            const sExpanded = isExp(sk);
+            const sExpanded = !!expandedNodes[sk];
             items.push({
               key: sk,
               node: { kind: "schema", name: schema, database: db, sessionId, connectionId },
@@ -684,7 +727,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           for (const grp of allGroups) {
             if (grp.count === 0) continue;
             const gk = groupKey(connectionId, db, schema, grp.label);
-            const gExpanded = isExp(gk);
+            const gExpanded = !!expandedNodes[gk];
             items.push({
               key: gk,
               node: { kind: "group", label: grp.label, count: grp.count, schema, database: db, sessionId, connectionId },
@@ -694,7 +737,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
             if (grp.label === "Tables") {
               for (const t of objs.tables) {
                 const tk = tableKey(connectionId, db, schema, t.name);
-                const tExpanded = isExp(tk);
+                const tExpanded = !!expandedNodes[tk];
                 items.push({
                   key: tk,
                   node: { kind: "table", name: t.name, schema, database: db, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
@@ -762,6 +805,29 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
     }
   }
+
+    return items;
+  }, [
+    columnQueries,
+    columnsMap,
+    connectionId,
+    databases,
+    dbsError,
+    dbsIsError,
+    dbsIsLoading,
+    deferredSearchQuery,
+    expandedDbs,
+    expandedSchemaEntries,
+    expandedTableEntries,
+    expandedNodes,
+    isMysql,
+    objectQueries,
+    objectsMap,
+    schemaQueries,
+    schemasMap,
+    refetchDbs,
+    sessionId,
+  ]);
 
   // ── Keyboard navigation ───────────────────────────────────────────────────────
 
@@ -996,7 +1062,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
       {/* Tree nodes */}
       <div ref={rowsRef}>
-        {searchQuery.trim() && items.length === 0 && (
+        {deferredSearchQuery.trim() && items.length === 0 && (
           <div className="px-3 py-2 text-xs text-secondary">
             No tables matching "{searchQuery}"
           </div>
