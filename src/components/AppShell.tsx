@@ -160,16 +160,16 @@ function LicenseBadge() {
         onClick={() => setSheetOpen(true)}
         title={isLicensed ? `${tier} license active` : "No active license"}
         className={cn(
-          "flex items-center gap-1.5 h-[18px] px-2 rounded-full text-[10px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
+          "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[11px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
           isLicensed
             ? "bg-success/15 text-success hover:bg-success/25"
-            : "bg-control/60 text-tertiary hover:bg-hover hover:text-secondary",
+            : "bg-amber-100/60 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100/90 dark:hover:bg-amber-900/50",
         )}
       >
         <span
           className={cn(
             "w-1 h-1 rounded-full shrink-0",
-            isLicensed ? "bg-success" : "bg-tertiary/50",
+            isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-400",
           )}
         />
         {isLicensed ? tier : "Unlicensed"}
