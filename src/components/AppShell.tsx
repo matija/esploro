@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
@@ -12,7 +13,6 @@ import { TableViewerTab } from "../features/table-viewer";
 import { QueryEditorTab } from "../features/query-editor";
 import {
   LicenseBanner,
-  LicenseActivationSheet,
   UsageTypeDialog,
   licenseApi,
   LICENSE_STATUS_KEY,
@@ -143,39 +143,100 @@ const toolbarBtnClass =
   "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[11px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
 
 function LicenseBadge() {
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const { data: status } = useQuery({
     queryKey: LICENSE_STATUS_KEY,
     queryFn: licenseApi.getStatus,
     staleTime: 60_000,
   });
+  const { addTab, tabs, setActiveTab } = useAppStore(
+    useShallow((state) => ({
+      addTab: state.addTab,
+      tabs: state.tabs,
+      setActiveTab: state.setActiveTab,
+    })),
+  );
 
   const tier = status?.tier ?? "Unlicensed";
   const isLicensed = tier === "Personal" || tier === "Commercial";
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setSheetOpen(true)}
-        title={isLicensed ? `${tier} license active` : "No active license"}
+  function openLicenseSettings() {
+    const existing = tabs.find((t) => t.type === "settings");
+    if (existing) {
+      setActiveTab(existing.id);
+    } else {
+      addTab({ type: "settings", title: "License" });
+    }
+    setPopoverOpen(false);
+  }
+
+  const badgeButton = (
+    <button
+      type="button"
+      title={isLicensed ? `${tier} license active` : "No active license"}
+      className={cn(
+        "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[11px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
+        isLicensed
+          ? "bg-success/15 text-success hover:bg-success/25"
+          : "bg-amber-100/60 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100/90 dark:hover:bg-amber-900/50",
+      )}
+    >
+      <span
         className={cn(
-          "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[11px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
-          isLicensed
-            ? "bg-success/15 text-success hover:bg-success/25"
-            : "bg-amber-100/60 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100/90 dark:hover:bg-amber-900/50",
+          "w-1 h-1 rounded-full shrink-0",
+          isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-400",
         )}
-      >
-        <span
+      />
+      {isLicensed ? tier : "Unlicensed"}
+    </button>
+  );
+
+  if (!isLicensed) {
+    return (
+      <div onClick={openLicenseSettings} className="contents cursor-pointer">
+        {badgeButton}
+      </div>
+    );
+  }
+
+  const validThrough = status?.gracePeriodEnds
+    ? new Date(status.gracePeriodEnds).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+
+  return (
+    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <Popover.Trigger asChild>{badgeButton}</Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="end"
+          sideOffset={6}
           className={cn(
-            "w-1 h-1 rounded-full shrink-0",
-            isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-400",
+            "z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-elevated px-3 py-2.5 shadow-[var(--shadow-popover)]",
+            "text-[12px] text-label space-y-1",
+            "animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
           )}
-        />
-        {isLicensed ? tier : "Unlicensed"}
-      </button>
-      <LicenseActivationSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </>
+        >
+          <p className="font-medium">{tier} license</p>
+          <p className="text-tertiary">
+            {validThrough ? `Valid through ${validThrough}` : "License active"}
+          </p>
+          <div className="pt-1 border-t border-separator mt-1">
+            <button
+              type="button"
+              onClick={openLicenseSettings}
+              className="text-accent hover:underline underline-offset-2 text-[11px]"
+            >
+              Manage license…
+            </button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
