@@ -37,6 +37,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
 
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -45,6 +46,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
   async function handleCheckForUpdates() {
     if (checkState === "checking") return;
     setCheckState("checking");
+    setCheckError(null);
     try {
       const info = await invoke<UpdateInfo | null>("check_for_update");
       if (info) {
@@ -55,7 +57,8 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         setCheckState("up-to-date");
         resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
       }
-    } catch {
+    } catch (e) {
+      setCheckError(String(e));
       setCheckState("error");
       resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
     }
@@ -158,6 +161,9 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
           {checkButtonLabel}
         </button>
       </div>
+      {checkState === "error" && checkError && (
+        <p className="text-[12px] text-destructive leading-relaxed">{checkError}</p>
+      )}
 
       {updateInfo && (
         <UpdateSheet
