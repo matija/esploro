@@ -1,3 +1,15 @@
+## Phase 51 — License badge click behavior [DONE]
+- Implemented PRD item 3 (license badge click behavior).
+- src/components/AppShell.tsx:
+  - Licensed users: clicking badge now opens a Radix Popover showing tier name,
+    optional "Valid through [date]" if gracePeriodEnds is set, and a "Manage license…"
+    link that opens Settings at the License section.
+  - Unlicensed users: clicking badge navigates directly to License settings section
+    (focuses existing settings tab or opens a new one with title "License").
+  - Removed LicenseActivationSheet from badge clicks entirely.
+  - Added @radix-ui/react-popover import (already in package.json).
+- tsc --noEmit passes cleanly.
+
 ## Phase 50 — About screen: Tandoku attribution [DONE]
 - Implemented PRD item 1 (About screen company attribution).
 - src/features/settings/AboutSettings.tsx:
