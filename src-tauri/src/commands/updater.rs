@@ -1,0 +1,52 @@
+use serde::Serialize;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use tauri::Emitter;
+use tauri_plugin_updater::UpdaterExt;
+
+#[derive(Debug, Serialize)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct ProgressPayload {
+    downloaded: usize,
+    total: Option<u64>,
+}
+
+#[tauri::command]
+pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+    Ok(update.map(|u| UpdateInfo {
+        version: u.version.clone(),
+        notes: u.body.clone(),
+    }))
+}
+
+#[tauri::command]
+pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+        return Ok(());
+    };
+
+    let handle = app.clone();
+    let downloaded = Arc::new(AtomicUsize::new(0));
+    let downloaded_ref = downloaded.clone();
+
+    update
+        .download_and_install(
+            move |chunk_len, total| {
+                let d = downloaded_ref.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
+                let _ = handle.emit("update:progress", ProgressPayload { downloaded: d, total });
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}

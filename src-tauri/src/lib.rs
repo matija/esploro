@@ -130,6 +130,8 @@ pub fn run() {
             commands::license::open_url,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
+            commands::updater::check_for_update,
+            commands::updater::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
