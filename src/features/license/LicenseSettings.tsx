@@ -21,7 +21,7 @@ export function LicenseSettings() {
 
   return (
     <section>
-      <h3 className="text-[11px] font-medium text-secondary uppercase tracking-[0.06em] mb-3">
+      <h3 className="text-[12px] font-medium text-secondary uppercase tracking-[0.06em] mb-3">
         License
       </h3>
 

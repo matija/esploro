@@ -67,10 +67,10 @@ function RecentRow({ item }: { item: RecentObject }) {
       )}
     >
       {objectIcon(item.type)}
-      <span className="flex-1 min-w-0 truncate text-[12px] text-label">
+      <span className="flex-1 min-w-0 truncate text-[13px] text-label">
         {item.title}
       </span>
-      <span className="shrink-0 text-[10px] text-tertiary tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--motion-fast)]">
+      <span className="shrink-0 text-[11px] text-tertiary tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--motion-fast)]">
         {formatAge(item.timestamp)}
       </span>
     </button>
@@ -86,7 +86,7 @@ export function RecentObjectsSection() {
         <div className="flex items-center justify-center w-7 h-7 mx-auto mb-2 rounded-[var(--radius-control)] bg-accent/8">
           <Database size={14} className="text-tertiary" />
         </div>
-        <p className="text-[11px] text-tertiary leading-relaxed">
+        <p className="text-[12px] text-tertiary leading-relaxed">
           Recently opened tables and queries will appear here.
         </p>
       </div>
@@ -102,7 +102,7 @@ export function RecentObjectsSection() {
         <button
           type="button"
           onClick={clearRecentObjects}
-          className="flex items-center gap-1.5 px-2 py-1 mt-1 text-[11px] text-tertiary hover:text-secondary transition-colors duration-[var(--motion-fast)]"
+          className="flex items-center gap-1.5 px-2 py-1 mt-1 text-[12px] text-tertiary hover:text-secondary transition-colors duration-[var(--motion-fast)]"
         >
           <X size={10} />
           Clear recents

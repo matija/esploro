@@ -66,7 +66,7 @@ export function SettingsView({ initialSection }: { initialSection?: string }) {
             type="button"
             onClick={() => setSection(item.id)}
             className={cn(
-              "flex items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[12px] text-left w-full",
+              "flex items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[13px] text-left w-full",
               "transition-colors duration-[var(--motion-fast)]",
               section === item.id
                 ? "bg-accent/12 text-accent font-medium"

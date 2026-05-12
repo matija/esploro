@@ -79,7 +79,7 @@ function CellRenderer({ cell }: { cell: CellValue }) {
     const raw = JSON.stringify(cell.v);
     const preview = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
     return (
-      <span className="font-mono text-[11px] text-data-json truncate block" title={raw}>
+      <span className="font-mono text-[12px] text-data-json truncate block" title={raw}>
         {preview}
       </span>
     );
@@ -194,7 +194,7 @@ function ResultCellContextMenu({
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
         Copy Column Name
-        <span className="ml-auto font-mono text-tertiary text-[10px] pl-2 truncate max-w-[100px]">
+        <span className="ml-auto font-mono text-tertiary text-[11px] pl-2 truncate max-w-[100px]">
           {colName}
         </span>
       </button>
@@ -376,7 +376,7 @@ function EmptyResultState() {
     <div className="flex flex-col items-center justify-center h-full gap-2 select-none pointer-events-none">
       <Terminal size={28} className="text-secondary opacity-40" />
       <p className="text-xs text-secondary opacity-60">
-        Press <kbd className="font-mono bg-control px-1 py-px rounded text-[10px]">⌘↵</kbd> to run the query
+        Press <kbd className="font-mono bg-control px-1 py-px rounded text-[11px]">⌘↵</kbd> to run the query
       </p>
     </div>
   );
@@ -414,7 +414,7 @@ function ResultSection({
       {/* Section header */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-sidebar border-b border-separator shrink-0">
         {total > 1 && (
-          <span className="text-[10px] font-semibold text-secondary uppercase tracking-wide">
+          <span className="text-[11px] font-semibold text-secondary uppercase tracking-wide">
             {label}
           </span>
         )}
@@ -436,7 +436,7 @@ function ResultSection({
                 {result.rowsAffected} row{result.rowsAffected !== 1 ? "s" : ""} affected
               </span>
             )}
-            <span className="ml-auto text-[10px] text-secondary tabular-nums">
+            <span className="ml-auto text-[11px] text-secondary tabular-nums">
               {result.executionMs}ms
             </span>
           </>
@@ -474,7 +474,7 @@ function ErrorSummary({ error }: { error: import("./types").QueryError }) {
           {error.message}
         </span>
         {error.code && (
-          <span className="text-[10px] text-query-failed/70 font-mono">{error.code}</span>
+          <span className="text-[11px] text-query-failed/70 font-mono">{error.code}</span>
         )}
       </div>
     </div>
@@ -856,7 +856,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
 
         {/* Total execution time */}
         {hasResults && runState === "idle" && (
-          <span className="text-[10px] text-secondary tabular-nums">
+          <span className="text-[11px] text-secondary tabular-nums">
             {results.reduce((sum, r) => sum + r.executionMs, 0).toLocaleString()}ms
           </span>
         )}

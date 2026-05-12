@@ -71,7 +71,7 @@ export function SavedQueriesSection() {
         <p className="text-xs text-secondary leading-snug">
           No saved queries yet.
         </p>
-        <p className="text-[11px] text-tertiary mt-0.5 leading-snug">
+        <p className="text-[12px] text-tertiary mt-0.5 leading-snug">
           Run a query and press Save (⌘S).
         </p>
       </div>

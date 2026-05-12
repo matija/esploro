@@ -187,10 +187,10 @@ function ConnectionRow({
 
         {/* Name + meta */}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] text-label truncate leading-[1.4]">
+          <div className="text-[14px] text-label truncate leading-[1.4]">
             {profile.displayName}
           </div>
-          <div className="text-[11px] text-tertiary truncate leading-[1.4]">
+          <div className="text-[12px] text-tertiary truncate leading-[1.4]">
             {profile.username}@{hostLabel}/{profile.database}
           </div>
         </div>
@@ -440,7 +440,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
         </div>
         <div>
           <p className="text-xs font-medium text-label">No connections</p>
-          <p className="text-[11px] text-tertiary mt-0.5 leading-snug">
+          <p className="text-[12px] text-tertiary mt-0.5 leading-snug">
             Add a PostgreSQL or MySQL database to get started
           </p>
         </div>

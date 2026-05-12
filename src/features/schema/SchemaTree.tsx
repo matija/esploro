@@ -196,7 +196,7 @@ function TreeRow({
               e.stopPropagation();
               node.onRetry?.();
             }}
-            className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-query-failed hover:bg-query-failed/10 active:bg-query-failed/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-query-failed/30"
+            className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-query-failed hover:bg-query-failed/10 active:bg-query-failed/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-query-failed/30"
           >
             <RotateCw size={9} />
             Retry
@@ -234,7 +234,7 @@ function TreeRow({
         {def.isNullable && !def.isPrimaryKey && (
           <ColBadge label="?" color="gray" />
         )}
-        <span className="text-[10px] text-secondary shrink-0 ml-0.5">
+        <span className="text-[11px] text-secondary shrink-0 ml-0.5">
           {def.dataType}
         </span>
       </div>
@@ -347,7 +347,7 @@ function TreeRow({
         className={cn(
           "text-xs text-label truncate flex-1 min-w-0",
           node.kind === "group" &&
-            "text-secondary text-[10px] uppercase tracking-wide",
+            "text-secondary text-[11px] uppercase tracking-wide",
         )}
       >
         {label}
@@ -384,7 +384,7 @@ function TreeRow({
       {/* Secondary — hidden when inline actions are showing */}
       {secondary && (
         <span className={cn(
-          "text-[10px] text-secondary shrink-0 ml-1",
+          "text-[11px] text-secondary shrink-0 ml-1",
           hasInlineActions && "group-hover:hidden",
         )}>
           {secondary}

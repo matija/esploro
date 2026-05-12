@@ -60,7 +60,7 @@ function DensityCard({
               rowClass,
             )}
           >
-            <span className="truncate font-mono text-[10px] text-secondary">
+            <span className="truncate font-mono text-[11px] text-secondary">
               {row}
             </span>
           </div>
@@ -69,13 +69,13 @@ function DensityCard({
       <div className="flex items-center justify-between">
         <span
           className={cn(
-            "text-[12px] font-medium",
+            "text-[13px] font-medium",
             active ? "text-accent" : "text-label",
           )}
         >
           {label}
         </span>
-        <span className="text-[11px] text-tertiary">{description}</span>
+        <span className="text-[12px] text-tertiary">{description}</span>
       </div>
     </button>
   );
@@ -88,16 +88,16 @@ export function DataGridSettings() {
   return (
     <section className="flex flex-col gap-6">
       <div>
-        <h3 className="text-[11px] font-medium text-secondary uppercase mb-1">
+        <h3 className="text-[12px] font-medium text-secondary uppercase mb-1">
           Data Grid
         </h3>
-        <p className="text-[12px] text-tertiary">
+        <p className="text-[13px] text-tertiary">
           Display settings for table and query result views.
         </p>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
           <span className="text-accent">
             <AlignJustify size={13} />
           </span>
@@ -113,13 +113,13 @@ export function DataGridSettings() {
             />
           ))}
         </div>
-        <p className="text-[11px] text-tertiary">
+        <p className="text-[12px] text-tertiary">
           Takes effect when a table is next opened or queried.
         </p>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
           <span className="text-accent">
             <Table2 size={13} />
           </span>
@@ -132,7 +132,7 @@ export function DataGridSettings() {
               type="button"
               onClick={() => setGridPageSize(size)}
               className={cn(
-                "h-7 min-w-[2.5rem] rounded-[var(--radius-control)] px-2 text-[12px]",
+                "h-7 min-w-[2.5rem] rounded-[var(--radius-control)] px-2 text-[13px]",
                 "transition-colors duration-[var(--motion-fast)]",
                 gridPageSize === size
                   ? "bg-content text-label shadow-sm font-medium"
@@ -143,13 +143,13 @@ export function DataGridSettings() {
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-tertiary">
+        <p className="text-[12px] text-tertiary">
           Number of rows fetched and displayed per page.
         </p>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
           <span className="text-accent">
             <Hash size={13} />
           </span>
@@ -159,7 +159,7 @@ export function DataGridSettings() {
           type="button"
           onClick={() => setShowTotalCount(!showTotalCount)}
           className={cn(
-            "flex items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-[12px]",
+            "flex items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-[13px]",
             "transition-colors duration-[var(--motion-fast)]",
             showTotalCount
               ? "border-accent bg-accent/8 shadow-[0_0_0_1px_var(--ds-accent)] text-accent"
@@ -174,7 +174,7 @@ export function DataGridSettings() {
           </span>
           Show total row count
         </button>
-        <p className="text-[11px] text-tertiary">
+        <p className="text-[12px] text-tertiary">
           Runs COUNT(*) on each table open. Disable for very large tables where counts are slow.
         </p>
       </div>

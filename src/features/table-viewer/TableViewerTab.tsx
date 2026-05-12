@@ -77,7 +77,7 @@ function CellRenderer({ cell }: { cell: CellValue }) {
     const raw = JSON.stringify(cell.v);
     const preview = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
     return (
-      <span className="font-mono text-[11px] text-data-json truncate block" title={raw}>
+      <span className="font-mono text-[12px] text-data-json truncate block" title={raw}>
         {preview}
       </span>
     );
@@ -532,7 +532,7 @@ function CellContextMenu({
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
         Copy Column Name
-        <span className="ml-auto font-mono text-tertiary text-[10px] pl-2 truncate max-w-[100px]">
+        <span className="ml-auto font-mono text-tertiary text-[11px] pl-2 truncate max-w-[100px]">
           {colName}
         </span>
       </button>
@@ -557,7 +557,7 @@ function CellContextMenu({
         >
           <Filter size={10} className="text-secondary shrink-0" />
           <span>Filter by this value</span>
-          <span className="ml-auto font-mono text-tertiary text-[10px] truncate max-w-[80px]">
+          <span className="ml-auto font-mono text-tertiary text-[11px] truncate max-w-[80px]">
             {cellValue.length > 20 ? cellValue.slice(0, 20) + "…" : cellValue}
           </span>
         </button>
@@ -904,7 +904,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             <span className="text-label font-medium">{ctx.table}</span>
           </span>
           {ctx.database && (
-            <span className="text-[11px] text-tertiary shrink-0 pl-1 border-l border-separator">
+            <span className="text-[12px] text-tertiary shrink-0 pl-1 border-l border-separator">
               {ctx.database}
             </span>
           )}

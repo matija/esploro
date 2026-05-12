@@ -117,7 +117,6 @@ function canPersist(preferences: UiPreferences): boolean {
   return (
     isFontStackValid(preferences.ui.fontFamily) &&
     isFontStackValid(preferences.editor.fontFamily) &&
-    isInRange(preferences.ui.fontSize, uiPreferenceRanges.uiFontSize) &&
     isInRange(preferences.editor.fontSize, uiPreferenceRanges.editorFontSize) &&
     isInRange(preferences.editor.lineHeight, uiPreferenceRanges.editorLineHeight)
   );
@@ -194,7 +193,6 @@ export function AppearanceSettings() {
 
   const uiFontInvalid = !isFontStackValid(preferences.ui.fontFamily);
   const editorFontInvalid = !isFontStackValid(preferences.editor.fontFamily);
-  const uiSizeInvalid = !isInRange(preferences.ui.fontSize, uiPreferenceRanges.uiFontSize);
   const editorSizeInvalid = !isInRange(
     preferences.editor.fontSize,
     uiPreferenceRanges.editorFontSize,
@@ -249,22 +247,6 @@ export function AppearanceSettings() {
           updatePreferences((current) => ({
             ...current,
             ui: { ...current.ui, fontFamily },
-          }))
-        }
-      />
-
-      <RangeControl
-        label="Interface size"
-        value={preferences.ui.fontSize}
-        min={uiPreferenceRanges.uiFontSize.min}
-        max={uiPreferenceRanges.uiFontSize.max}
-        step={1}
-        invalid={uiSizeInvalid}
-        suffix="px"
-        onChange={(fontSize) =>
-          updatePreferences((current) => ({
-            ...current,
-            ui: { ...current.ui, fontSize },
           }))
         }
       />

@@ -46,13 +46,13 @@ function WelcomeView() {
         </p>
         <p className="text-xs text-tertiary leading-relaxed">
           Press{" "}
-          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[11px]">
+          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[13px]">
             ⌘K
           </kbd>{" "}
           to search tables and commands
           <br />
           or{" "}
-          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[11px]">
+          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[13px]">
             ⌘T
           </kbd>{" "}
           to open a new query
@@ -92,7 +92,7 @@ function StatusBar() {
   return (
     <div
       data-tauri-drag-region
-      className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[11px] text-tertiary shrink-0 select-none"
+      className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[13px] text-tertiary shrink-0 select-none"
     >
       {/* Left: connection + database */}
       <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -140,7 +140,7 @@ function StatusBar() {
 }
 
 const toolbarBtnClass =
-  "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[11px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
+  "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[13px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
 
 function LicenseBadge() {
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -175,7 +175,7 @@ function LicenseBadge() {
       type="button"
       title={isLicensed ? `${tier} license active` : "No active license"}
       className={cn(
-        "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[11px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
+        "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[13px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
         isLicensed
           ? "bg-success/20 text-success hover:bg-success/30"
           : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900",
@@ -217,7 +217,7 @@ function LicenseBadge() {
           sideOffset={6}
           className={cn(
             "z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised px-3 py-2.5 shadow-[var(--shadow-popover)]",
-            "text-[12px] text-label space-y-1",
+            "text-[14px] text-label space-y-1",
             "animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
           )}
         >
@@ -229,7 +229,7 @@ function LicenseBadge() {
             <button
               type="button"
               onClick={openLicenseSettings}
-              className="text-accent hover:underline underline-offset-2 text-[11px]"
+              className="text-accent hover:underline underline-offset-2 text-[13px]"
             >
               Manage license…
             </button>
@@ -259,7 +259,7 @@ function Toolbar() {
       >
         <Search size={12} className="shrink-0 text-tertiary" />
         <span className="flex-1 text-left text-tertiary">Search…</span>
-        <kbd className="text-[11px] text-tertiary/60 font-mono">⌘K</kbd>
+        <kbd className="text-[13px] text-tertiary/60 font-mono">⌘K</kbd>
       </button>
       <button
         type="button"
@@ -472,6 +472,18 @@ export function AppShell() {
         setActiveTab(existing.id);
       } else {
         addTab({ type: "settings", title: "Appearance" });
+      }
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, [addTab, setActiveTab, tabs]);
+
+  useEffect(() => {
+    const unlisten = listen("menu:open-about", () => {
+      const existing = tabs.find((t) => t.type === "settings");
+      if (existing) {
+        setActiveTab(existing.id);
+      } else {
+        addTab({ type: "settings", title: "About" });
       }
     });
     return () => { void unlisten.then((fn) => fn()); };

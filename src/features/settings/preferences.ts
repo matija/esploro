@@ -49,10 +49,10 @@ export const uiPreferenceRanges = {
 
 export const defaultUiPreferences: UiPreferences = {
   ui: {
-    theme: "tairiki-light",
+    theme: "system",
     fontFamily:
-      '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
-    fontSize: 14,
+      '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
+    fontSize: 13,
   },
   editor: {
     fontFamily:

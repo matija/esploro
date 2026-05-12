@@ -42,7 +42,7 @@ pub fn run() {
         .setup(|app| {
             // Native macOS menu bar
             let app_submenu = SubmenuBuilder::new(app, "Esploro")
-                .about(None)
+                .item(&MenuItem::with_id(app, "about", "About Esploro", true, None::<&str>)?)
                 .separator()
                 .item(&MenuItem::with_id(
                     app,
@@ -89,6 +89,8 @@ pub fn run() {
             app.on_menu_event(|app, event| {
                 if event.id() == "settings" {
                     let _ = app.emit("menu:open-settings", ());
+                } else if event.id() == "about" {
+                    let _ = app.emit("menu:open-about", ());
                 }
             });
 

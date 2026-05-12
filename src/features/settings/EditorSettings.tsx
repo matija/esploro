@@ -16,16 +16,16 @@ export function EditorSettings() {
   return (
     <section className="flex flex-col gap-6">
       <div>
-        <h3 className="text-[11px] font-medium text-secondary uppercase mb-1">
+        <h3 className="text-[12px] font-medium text-secondary uppercase mb-1">
           Editor
         </h3>
-        <p className="text-[12px] text-tertiary">
+        <p className="text-[13px] text-tertiary">
           Behaviour settings for the SQL query editor.
         </p>
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
           <span className="text-accent">
             <Code2 size={13} />
           </span>
@@ -38,7 +38,7 @@ export function EditorSettings() {
               type="button"
               onClick={() => setEditorTabSize(size)}
               className={cn(
-                "h-7 w-10 rounded-[var(--radius-control)] text-[12px]",
+                "h-7 w-10 rounded-[var(--radius-control)] text-[13px]",
                 "transition-colors duration-[var(--motion-fast)]",
                 editorTabSize === size
                   ? "bg-content text-label shadow-sm font-medium"
@@ -49,14 +49,14 @@ export function EditorSettings() {
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-tertiary">
+        <p className="text-[12px] text-tertiary">
           Width of a tab character and the indent inserted when you press Tab.
         </p>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-secondary">
+          <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
             <span className="text-accent">
               <WrapText size={13} />
             </span>
@@ -82,7 +82,7 @@ export function EditorSettings() {
             />
           </button>
         </div>
-        <p className="text-[11px] text-tertiary">
+        <p className="text-[12px] text-tertiary">
           Wrap long lines at the editor boundary instead of scrolling
           horizontally.
         </p>

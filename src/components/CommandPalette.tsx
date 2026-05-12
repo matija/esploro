@@ -470,7 +470,7 @@ export function CommandPalette() {
             {isSchemaLoading && (
               <Loader2 size={12} className="text-[var(--text-tertiary,var(--color-text-secondary))] animate-spin shrink-0" />
             )}
-            <kbd className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))] bg-[var(--surface-inset,var(--color-bg-subtle))] px-1.5 py-0.5 rounded font-mono shrink-0 border border-[var(--border-subtle,var(--color-border))]">
+            <kbd className="text-[11px] text-[var(--text-tertiary,var(--color-text-secondary))] bg-[var(--surface-inset,var(--color-bg-subtle))] px-1.5 py-0.5 rounded font-mono shrink-0 border border-[var(--border-subtle,var(--color-border))]">
               ESC
             </kbd>
           </div>
@@ -537,7 +537,7 @@ export function CommandPalette() {
                       )}
                     </span>
                     {cmd.shortcut && (
-                      <kbd className="ml-auto shrink-0 text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))] font-mono">
+                      <kbd className="ml-auto shrink-0 text-[11px] text-[var(--text-tertiary,var(--color-text-secondary))] font-mono">
                         {cmd.shortcut}
                       </kbd>
                     )}
@@ -549,13 +549,13 @@ export function CommandPalette() {
 
           {/* Footer hint */}
           <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--border-subtle,var(--color-border))]">
-            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+            <span className="text-[11px] text-[var(--text-tertiary,var(--color-text-secondary))]">
               <kbd className="font-mono">↑↓</kbd> navigate
             </span>
-            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+            <span className="text-[11px] text-[var(--text-tertiary,var(--color-text-secondary))]">
               <kbd className="font-mono">↵</kbd> select
             </span>
-            <span className="text-[10px] text-[var(--text-tertiary,var(--color-text-secondary))]">
+            <span className="text-[11px] text-[var(--text-tertiary,var(--color-text-secondary))]">
               <kbd className="font-mono">ESC</kbd> close
             </span>
           </div>
@@ -568,7 +568,7 @@ export function CommandPalette() {
 function GroupHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 px-3 pt-3 pb-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary,var(--color-text-secondary))] leading-none">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary,var(--color-text-secondary))] leading-none">
         {label}
       </span>
       <div className="flex-1 h-px bg-[var(--border-subtle,var(--color-border))]" />
