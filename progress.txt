@@ -1,3 +1,18 @@
+## Phase 49 — App Updater: Phase 4 Frontend [DONE]
+- Implemented "Check for Updates" UI per PRD Phase 4.
+- src/features/updates/UpdateSheet.tsx (new):
+  - Right-side sheet (matches LicenseActivationSheet pattern).
+  - Shows current → new version, release notes (capped at 500 chars).
+  - "Download & Install" triggers `install_update` command; listens on `update:progress` events to drive progress bar.
+  - Post-install: button changes to "Restart to Apply" which calls `relaunch()` from `@tauri-apps/plugin-process`.
+  - "Later" dismiss button; close blocked while installing.
+- src/features/settings/AboutSettings.tsx:
+  - Added "Check for Updates" button below license row with full state machine:
+    idle → checking → up-to-date | update-found | error.
+  - Up-to-date and error states auto-reset to idle after 5s.
+  - update-found re-opens the sheet on click.
+- tsc --noEmit passes cleanly.
+
 ## Phase 48 — App Updater: Phase 3 Rust Commands [DONE]
 - Implemented `check_for_update` and `install_update` Tauri commands per PRD Phase 3.
 - src-tauri/src/commands/updater.rs (new):
