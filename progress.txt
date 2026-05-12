@@ -1,3 +1,14 @@
+## Phase 48 — App Updater: Phase 3 Rust Commands [DONE]
+- Implemented `check_for_update` and `install_update` Tauri commands per PRD Phase 3.
+- src-tauri/src/commands/updater.rs (new):
+  - `check_for_update`: calls `app.updater().check()` and returns `Option<UpdateInfo>` (version + notes).
+  - `install_update`: re-checks for update, then calls `download_and_install` with a progress closure
+    that accumulates downloaded bytes via `AtomicUsize` and emits `update:progress { downloaded, total }`
+    window events for the frontend progress bar.
+- src-tauri/src/commands/mod.rs: added `pub mod updater`.
+- src-tauri/src/lib.rs: registered `check_for_update` and `install_update` in `invoke_handler!`.
+- cargo clippy passes cleanly.
+
 ## Phase 47 — App Updater: Phase 2 Plugin Integration [DONE]
 - Wired tauri-plugin-updater into the project (no commands or UI yet).
 - src-tauri/Cargo.toml: added `tauri-plugin-updater = "2"`.
