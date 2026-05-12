@@ -177,14 +177,14 @@ function LicenseBadge() {
       className={cn(
         "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[11px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
         isLicensed
-          ? "bg-success/15 text-success hover:bg-success/25"
-          : "bg-amber-100/60 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100/90 dark:hover:bg-amber-900/50",
+          ? "bg-success/20 text-success hover:bg-success/30"
+          : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900",
       )}
     >
       <span
         className={cn(
           "w-1 h-1 rounded-full shrink-0",
-          isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-400",
+          isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-500",
         )}
       />
       {isLicensed ? tier : "Unlicensed"}
@@ -216,7 +216,7 @@ function LicenseBadge() {
           align="end"
           sideOffset={6}
           className={cn(
-            "z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-elevated px-3 py-2.5 shadow-[var(--shadow-popover)]",
+            "z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised px-3 py-2.5 shadow-[var(--shadow-popover)]",
             "text-[12px] text-label space-y-1",
             "animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
           )}
@@ -259,7 +259,7 @@ function Toolbar() {
       >
         <Search size={12} className="shrink-0 text-tertiary" />
         <span className="flex-1 text-left text-tertiary">Search…</span>
-        <kbd className="text-[10px] text-tertiary/60 font-mono">⌘K</kbd>
+        <kbd className="text-[11px] text-tertiary/60 font-mono">⌘K</kbd>
       </button>
       <button
         type="button"

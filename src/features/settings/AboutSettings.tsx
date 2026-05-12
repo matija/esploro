@@ -93,7 +93,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         <button
           type="button"
           onClick={() => void openUrl("https://matija.eu")}
-          className="flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
+          className="flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
         >
           Built by Matija Munjaković
           <ExternalLink size={11} className="text-tertiary" />
@@ -109,7 +109,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         <button
           type="button"
           onClick={() => void openUrl("https://github.com/matija/esploro")}
-          className="flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
+          className="flex items-center gap-1.5 text-[13px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
         >
           Source on GitHub
           <ExternalLink size={11} className="text-tertiary" />
@@ -122,7 +122,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
       {/* License row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[12px] text-secondary">License</span>
+          <span className="text-[13px] text-secondary">License</span>
           <span className="inline-flex items-center rounded-full border border-separator bg-sidebar px-2 py-0.5 text-[11px] font-medium text-label">
             {licenseLabel}
           </span>
@@ -130,7 +130,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         <button
           type="button"
           onClick={onNavigateToLicense}
-          className="text-[12px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)]"
+          className="text-[13px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)]"
         >
           Manage →
         </button>
@@ -141,7 +141,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
 
       {/* Check for Updates */}
       <div className="flex items-center justify-between">
-        <span className="text-[12px] text-secondary">Updates</span>
+        <span className="text-[13px] text-secondary">Updates</span>
         <button
           type="button"
           onClick={() => {
@@ -152,7 +152,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
             }
           }}
           disabled={checkState === "checking" || checkState === "up-to-date"}
-          className="text-[12px] text-accent hover:text-accent/80 disabled:text-tertiary
+          className="text-[13px] text-accent hover:text-accent/80 disabled:text-tertiary
             disabled:cursor-default transition-colors duration-[var(--motion-fast)]"
         >
           {checkButtonLabel}
