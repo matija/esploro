@@ -1,3 +1,18 @@
+## Phase 52 — Font size legibility pass [DONE]
+- Implemented PRD item 4 (font size legibility pass), scoped to AboutSettings.tsx and AppShell.tsx.
+- Size scale applied: primary labels/actions text-[12px] → text-[13px]; micro kbd shortcut text-[10px] → text-[11px].
+- src/features/settings/AboutSettings.tsx:
+  - "Built by Matija Munjaković" and "Source on GitHub" links: 12px → 13px (primary action links).
+  - "License" and "Updates" section labels: 12px → 13px (primary labels).
+  - "Manage →" and "Check for Updates" buttons: 12px → 13px (primary actions).
+  - Description body text, version number, "A Tandoku product" link (context/secondary): unchanged at 12px.
+  - License tier badge: unchanged at 11px.
+- src/components/AppShell.tsx:
+  - Toolbar ⌘K kbd shortcut hint: 10px → 11px (micro → standard tertiary size).
+  - LicenseBadge (already 11px after Phase 50), StatusBar and toolbarBtnClass (11px, tertiary/metadata): unchanged.
+- LicenseBanner.tsx and LicenseSettings.tsx: use Tailwind standard classes (text-xs, text-sm), no arbitrary px → no changes needed.
+- Checks passed: tsc --noEmit, eslint.
+
 ## Phase 51 — License badge click behavior [DONE]
 - Implemented PRD item 3 (license badge click behavior).
 - src/components/AppShell.tsx:
