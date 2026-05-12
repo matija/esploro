@@ -1,3 +1,16 @@
+## Phase 47 — App Updater: Phase 2 Plugin Integration [DONE]
+- Wired tauri-plugin-updater into the project (no commands or UI yet).
+- src-tauri/Cargo.toml: added `tauri-plugin-updater = "2"`.
+- src-tauri/tauri.conf.json:
+  - `bundle.createUpdaterArtifacts: true` to produce .sig files on build.
+  - Added `plugins.updater` block with pubkey placeholder and GitHub releases endpoint.
+- src-tauri/capabilities/default.json: added `updater:default` permission.
+- src-tauri/src/lib.rs: registered `.plugin(tauri_plugin_updater::Builder::new().build())`.
+- package.json: added `@tauri-apps/plugin-updater` and `@tauri-apps/plugin-process`.
+- NOTE: pubkey in tauri.conf.json is a placeholder — Phase 1 key generation must be done
+  manually (`npm run tauri signer generate`) and the real public key pasted in before shipping.
+- cargo check passes cleanly.
+
 ## Phase 46 — N2: Stale data indicator in table viewer toolbar [DONE]
 - Implemented PRD Performance fix N2: subtle last-fetched label on the Refresh button.
 - src/features/table-viewer/TableViewerTab.tsx:
