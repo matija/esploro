@@ -100,11 +100,11 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => void openUrl("https://matija.eu/tools")}
-          className="flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
+          onClick={() => void openUrl("https://tandoku.hr")}
+          className="flex items-center gap-1.5 text-[12px] text-tertiary hover:text-secondary transition-colors duration-[var(--motion-fast)] w-fit"
         >
-          More tools at matija.eu/tools
-          <ExternalLink size={11} className="text-tertiary" />
+          A Tandoku product
+          <ExternalLink size={11} className="opacity-60" />
         </button>
         <button
           type="button"

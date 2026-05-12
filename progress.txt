@@ -1,3 +1,11 @@
+## Phase 50 — About screen: Tandoku attribution [DONE]
+- Implemented PRD item 1 (About screen company attribution).
+- src/features/settings/AboutSettings.tsx:
+  - Replaced "More tools at matija.eu/tools" link with "A Tandoku product" link to tandoku.hr.
+  - Used text-tertiary/hover:text-secondary styling (dimmer than the personal link) to signal "context" not "action".
+  - "Built by Matija Munjaković" and "Source on GitHub" links unchanged.
+- tsc --noEmit passes cleanly.
+
 ## Phase 49 — App Updater: Phase 4 Frontend [DONE]
 - Implemented "Check for Updates" UI per PRD Phase 4.
 - src/features/updates/UpdateSheet.tsx (new):
