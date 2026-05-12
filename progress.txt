@@ -1218,3 +1218,11 @@
 - Removed CHECKOUT_BASE, LIFETIME_PRODUCT_ID, ANNUAL_PRODUCT_ID, CHECKOUT_COUNTRY_CODE constants
 - Removed 3 unit tests that tested the deleted URL construction logic
 - All CI checks pass (cargo clippy, tsc --noEmit, eslint)
+
+## PRD: License Badge Visibility (Phase 50) [DONE]
+- LicenseBadge in AppShell.tsx: h-[18px]/text-[10px] → h-[20px]/text-[11px]
+- Unlicensed state: amber tint (bg-amber-100/60 dark:bg-amber-900/30, text-amber-700 dark:text-amber-300)
+  to create a mild "needs attention" signal, consistent with LicenseBanner amber style
+- Unlicensed dot indicator: bg-tertiary/50 → bg-amber-500 dark:bg-amber-400
+- Licensed states (Personal/Commercial): green palette unchanged, just larger
+- All CI checks pass (tsc --noEmit, eslint)
