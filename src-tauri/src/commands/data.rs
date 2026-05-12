@@ -875,7 +875,7 @@ fn pg_native_udt(udt: &str) -> bool {
         "bool" | "boolean"
             | "int2" | "int4" | "int8"
             | "float4" | "float8"
-            | "text" | "varchar" | "bpchar" | "char" | "name" | "citext" | "uuid"
+            | "text" | "varchar" | "bpchar" | "char" | "name" | "citext"
             | "json" | "jsonb"
     )
 }
@@ -898,8 +898,9 @@ fn pg_cell_value(row: &tokio_postgres::Row, i: usize, udt: &str) -> CellValue {
         "float4" => get_opt!(f32, |v: f32| CellValue::Float(v as f64)),
         "float8" => get_opt!(f64, CellValue::Float),
         "json" | "jsonb" => get_opt!(serde_json::Value, CellValue::Json),
-        // text-like types: String FromSql works for text, varchar, bpchar, char, name, citext, uuid
-        "text" | "varchar" | "bpchar" | "char" | "name" | "citext" | "uuid" => {
+        // text-like types: String FromSql works for these OIDs
+        // uuid is not here — it arrives as ::text via the SELECT cast and is handled by the _ arm
+        "text" | "varchar" | "bpchar" | "char" | "name" | "citext" => {
             get_opt!(String, CellValue::Text)
         }
         // Everything else was cast ::text in the SELECT; read as Other.
