@@ -1,8 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import appIconUrl from "../../assets/app-icon.png";
 import { licenseApi, LICENSE_STATUS_KEY } from "../license/api";
+import { UpdateSheet } from "../updates/UpdateSheet";
+
+interface UpdateInfo {
+  version: string;
+  notes: string | null;
+}
 
 async function openUrl(url: string) {
   await invoke("open_url", { url });
@@ -11,6 +18,8 @@ async function openUrl(url: string) {
 interface Props {
   onNavigateToLicense: () => void;
 }
+
+type CheckState = "idle" | "checking" | "up-to-date" | "update-found" | "error";
 
 export function AboutSettings({ onNavigateToLicense }: Props) {
   const { data: status } = useQuery({
@@ -25,6 +34,39 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
       : status?.tier === "Personal"
         ? "Personal"
         : "Unlicensed";
+
+  const [checkState, setCheckState] = useState<CheckState>("idle");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (resetTimerRef.current) clearTimeout(resetTimerRef.current); }, []);
+
+  async function handleCheckForUpdates() {
+    if (checkState === "checking") return;
+    setCheckState("checking");
+    try {
+      const info = await invoke<UpdateInfo | null>("check_for_update");
+      if (info) {
+        setUpdateInfo(info);
+        setCheckState("update-found");
+        setSheetOpen(true);
+      } else {
+        setCheckState("up-to-date");
+        resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
+      }
+    } catch {
+      setCheckState("error");
+      resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
+    }
+  }
+
+  const checkButtonLabel =
+    checkState === "checking" ? "Checking…"
+    : checkState === "up-to-date" ? `Up to date — ${__APP_VERSION__}`
+    : checkState === "update-found" ? "Update available"
+    : checkState === "error" ? "Check failed"
+    : "Check for Updates";
 
   return (
     <section className="flex flex-col gap-6">
@@ -93,6 +135,39 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
           Manage →
         </button>
       </div>
+
+      {/* Separator */}
+      <div className="border-t border-separator" />
+
+      {/* Check for Updates */}
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] text-secondary">Updates</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (checkState === "update-found") {
+              setSheetOpen(true);
+            } else {
+              void handleCheckForUpdates();
+            }
+          }}
+          disabled={checkState === "checking" || checkState === "up-to-date"}
+          className="text-[12px] text-accent hover:text-accent/80 disabled:text-tertiary
+            disabled:cursor-default transition-colors duration-[var(--motion-fast)]"
+        >
+          {checkButtonLabel}
+        </button>
+      </div>
+
+      {updateInfo && (
+        <UpdateSheet
+          open={sheetOpen}
+          currentVersion={__APP_VERSION__}
+          updateVersion={updateInfo.version}
+          notes={updateInfo.notes}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
     </section>
   );
 }
