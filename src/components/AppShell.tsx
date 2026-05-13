@@ -17,7 +17,7 @@ import {
   licenseApi,
   LICENSE_STATUS_KEY,
 } from "../features/license";
-import { SettingsView } from "../features/settings";
+import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -149,11 +149,12 @@ function LicenseBadge() {
     queryFn: licenseApi.getStatus,
     staleTime: 60_000,
   });
-  const { addTab, tabs, setActiveTab } = useAppStore(
+  const { addTab, tabs, setActiveTab, updateTabTitle } = useAppStore(
     useShallow((state) => ({
       addTab: state.addTab,
       tabs: state.tabs,
       setActiveTab: state.setActiveTab,
+      updateTabTitle: state.updateTabTitle,
     })),
   );
 
@@ -163,9 +164,10 @@ function LicenseBadge() {
   function openLicenseSettings() {
     const existing = tabs.find((t) => t.type === "settings");
     if (existing) {
+      updateTabTitle(existing.id, "Licensing");
       setActiveTab(existing.id);
     } else {
-      addTab({ type: "settings", title: "License" });
+      addTab({ type: "settings", title: "Licensing" });
     }
     setPopoverOpen(false);
   }
@@ -241,9 +243,12 @@ function LicenseBadge() {
 }
 
 function Toolbar() {
-  const { addTab, activeSessions, setCommandPaletteOpen } = useAppStore(
+  const { addTab, tabs, setActiveTab, updateTabTitle, activeSessions, setCommandPaletteOpen } = useAppStore(
     useShallow((state) => ({
       addTab: state.addTab,
+      tabs: state.tabs,
+      setActiveTab: state.setActiveTab,
+      updateTabTitle: state.updateTabTitle,
       activeSessions: state.activeSessions,
       setCommandPaletteOpen: state.setCommandPaletteOpen,
     })),
@@ -274,7 +279,11 @@ function Toolbar() {
       </button>
       <button
         type="button"
-        onClick={() => addTab({ type: "settings", title: "Appearance" })}
+        onClick={() => {
+          const existing = tabs.find((t) => t.type === "settings");
+          if (existing) { updateTabTitle(existing.id, "Appearance"); setActiveTab(existing.id); }
+          else { addTab({ type: "settings", title: "Appearance" }); }
+        }}
         className={toolbarBtnClass}
         title="Settings (⌘,)"
       >
@@ -292,6 +301,7 @@ export function AppShell() {
     addTab,
     closeTab,
     setActiveTab,
+    updateTabTitle,
     activeSessions,
     profiles,
     sidebarWidth,
@@ -308,6 +318,7 @@ export function AppShell() {
       addTab: state.addTab,
       closeTab: state.closeTab,
       setActiveTab: state.setActiveTab,
+      updateTabTitle: state.updateTabTitle,
       activeSessions: state.activeSessions,
       profiles: state.profiles,
       sidebarWidth: state.sidebarWidth,
@@ -392,11 +403,8 @@ export function AppShell() {
       if (!e.shiftKey && !e.altKey && e.key === ",") {
         e.preventDefault();
         const existing = tabs.find((t) => t.type === "settings");
-        if (existing) {
-          setActiveTab(existing.id);
-        } else {
-          addTab({ type: "settings", title: "Appearance" });
-        }
+        if (existing) { updateTabTitle(existing.id, "Appearance"); setActiveTab(existing.id); }
+        else { addTab({ type: "settings", title: "Appearance" }); }
         return;
       }
 
@@ -458,6 +466,7 @@ export function AppShell() {
     addTab,
     closeTab,
     setActiveTab,
+    updateTabTitle,
     setCommandPaletteOpen,
     setPendingNewConnection,
     activeTabId,
@@ -468,26 +477,20 @@ export function AppShell() {
   useEffect(() => {
     const unlisten = listen("menu:open-settings", () => {
       const existing = tabs.find((t) => t.type === "settings");
-      if (existing) {
-        setActiveTab(existing.id);
-      } else {
-        addTab({ type: "settings", title: "Appearance" });
-      }
+      if (existing) { updateTabTitle(existing.id, "Appearance"); setActiveTab(existing.id); }
+      else { addTab({ type: "settings", title: "Appearance" }); }
     });
     return () => { void unlisten.then((fn) => fn()); };
-  }, [addTab, setActiveTab, tabs]);
+  }, [addTab, setActiveTab, updateTabTitle, tabs]);
 
   useEffect(() => {
     const unlisten = listen("menu:open-about", () => {
       const existing = tabs.find((t) => t.type === "settings");
-      if (existing) {
-        setActiveTab(existing.id);
-      } else {
-        addTab({ type: "settings", title: "About" });
-      }
+      if (existing) { updateTabTitle(existing.id, "About"); setActiveTab(existing.id); }
+      else { addTab({ type: "settings", title: "About" }); }
     });
     return () => { void unlisten.then((fn) => fn()); };
-  }, [addTab, setActiveTab, tabs]);
+  }, [addTab, setActiveTab, updateTabTitle, tabs]);
 
   return (
     <ToastProvider>
@@ -529,7 +532,14 @@ export function AppShell() {
             {activeTab?.type === "table" && (
               <TableViewerTab tab={activeTab} />
             )}
-            {activeTab?.type === "settings" && <SettingsView initialSection={activeTab.title} />}
+            {activeTab?.type === "settings" && (
+              <SettingsView
+                section={TITLE_TO_SECTION[activeTab.title] ?? "appearance"}
+                onSectionChange={(s) =>
+                  updateTabTitle(activeTab.id, NAV_ITEMS.find((n) => n.id === s)!.label)
+                }
+              />
+            )}
           </main>
 
           <LicenseBanner />

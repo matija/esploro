@@ -110,6 +110,7 @@ interface AppState {
   setTabError: (id: string, isError: boolean) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
+  updateTabTitle: (id: string, title: string) => void;
 
   // Connections
   profiles: ConnectionProfile[];
@@ -306,6 +307,11 @@ export const useAppStore = create<AppState>()(
           const activeTabId = tabs.some((t) => t.id === s.activeTabId) ? s.activeTabId : id;
           return { tabs, activeTabId };
         }),
+
+      updateTabTitle: (id, title) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) => (t.id === id ? { ...t, title } : t)),
+        })),
 
       // Connections
       profiles: [],
