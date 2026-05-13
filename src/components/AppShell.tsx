@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Database, Loader2, Search, SquarePen, Settings } from "lucide-react";
+import { Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -18,6 +18,7 @@ import {
   LICENSE_STATUS_KEY,
 } from "../features/license";
 import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
+import { WelcomeView } from "../features/welcome/WelcomeView";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -31,36 +32,6 @@ import { cn } from "../lib/utils";
 import { ToastProvider } from "./Toast";
 import { ConfirmProvider } from "./ConfirmDialog";
 
-function WelcomeView() {
-  const activeSessions = useAppStore((state) => state.activeSessions);
-  const hasSession = Object.keys(activeSessions).length > 0;
-
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 h-full gap-4 text-secondary select-none">
-      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-        <Database size={20} className="text-accent" />
-      </div>
-      <div className="text-center space-y-2">
-        <p className="text-sm font-medium text-label">
-          {hasSession ? "Open something to get started" : "Connect to a database"}
-        </p>
-        <p className="text-xs text-tertiary leading-relaxed">
-          Press{" "}
-          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[13px]">
-            ⌘K
-          </kbd>{" "}
-          to search tables and commands
-          <br />
-          or{" "}
-          <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[13px]">
-            ⌘T
-          </kbd>{" "}
-          to open a new query
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function StatusBar() {
   const { tabs, activeTabId, profiles, activeSessions, lastAction } = useAppStore(
