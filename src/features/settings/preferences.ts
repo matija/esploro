@@ -49,7 +49,7 @@ export const uiPreferenceRanges = {
 
 export const defaultUiPreferences: UiPreferences = {
   ui: {
-    theme: "system",
+    theme: "tokyo-night",
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
     fontSize: 13,
