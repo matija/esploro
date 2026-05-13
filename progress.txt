@@ -1,3 +1,9 @@
+## PRD #4 — Default theme: Tokyo Night [DONE]
+- Changed defaultUiPreferences.ui.theme from "system" to "tokyo-night" in src/features/settings/preferences.ts:52.
+- Affects first-run users only; existing users with a stored theme see no change.
+- normalizeTheme fallback also returns this default, so corrupt/unknown stored values fall back to Tokyo Night.
+- tsc --noEmit passes cleanly.
+
 ## PRD #3 — Welcome screen redesign [DONE]
 - Extracted WelcomeView to src/features/welcome/WelcomeView.tsx (~55 lines).
 - Added large Database icon (size=40) in a rounded bg-accent/10 container.
