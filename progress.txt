@@ -1,3 +1,13 @@
+## PRD #1 — Dependency pinning [DONE]
+- Pinned all 42 packages in package.json to exact resolved versions (from npm ls --depth=0).
+  Stripped all ^ and ~ ranges from both dependencies and devDependencies.
+- Created .npmrc at project root with save-exact=true. This ensures future `npm install <pkg>`
+  writes exact versions instead of ^ ranges.
+- Note: min-release-age=7d was not added — npm 11.12.1 computes before=null internally and
+  crashes with "Invalid time value". Primary protections are exact pins + committed package-lock.json.
+- package-lock.json was already committed (verified via git ls-files).
+- npm install --dry-run after pinning reports "up to date" with no version changes.
+
 ## Phase 52 — Font size legibility pass [DONE]
 - Implemented PRD item 4 (font size legibility pass), scoped to AboutSettings.tsx and AppShell.tsx.
 - Size scale applied: primary labels/actions text-[12px] → text-[13px]; micro kbd shortcut text-[10px] → text-[11px].
@@ -1252,4 +1262,18 @@
   to create a mild "needs attention" signal, consistent with LicenseBanner amber style
 - Unlicensed dot indicator: bg-tertiary/50 → bg-amber-500 dark:bg-amber-400
 - Licensed states (Personal/Commercial): green palette unchanged, just larger
+- All CI checks pass (tsc --noEmit, eslint)
+
+## PRD #2 — Settings Tab Section Navigation [DONE]
+- Added updateTabTitle(id, title) to AppStore interface and store implementation (src/store/index.ts)
+- Extracted SettingsSection type, NAV_ITEMS, TITLE_TO_SECTION to src/features/settings/settingsNav.ts
+  (separate file to avoid react-refresh/only-export-components warnings)
+- Made SettingsView fully controlled: replaced useState with section/onSectionChange props (src/features/settings/SettingsView.tsx)
+- All three callers now updateTabTitle before setActiveTab when Settings tab already exists:
+  - menu:open-about listener → "About"
+  - menu:open-settings listener and ⌘, keyboard handler → "Appearance"
+  - Settings toolbar button → "Appearance"
+  - LicenseBadge.openLicenseSettings → "Licensing"
+- SettingsView render site in AppShell drives section from TITLE_TO_SECTION[activeTab.title]
+  and onSectionChange updates the tab title via updateTabTitle, so sidebar clicks update tab bar title
 - All CI checks pass (tsc --noEmit, eslint)
