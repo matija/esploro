@@ -1,3 +1,12 @@
+## PRD #3 — Welcome screen redesign [DONE]
+- Extracted WelcomeView to src/features/welcome/WelcomeView.tsx (~55 lines).
+- Added large Database icon (size=40) in a rounded bg-accent/10 container.
+- Added "Esploro" heading (text-xl font-semibold) and "A fast PostgreSQL & MySQL client" subtitle (text-sm text-tertiary).
+- Added 3-row shortcut grid inside a bg-control/40 rounded card: ⌘K Search, ⌘T New query, ⌘N New connection.
+- Added "Connect to a database" pill button (bg-accent, full-rounded) visible only when no session is active; calls setPendingNewConnection(true).
+- Removed inline WelcomeView from AppShell.tsx; AppShell now imports from the new file.
+- tsc --noEmit passes cleanly.
+
 ## PRD #1 — Dependency pinning [DONE]
 - Pinned all 42 packages in package.json to exact resolved versions (from npm ls --depth=0).
   Stripped all ^ and ~ ranges from both dependencies and devDependencies.
