@@ -25,3 +25,4 @@ mysql_async = { version = "0.34", features = [] }
 keyring = "2"
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

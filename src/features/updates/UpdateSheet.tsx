@@ -19,7 +19,7 @@ interface Props {
 }
 
 export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClose }: Props) {
-  const [phase, setPhase] = useState<'idle' | 'installing' | 'done' | 'error'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'installing' | 'done' | 'restarting' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +54,23 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
     }
   }
 
+  async function handleRelaunch() {
+    setPhase('restarting');
+    setError(null);
+
+    try {
+      await relaunch();
+    } catch (e) {
+      setError(`Failed to restart: ${String(e)}`);
+      setPhase('done');
+    }
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && phase !== 'installing' && onClose()}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(v) => !v && phase !== 'installing' && phase !== 'restarting' && onClose()}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content
@@ -71,7 +86,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
               <button
                 className="p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40"
                 title="Close"
-                disabled={phase === 'installing'}
+                disabled={phase === 'installing' || phase === 'restarting'}
               >
                 <X size={14} />
               </button>
@@ -109,13 +124,14 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
             {error && <p className="text-xs text-destructive">{error}</p>}
 
             <div className="flex gap-2 mt-auto">
-              {phase === 'done' ? (
+              {phase === 'done' || phase === 'restarting' ? (
                 <button
-                  onClick={() => void relaunch()}
+                  onClick={() => void handleRelaunch()}
+                  disabled={phase === 'restarting'}
                   className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-white
-                    hover:bg-accent/90 active:bg-accent/80 transition-colors"
+                    disabled:opacity-40 hover:bg-accent/90 active:bg-accent/80 transition-colors"
                 >
-                  Restart to Apply
+                  {phase === 'restarting' ? 'Restarting…' : 'Restart to Apply'}
                 </button>
               ) : (
                 <button
