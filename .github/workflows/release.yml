@@ -71,3 +71,45 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  update-homebrew-tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute version and DMG SHA256
+        id: meta
+        run: |
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG#v}
+          URL="https://github.com/matija/esploro/releases/download/${TAG}/Esploro_${VERSION}_aarch64.dmg"
+          SHA=$(curl -fsSL "$URL" | sha256sum | awk '{print $1}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: matija/homebrew-esploro
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update Cask formula
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+          SHA=${{ steps.meta.outputs.sha256 }}
+          URL=${{ steps.meta.outputs.url }}
+          CASK=tap/Casks/esploro.rb
+          sed -i "s|version \".*\"|version \"$VERSION\"|" "$CASK"
+          sed -i "s|sha256 \".*\"|sha256 \"$SHA\"|" "$CASK"
+          sed -i "s|url \".*\"|url \"$URL\"|" "$CASK"
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/esploro.rb
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "bump esploro to ${{ steps.meta.outputs.version }}"
+          git push

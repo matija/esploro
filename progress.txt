@@ -1,3 +1,15 @@
+## PRD P1 — Homebrew tap automation [DONE]
+- Added homebrew/Casks/esploro.rb: Cask formula template for the matija/homebrew-esploro tap repo.
+  Copy this file into the tap repo under Casks/esploro.rb before first use.
+- Added update-homebrew-tap job to .github/workflows/release.yml:
+  - Runs after all matrix release builds succeed (needs: release).
+  - Downloads the ARM DMG, computes SHA256 via sha256sum, patches version/sha256/url in the Cask via sed.
+  - Commits and pushes to matija/homebrew-esploro using HOMEBREW_TAP_TOKEN secret.
+  - No-op if the Cask is already at the target version (git diff guard).
+- Manual prerequisite before first use: create matija/homebrew-esploro repo, add Casks/esploro.rb,
+  and add a HOMEBREW_TAP_TOKEN personal access token (Contents: write) to repo secrets.
+- Users install with: brew install matija/esploro/esploro
+
 ## PRD #4 — Default theme: Tokyo Night [DONE]
 - Changed defaultUiPreferences.ui.theme from "system" to "tokyo-night" in src/features/settings/preferences.ts:52.
 - Affects first-run users only; existing users with a stored theme see no change.
