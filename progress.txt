@@ -1292,3 +1292,18 @@
 - SettingsView render site in AppShell drives section from TITLE_TO_SECTION[activeTab.title]
   and onSectionChange updates the tab title via updateTabTitle, so sidebar clicks update tab bar title
 - All CI checks pass (tsc --noEmit, eslint)
+
+## PRD P0 — UUID / Typed Column Filter Fix [DONE]
+- Root cause: filter clauses used $p::{cast} (e.g. $1::uuid), causing PostgreSQL to infer
+  the parameter OID as uuid during the extended query describe phase. tokio-postgres then
+  tried to serialise &String against the UUID OID, which it doesn't implement → "error
+  serializing parameter".
+- Fix: changed all typed casts to $p::text::{cast} so PostgreSQL infers $p as text.
+  String serialises cleanly; PostgreSQL handles text→target-type coercion server-side.
+- Extracted shared build_pg_where_clause(filters, col_type_map) helper from query_table_pg
+  and count_table_pg — both functions now call the helper, eliminating the duplication that
+  could re-introduce the bug.
+- Added 8 unit tests in commands::data::tests covering: uuid eq, date gt, timestamptz lt,
+  boolean eq, numeric gte, text LIKE (unaffected path), IS NULL (no param), and multi-filter
+  sequential parameter numbering. All 16 tests pass (cargo test).
+- Only src-tauri/src/commands/data.rs changed.
