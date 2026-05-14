@@ -1,3 +1,12 @@
+## PRD P0 — UUID / typed column filter fix [DONE]
+- Extracted shared `build_pg_where_clause(filters, col_type_map)` helper in src-tauri/src/commands/data.rs.
+- All comparison operators (Eq, Neq, Gt, Lt, Gte, Lte) now emit `$p::text::{cast}` instead of `$p::{cast}`.
+  PostgreSQL infers `$p` as text during the extended query describe phase; &String serialises cleanly.
+- `Like`/`ILike` continue to cast the column side (`col::text`) and are unaffected.
+- Both `query_table_data` and `query_table_count` call the shared helper (no duplication).
+- Added 8 unit tests covering uuid, date, timestamptz, boolean, numeric, text, IS NULL, and multi-filter
+  param numbering. All 16 cargo tests pass. PRD updated to mark P0 fix as ✅ DONE.
+
 ## PRD P0 — Filter error UX: toast instead of full-page error [DONE]
 - When query_table_data fails and active filters are present, the error is now shown
   as a toast notification instead of replacing the entire table with a full-page error.
