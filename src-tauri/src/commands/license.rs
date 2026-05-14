@@ -699,20 +699,32 @@ pub async fn notify_connection_count(
     Ok(compute_status(&app, dismissed))
 }
 
+fn open_external(url: &str) -> std::io::Result<std::process::Child> {
+    #[cfg(target_os = "macos")]
+    return std::process::Command::new("open").arg(url).spawn();
+    #[cfg(target_os = "linux")]
+    return std::process::Command::new("xdg-open").arg(url).spawn();
+    #[cfg(target_os = "windows")]
+    return std::process::Command::new("cmd")
+        .args(["/c", "start", "", url])
+        .spawn();
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "opening URLs is not supported on this platform",
+    ));
+}
+
 #[tauri::command]
 pub fn open_customer_portal() -> Result<(), String> {
-    std::process::Command::new("open")
-        .arg(CUSTOMER_PORTAL_URL)
-        .spawn()
+    open_external(CUSTOMER_PORTAL_URL)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
-    std::process::Command::new("open")
-        .arg(&url)
-        .spawn()
+    open_external(&url)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
