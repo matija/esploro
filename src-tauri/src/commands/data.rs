@@ -122,6 +122,60 @@ pub struct ResultColumn {
     pub is_foreign_key: bool,
 }
 
+// ─── PG WHERE clause builder ─────────────────────────────────────────────────
+
+// Returns (where_clauses, param_values).
+// All typed casts use $p::text::{cast} so PostgreSQL infers $p as text during
+// the extended query describe phase, which &String serialises cleanly.
+fn build_pg_where_clause(
+    filters: &[ColumnFilter],
+    col_type_map: &HashMap<String, String>,
+) -> Result<(Vec<String>, Vec<String>), String> {
+    let mut param_values: Vec<String> = vec![];
+    let mut where_clauses: Vec<String> = vec![];
+
+    for filter in filters {
+        validate_identifier(&filter.column)?;
+        let col_q = format!("\"{}\"", filter.column);
+        let udt = col_type_map
+            .get(&filter.column)
+            .map(|s| s.as_str())
+            .unwrap_or("text");
+
+        let clause = match filter.operator {
+            FilterOperator::IsNull => format!("{col_q} IS NULL"),
+            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
+            FilterOperator::Like => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                let p = param_values.len();
+                format!("{col_q}::text LIKE ${p}")
+            }
+            FilterOperator::ILike => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                let p = param_values.len();
+                format!("{col_q}::text ILIKE ${p}")
+            }
+            _ => {
+                param_values.push(filter.value.clone().unwrap_or_default());
+                let p = param_values.len();
+                let cast = pg_cast_for_udt(udt);
+                match filter.operator {
+                    FilterOperator::Eq => format!("{col_q} = ${p}::text::{cast}"),
+                    FilterOperator::Neq => format!("{col_q} != ${p}::text::{cast}"),
+                    FilterOperator::Gt => format!("{col_q} > ${p}::text::{cast}"),
+                    FilterOperator::Lt => format!("{col_q} < ${p}::text::{cast}"),
+                    FilterOperator::Gte => format!("{col_q} >= ${p}::text::{cast}"),
+                    FilterOperator::Lte => format!("{col_q} <= ${p}::text::{cast}"),
+                    _ => unreachable!(),
+                }
+            }
+        };
+        where_clauses.push(clause);
+    }
+
+    Ok((where_clauses, param_values))
+}
+
 // ─── query_table_data / query_table_count ────────────────────────────────────
 
 enum PoolHandle {
@@ -255,47 +309,8 @@ async fn query_table_pg(
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
         .collect();
 
-    let mut param_values: Vec<String> = vec![];
-    let mut where_clauses: Vec<String> = vec![];
-
-    for filter in &request.filters {
-        validate_identifier(&filter.column)?;
-        let col_q = format!("\"{}\"", filter.column);
-        let udt = col_type_map
-            .get(&filter.column)
-            .map(|s| s.as_str())
-            .unwrap_or("text");
-
-        let clause = match filter.operator {
-            FilterOperator::IsNull => format!("{col_q} IS NULL"),
-            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
-            FilterOperator::Like => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                let p = param_values.len();
-                format!("{col_q}::text LIKE ${p}")
-            }
-            FilterOperator::ILike => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                let p = param_values.len();
-                format!("{col_q}::text ILIKE ${p}")
-            }
-            _ => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                let p = param_values.len();
-                let cast = pg_cast_for_udt(udt);
-                match filter.operator {
-                    FilterOperator::Eq => format!("{col_q} = ${p}::{cast}"),
-                    FilterOperator::Neq => format!("{col_q} != ${p}::{cast}"),
-                    FilterOperator::Gt => format!("{col_q} > ${p}::{cast}"),
-                    FilterOperator::Lt => format!("{col_q} < ${p}::{cast}"),
-                    FilterOperator::Gte => format!("{col_q} >= ${p}::{cast}"),
-                    FilterOperator::Lte => format!("{col_q} <= ${p}::{cast}"),
-                    _ => unreachable!(),
-                }
-            }
-        };
-        where_clauses.push(clause);
-    }
+    let (where_clauses, param_values) =
+        build_pg_where_clause(&request.filters, &col_type_map)?;
 
     let where_sql = if where_clauses.is_empty() {
         String::new()
@@ -391,43 +406,8 @@ async fn count_table_pg(
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
         .collect();
 
-    let mut param_values: Vec<String> = vec![];
-    let mut where_clauses: Vec<String> = vec![];
-    for filter in &request.filters {
-        validate_identifier(&filter.column)?;
-        let col_q = format!("\"{}\"", filter.column);
-        let udt = col_type_map
-            .get(&filter.column)
-            .map(|s| s.as_str())
-            .unwrap_or("text");
-        let clause = match filter.operator {
-            FilterOperator::IsNull => format!("{col_q} IS NULL"),
-            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
-            FilterOperator::Like => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                format!("{col_q}::text LIKE ${}", param_values.len())
-            }
-            FilterOperator::ILike => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                format!("{col_q}::text ILIKE ${}", param_values.len())
-            }
-            _ => {
-                param_values.push(filter.value.clone().unwrap_or_default());
-                let p = param_values.len();
-                let cast = pg_cast_for_udt(udt);
-                match filter.operator {
-                    FilterOperator::Eq => format!("{col_q} = ${p}::{cast}"),
-                    FilterOperator::Neq => format!("{col_q} != ${p}::{cast}"),
-                    FilterOperator::Gt => format!("{col_q} > ${p}::{cast}"),
-                    FilterOperator::Lt => format!("{col_q} < ${p}::{cast}"),
-                    FilterOperator::Gte => format!("{col_q} >= ${p}::{cast}"),
-                    FilterOperator::Lte => format!("{col_q} <= ${p}::{cast}"),
-                    _ => unreachable!(),
-                }
-            }
-        };
-        where_clauses.push(clause);
-    }
+    let (where_clauses, param_values) =
+        build_pg_where_clause(&request.filters, &col_type_map)?;
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
         .iter()
@@ -959,5 +939,107 @@ fn mysql_str(row: &mysql_async::Row, idx: usize) -> Option<String> {
             let total_h = days * 24 + *h as u32;
             Some(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
         }
+    }
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    fn f(col: &str, op: FilterOperator, val: Option<&str>) -> ColumnFilter {
+        ColumnFilter { column: col.to_string(), operator: op, value: val.map(str::to_string) }
+    }
+
+    #[test]
+    fn uuid_eq_uses_text_intermediate() {
+        let map = make_map(&[("id", "uuid")]);
+        let (clauses, params) =
+            build_pg_where_clause(&[f("id", FilterOperator::Eq, Some("abc"))], &map).unwrap();
+        assert_eq!(clauses[0], r#""id" = $1::text::uuid"#);
+        assert_eq!(params[0], "abc");
+    }
+
+    #[test]
+    fn date_gt_uses_text_intermediate() {
+        let map = make_map(&[("created_at", "date")]);
+        let (clauses, params) = build_pg_where_clause(
+            &[f("created_at", FilterOperator::Gt, Some("2024-01-01"))],
+            &map,
+        )
+        .unwrap();
+        assert_eq!(clauses[0], r#""created_at" > $1::text::date"#);
+        assert_eq!(params[0], "2024-01-01");
+    }
+
+    #[test]
+    fn timestamptz_lt_uses_text_intermediate() {
+        let map = make_map(&[("ts", "timestamptz")]);
+        let (clauses, _params) = build_pg_where_clause(
+            &[f("ts", FilterOperator::Lt, Some("2024-06-01T00:00:00Z"))],
+            &map,
+        )
+        .unwrap();
+        assert_eq!(clauses[0], r#""ts" < $1::text::timestamptz"#);
+    }
+
+    #[test]
+    fn boolean_eq_uses_text_intermediate() {
+        let map = make_map(&[("active", "bool")]);
+        let (clauses, _) = build_pg_where_clause(
+            &[f("active", FilterOperator::Eq, Some("true"))],
+            &map,
+        )
+        .unwrap();
+        assert_eq!(clauses[0], r#""active" = $1::text::boolean"#);
+    }
+
+    #[test]
+    fn numeric_gte_uses_text_intermediate() {
+        let map = make_map(&[("amount", "numeric")]);
+        let (clauses, params) = build_pg_where_clause(
+            &[f("amount", FilterOperator::Gte, Some("100.50"))],
+            &map,
+        )
+        .unwrap();
+        assert_eq!(clauses[0], r#""amount" >= $1::text::numeric"#);
+        assert_eq!(params[0], "100.50");
+    }
+
+    #[test]
+    fn text_like_unaffected() {
+        let map = make_map(&[("name", "text")]);
+        let (clauses, params) =
+            build_pg_where_clause(&[f("name", FilterOperator::Like, Some("%foo%"))], &map)
+                .unwrap();
+        assert_eq!(clauses[0], r#""name"::text LIKE $1"#);
+        assert_eq!(params[0], "%foo%");
+    }
+
+    #[test]
+    fn is_null_produces_no_param() {
+        let map = make_map(&[("id", "uuid")]);
+        let (clauses, params) =
+            build_pg_where_clause(&[f("id", FilterOperator::IsNull, None)], &map).unwrap();
+        assert_eq!(clauses[0], r#""id" IS NULL"#);
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn multi_filter_params_numbered_sequentially() {
+        let map = make_map(&[("id", "uuid"), ("name", "text")]);
+        let filters = vec![
+            f("id", FilterOperator::Eq, Some("some-uuid")),
+            f("name", FilterOperator::Like, Some("%foo%")),
+        ];
+        let (clauses, params) = build_pg_where_clause(&filters, &map).unwrap();
+        assert_eq!(clauses[0], r#""id" = $1::text::uuid"#);
+        assert_eq!(clauses[1], r#""name"::text LIKE $2"#);
+        assert_eq!(params.len(), 2);
     }
 }
