@@ -1307,3 +1307,12 @@
   boolean eq, numeric gte, text LIKE (unaffected path), IS NULL (no param), and multi-filter
   sequential parameter numbering. All 16 tests pass (cargo test).
 - Only src-tauri/src/commands/data.rs changed.
+
+## P1 — Mac App Store ADR [DONE]
+- Wrote plans/08-mas-adr.md documenting the MAS investigation.
+- Decision: defer MAS submission. Primary blockers:
+  1. macOSPrivateApi: true (sidebar blur) will likely be rejected by App Store review.
+  2. tauri-plugin-updater is incompatible with MAS; a separate build target (no updater, no private API) is required.
+- ADR documents prerequisites before reopening: sandbox TCP validation, TestFlight test build, visual regression assessment for removing sidebar blur.
+- Also committed: .github/workflows/release.yml (GitHub Actions matrix: ARM Mac, Intel Mac, Ubuntu AppImage/deb, Windows msi) and src-tauri/tauri.macos.conf.json (macOS-only window settings extracted from base config).
+- All 16 Rust tests pass; tsc --noEmit clean.
