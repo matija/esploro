@@ -1,3 +1,14 @@
+## PRD P1 — Licensing cross-platform validation [DONE]
+- Audited license.rs for macOS-specific APIs.
+- keyring crate (v2) is already cross-platform: macOS Keychain, Windows DPAPI, Linux SecretService — no changes needed.
+- curl usage in call_dodo_validate is fine: curl ships with Windows 10+, standard on Linux.
+- Fixed open_customer_portal() and open_url(): both called the macOS-only `open` binary.
+  Extracted open_external(url) helper with cfg-gated dispatch:
+    - macOS: `open`
+    - Linux: `xdg-open`
+    - Windows: `cmd /c start "" <url>`
+- cargo check passes cleanly.
+
 ## PRD P0 — UUID / typed column filter fix [DONE]
 - Extracted shared `build_pg_where_clause(filters, col_type_map)` helper in src-tauri/src/commands/data.rs.
 - All comparison operators (Eq, Neq, Gt, Lt, Gte, Lte) now emit `$p::text::{cast}` instead of `$p::{cast}`.
