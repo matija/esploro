@@ -29,6 +29,7 @@ import {
   cellToString,
 } from "./types";
 import { cn } from "../../lib/utils";
+import { useToast } from "../../components/Toast";
 
 const COL_WIDTH = 180;
 const HEADER_HEIGHT = 36;
@@ -609,6 +610,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     return profiles.find((p) => p.id === connId)?.displayName ?? null;
   }, [sessionId, activeSessions, profiles]);
 
+  const { toast } = useToast();
+
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("Asc");
@@ -705,10 +708,21 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setTabLoading(tab.id, isLoading || isFetching);
   }, [isLoading, isFetching, tab.id, setTabLoading]);
 
-  // Sync error state into tab strip
+  // Sync error state into tab strip — filter errors are shown as toasts, not tab-level errors
+  const isFilterError = !!error && apiFilters.length > 0;
   useEffect(() => {
-    setTabError(tab.id, !!error && !isLoading && !isFetching);
-  }, [error, isLoading, isFetching, tab.id, setTabError]);
+    setTabError(tab.id, !!error && !isLoading && !isFetching && !isFilterError);
+  }, [error, isLoading, isFetching, isFilterError, tab.id, setTabError]);
+
+  // Toast when a filter causes a query error
+  useEffect(() => {
+    if (!error || isLoading || isFetching || apiFilters.length === 0) return;
+    const raw = error instanceof Error ? error.message : String(error);
+    const msg = raw.replace(/^db error:\s*/i, "");
+    toast(msg, "error");
+  // Only fire when error identity or filters change — not on loading transitions
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, apiFilters.length]);
 
   // Report last action to status bar
   useEffect(() => {
@@ -978,8 +992,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         {/* Skeleton while loading */}
         {isLoading && <SkeletonGrid />}
 
-        {/* Error */}
-        {!isLoading && error && (
+        {/* Error — filter errors are shown as toasts; only show full-page for connection/non-filter errors */}
+        {!isLoading && error && !isFilterError && (
           <div className="flex flex-col items-center justify-center flex-1 gap-3 px-6 py-12">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-query-failed/10">
               <AlertCircle size={20} className="text-query-failed" />

@@ -1,3 +1,17 @@
+## PRD P0 — Filter error UX: toast instead of full-page error [DONE]
+- When query_table_data fails and active filters are present, the error is now shown
+  as a toast notification instead of replacing the entire table with a full-page error.
+- "db error: " prefix is stripped from the postgres error message before display.
+- The tab error indicator (red dot in tab strip) is suppressed for filter errors —
+  it's a user input problem (e.g. malformed UUID), not a connection failure.
+- Full-page error state is preserved for non-filter failures (no active filters).
+- Changes: src/features/table-viewer/TableViewerTab.tsx only.
+  - Added useToast import and hook.
+  - Added isFilterError derived flag (error + apiFilters.length > 0).
+  - Added useEffect to fire toast on filter error.
+  - Full-page error block now renders only when !isFilterError.
+- tsc --noEmit passes; cargo test passes (16/16).
+
 ## PRD P1 — Homebrew tap automation [DONE]
 - Added homebrew/Casks/esploro.rb: Cask formula template for the matija/homebrew-esploro tap repo.
   Copy this file into the tap repo under Casks/esploro.rb before first use.
