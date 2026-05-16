@@ -773,6 +773,18 @@ pub async fn set_ui_preferences(app: AppHandle, preferences: UiPreferences) -> R
 // Tests
 // ---------------------------------------------------------------------------
 
+/// Check whether the system keyring is available.
+/// On headless Linux (no secret service), returns `false`.
+/// On macOS and Windows, returns `true`.
+/// On Linux with GNOME Keyring / KWallet running, returns `true`.
+#[tauri::command]
+pub async fn check_keyring() -> Result<bool, String> {
+    match keyring::Entry::new(KEYCHAIN_SERVICE, "__probe__") {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

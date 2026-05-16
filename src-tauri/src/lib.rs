@@ -131,6 +131,7 @@ pub fn run() {
             commands::license::notify_connection_count,
             commands::license::open_customer_portal,
             commands::license::open_url,
+            commands::license::check_keyring,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
             commands::updater::check_for_update,

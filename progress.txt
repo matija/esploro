@@ -1,3 +1,48 @@
+## PRD P1 — Cross-platform Known Gaps G1–G6 [DONE]
+- Fixed all remaining cross-platform distribution gaps from PRD Known Gaps section.
+
+### G4 — libsecret-1-dev missing from CI [DONE]
+- Added `libsecret-1-dev` to the `apt-get install` list in `.github/workflows/release.yml`.
+  Without this, the `keyring` crate's Linux backend would fail at compile time or produce
+  a broken build. Now the crate compiles with full SecretService support.
+
+### G5 — Repo URL hardcoded as matija/esploro [DONE]
+- Replaced hardcoded `matija/esploro` with `${{ github.repository }}` in the DMG download URL
+  within `.github/workflows/release.yml`.
+- Replaced hardcoded `matija/homebrew-esploro` with `${{ github.repository_owner }}/homebrew-esploro`
+  in the tap repo checkout step.
+- Now the workflow adapts to whatever the actual repo owner/slug is.
+
+### G2 — Auto-updater latest.json not served while release is in draft [DONE]
+- Changed `releaseDraft: true` → `releaseDraft: false` in `.github/workflows/release.yml`.
+  Releases are now published automatically on tag push instead of remaining as drafts,
+  so `latest.json` (and the auto-updater) works immediately.
+
+### G6 — CI workflow tag trigger (already done, verified) [DONE]
+- Tag pattern correctly uses `[0-9]+.[0-9]+.[0-9]+` without `v` prefix.
+- Also fixed the `VERSION=${TAG#v}` bug in the `update-homebrew-tap` job:
+  since tags don't have a `v` prefix, `#v` was stripping the first character.
+  Changed to `VERSION=${TAG}` (no-op but correct).
+
+### G1 — keyring crate has no fallback on headless Linux [DONE]
+- Added `check_keyring` Tauri command in `src-tauri/src/commands/license.rs`.
+  Tries to create a keyring entry; returns `true` if the system secret store is reachable,
+  `false` otherwise (e.g., no GNOME Keyring / KWallet on headless Linux).
+- Registered `check_keyring` in `src-tauri/src/lib.rs` invoke handler.
+- Frontend: added `licenseApi.checkKeyring()` in `src/features/license/api.ts`.
+- Frontend: added startup `useEffect` in `src/components/AppShell.tsx` that calls
+  `checkKeyring` on mount. If the keyring is unavailable, shows a warning toast:
+  "Your system does not have a secret store — credentials will not be saved between sessions".
+- cargo check, tsc --noEmit, npm run lint all pass.
+  All 16 existing Rust tests continue to pass.
+
+### G3 — HOMEBREW_TAP_TOKEN secret config [DOCUMENTED]
+- This is an operational prerequisite (not a code change). The workflow already uses
+  `${{ secrets.HOMEBREW_TAP_TOKEN }}` and will fail loudly if the secret is undefined.
+- Action required before first tag push: create `matija/homebrew-esploro` tap repo,
+  generate a fine-grained PAT with `contents: write` scope for that repo,
+  and add it as a repo secret named `HOMEBREW_TAP_TOKEN`.
+
 ## PRD P1 — Licensing cross-platform validation [DONE]
 - Audited license.rs for macOS-specific APIs.
 - keyring crate (v2) is already cross-platform: macOS Keychain, Windows DPAPI, Linux SecretService — no changes needed.

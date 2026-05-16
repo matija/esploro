@@ -17,6 +17,7 @@ import {
   licenseApi,
   LICENSE_STATUS_KEY,
 } from "../features/license";
+import { useToast } from "./Toast";
 import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
 import { WelcomeView } from "../features/welcome/WelcomeView";
 import {
@@ -303,6 +304,7 @@ export function AppShell() {
   );
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   useEffect(() => {
     const normalizedTheme = normalizeTheme(theme);
@@ -344,6 +346,18 @@ export function AppShell() {
       cancelled = true;
     };
   }, [hydrateTheme, hydrateEditorAndGridPrefs]);
+
+  // Check keyring availability on startup (important for Linux users)
+  useEffect(() => {
+    licenseApi.checkKeyring().then((available) => {
+      if (!available) {
+        toast(
+          "Your system does not have a secret store — credentials will not be saved between sessions",
+          "warning",
+        );
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify Rust of current connection count for commercial heuristic
   useEffect(() => {

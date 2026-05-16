@@ -14,4 +14,5 @@ export const licenseApi = {
     invoke<LicenseStatus>('notify_connection_count', { count }),
   openPricingPage: () => invoke<void>('open_url', { url: 'https://esploro.app/pricing' }),
   openCustomerPortal: () => invoke<void>('open_customer_portal'),
+  checkKeyring: () => invoke<boolean>('check_keyring'),
 };

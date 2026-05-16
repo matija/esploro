@@ -56,6 +56,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
+            libsecret-1-dev \
             patchelf
 
       - name: Install frontend deps
@@ -68,7 +69,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Esploro __VERSION__'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -80,8 +81,8 @@ jobs:
         id: meta
         run: |
           TAG=${{ github.ref_name }}
-          VERSION=${TAG#v}
-          URL="https://github.com/matija/esploro/releases/download/${TAG}/Esploro_${VERSION}_aarch64.dmg"
+          VERSION=${TAG}
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/Esploro_${VERSION}_aarch64.dmg"
           SHA=$(curl -fsSL "$URL" | sha256sum | awk '{print $1}')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
@@ -90,7 +91,7 @@ jobs:
       - name: Checkout tap repo
         uses: actions/checkout@v4
         with:
-          repository: matija/homebrew-esploro
+          repository: ${{ github.repository_owner }}/homebrew-esploro
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
