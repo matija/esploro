@@ -506,20 +506,15 @@ fn compute_status_pure(
         }
     }
 
-    // Commercial usage detected?
-    if let Some(detected_str) = &prefs.commercial_detected_at {
-        if let Ok(detected) = chrono::DateTime::parse_from_rfc3339(detected_str) {
-            let grace_end = detected.with_timezone(&Utc) + chrono::Duration::days(14);
-            let grace_period_ends = Some(grace_end.to_rfc3339());
-            let banner_visible = now > grace_end && !banner_dismissed;
-            return LicenseStatus {
-                tier: LicenseTier::Unlicensed,
-                banner_visible,
-                grace_period_ends,
-                show_usage_dialog: false,
-                revalidation_required: false,
-            };
-        }
+    // Commercial usage detected — show banner immediately (subject only to session dismissal).
+    if prefs.commercial_detected_at.is_some() {
+        return LicenseStatus {
+            tier: LicenseTier::Unlicensed,
+            banner_visible: !banner_dismissed,
+            grace_period_ends: None,
+            show_usage_dialog: false,
+            revalidation_required: false,
+        };
     }
 
     // Personal or unknown — check if we should show the usage dialog
@@ -817,16 +812,39 @@ mod tests {
     }
 
     #[test]
-    fn no_stored_license_after_valid_false_shows_banner_when_grace_expired() {
-        // Simulates: Dodo returned valid:false → clear_stored_license() called → compute_status
-        // runs next poll with no stored key. Banner shows because commercial was detected earlier.
+    fn commercial_detected_shows_banner_immediately() {
+        // No 14-day grace period: as soon as commercial usage is detected the banner is shown
+        // (subject only to session dismissal).
+        let now = Utc::now();
+        let mut prefs = base_prefs();
+        prefs.commercial_detected_at = Some(now.to_rfc3339());
+        let status = compute_status_pure(None, &prefs, false, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
+        assert!(status.banner_visible);
+        assert!(status.grace_period_ends.is_none());
+        assert!(!status.revalidation_required);
+    }
+
+    #[test]
+    fn commercial_detected_banner_hidden_when_dismissed_for_session() {
+        let now = Utc::now();
+        let mut prefs = base_prefs();
+        prefs.commercial_detected_at = Some(now.to_rfc3339());
+        let status = compute_status_pure(None, &prefs, true, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
+        assert!(!status.banner_visible);
+    }
+
+    #[test]
+    fn commercial_detected_long_ago_still_shows_banner() {
+        // Sanity: the previous 14-day grace bug suppressed the banner for 14 days. Even a
+        // long-ago detection must still surface the banner now.
         let now = Utc::now();
         let mut prefs = base_prefs();
         prefs.commercial_detected_at = Some((now - Duration::days(20)).to_rfc3339());
         let status = compute_status_pure(None, &prefs, false, now);
-        assert_eq!(status.tier, LicenseTier::Unlicensed);
         assert!(status.banner_visible);
-        assert!(!status.revalidation_required);
+        assert!(status.grace_period_ends.is_none());
     }
 
     #[test]

@@ -1,3 +1,24 @@
+## MAS PRD P0 — Grace period bug fix [DONE]
+- Bug: compute_status_pure in src-tauri/src/commands/license.rs silently suppressed the
+  Commercial Banner for 14 days after commercial_detected_at was set. The delay served no
+  purpose — banner should appear as soon as commercial usage is detected, subject only to
+  the per-session banner_dismissed flag.
+- src-tauri/src/commands/license.rs:
+  - Removed the grace_end (detected + 14d) computation in the commercial-detected branch.
+  - Removed the `now > grace_end` gate on banner_visible; banner_visible is now simply
+    `!banner_dismissed` whenever commercial_detected_at is set.
+  - grace_period_ends field on LicenseStatus is kept but always set to None.
+    Rationale: AppShell LicenseBadge popover already handles `gracePeriodEnds: null` by
+    rendering "License active" instead of "Valid through [date]" — no frontend change needed.
+  - Tests rewritten:
+    - commercial_detected_shows_banner_immediately (new) — banner visible the instant detection lands
+    - commercial_detected_banner_hidden_when_dismissed_for_session (new) — dismissed=true suppresses
+    - commercial_detected_long_ago_still_shows_banner (new) — regression guard for the old 14d bug
+    - no_stored_license_after_valid_false_shows_banner_when_grace_expired (replaced) — grace concept gone
+  - All 10 license tests pass.
+- PRD.md: marked P0 [DONE] with a summary of what changed.
+- All CI checks pass (cargo clippy --workspace --all-targets -- -D warnings, tsc --noEmit, eslint).
+
 ## PRD #4 — Default theme: Tokyo Night [DONE]
 - Changed defaultUiPreferences.ui.theme from "system" to "tokyo-night" in src/features/settings/preferences.ts:52.
 - Affects first-run users only; existing users with a stored theme see no change.
