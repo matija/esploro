@@ -83,7 +83,6 @@ pub struct StoredEntitlement {
     pub expires_at: Option<String>,
 }
 
-#[allow(dead_code)] // wired in by the follow-up license-layer refactor (P2)
 pub(crate) fn read_stored_entitlement() -> Option<StoredEntitlement> {
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT_ENTITLEMENT).ok()?;
     match entry.get_password() {

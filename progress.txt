@@ -1,3 +1,82 @@
+## MAS PRD P2 — Step 2: license-layer cleanup [DONE]
+- Finishes the source-level split started in Step 1: every Dodo-specific item in license.rs
+  is now behind #[cfg(not(feature = "mas"))], and compute_status_pure works off a small
+  cross-build CachedLicense abstraction instead of a Dodo-shaped StoredLicense. The MAS
+  build no longer drags Dodo Payments / curl / DODO_BASE code into the binary, and the
+  `cargo check --features mas` 12-warning dead-code spew from Step 1 is gone.
+- src-tauri/src/commands/license.rs:
+  - Gated behind #[cfg(not(feature = "mas"))]:
+    - Constants CUSTOMER_PORTAL_URL, DODO_BASE, KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT (only
+      Dodo uses this keychain account; MAS uses the separate "mas-entitlement" account in
+      iap.rs).
+    - struct StoredLicense (Dodo validation cache).
+    - read_stored_license / write_stored_license / clear_stored_license keychain helpers.
+    - enum DodoError + async fn call_dodo_validate (the curl-wrapped POST to Dodo's
+      /licenses/validate endpoint).
+    - dodo_error_message / dodo_invalid_key_message UI string helpers.
+    - pub async fn revalidate_license_background (the 24h re-validation loop spawned by
+      lib.rs — already cfg-gated at the call site in Step 1, now also at the definition).
+    - The three Tauri commands activate_license, deactivate_license, open_customer_portal.
+  - Added enum CachedLicense as the cross-build abstraction for "is there a valid cached
+    commercial license?": Active is reachable from both builds, Stale is
+    #[cfg(not(feature = "mas"))]-only since App Store subscriptions have no offline-grace
+    concept (StoreKit is the source of truth and a lapsed subscription is simply not
+    entitled — there's no "we used to be entitled, please reconnect").
+  - Two new build-specific translator helpers feed the same compute_status_pure:
+    - direct_cached_license(&StoredLicense, now): Active when validated_at is within the
+      14-day window, Stale beyond that. Unparseable validated_at also returns Stale (fail
+      closed so a corrupt cache forces a fresh validation).
+    - mas_cached_license(&StoredEntitlement, now): Some(Active) for the non-consumable
+      lifetime product (expires_at = None) or any subscription whose expires_at is still
+      in the future. None for expired or unparseable subscription timestamps.
+  - compute_status_pure rewritten to take Option<CachedLicense> instead of
+    Option<&StoredLicense>. The match arm for CachedLicense::Stale is itself
+    #[cfg(not(feature = "mas"))]-gated, so on the MAS build the match becomes exhaustive
+    with just the Active arm (no unreachable_patterns warnings, no clippy noise).
+  - New cfg-gated current_cached_license(now) helper consumes the right keychain entry per
+    build: read_stored_license() + direct_cached_license() on Direct,
+    crate::commands::iap::read_stored_entitlement() + mas_cached_license() on MAS.
+    compute_status (the I/O wrapper called by the Tauri commands) just chains it into
+    compute_status_pure.
+  - Wire shape of LicenseStatus is unchanged. revalidationRequired and gracePeriodEnds
+    remain on the camelCase JSON for both builds, but on MAS they're always false / null —
+    matching the precedent set in Step 0 (P0) for grace_period_ends. The frontend
+    LicenseBanner.tsx hits the revalidationRequired branch only when set; on MAS that
+    branch is just unreachable, no UI change required.
+- src-tauri/src/commands/iap.rs:
+  - Dropped the #[allow(dead_code)] attribute on read_stored_entitlement — it's now wired
+    into license.rs::current_cached_license under #[cfg(feature = "mas")].
+    write_stored_entitlement and clear_stored_entitlement keep their #[allow(dead_code)]
+    pending Step 3 (objc2-store-kit transaction handler will write/clear when the user
+    purchases or cancels).
+- Tests reorganised inside license.rs `mod tests`:
+  - 5 build-agnostic status-state tests now take CachedLicense::Active or None directly:
+    cached_active_is_commercial_no_banner, commercial_detected_shows_banner_immediately,
+    commercial_detected_banner_hidden_when_dismissed_for_session,
+    commercial_detected_long_ago_still_shows_banner,
+    no_cached_license_no_commercial_detection_is_unlicensed_no_banner.
+  - 7 Direct-only tests under `#[cfg(not(feature = "mas"))] mod direct`:
+    freshly_validated_key_maps_to_active, key_validated_13_days_ago_still_active,
+    key_validated_over_14_days_ago_is_stale, unparseable_validated_at_is_stale (new — was
+    missing coverage for the fail-closed branch), cached_stale_maps_to_revalidation_required,
+    plus the three Dodo error-message tests.
+  - 4 new MAS-only tests under `#[cfg(feature = "mas")] mod mas`:
+    lifetime_entitlement_with_no_expiry_is_active, subscription_future_expiry_is_active,
+    subscription_past_expiry_is_none, subscription_unparseable_expiry_is_none.
+- Verified on both build flavours:
+  - cargo clippy --all-targets -- -D warnings: clean (Direct).
+  - cargo clippy --all-targets --features mas -- -D warnings: clean (MAS).
+  - cargo test: 21 passed on Direct (was 22 in Step 1; 4 IAP serde tests now only compile
+    on MAS so the Direct total drops by 4, while 3 new Direct-only direct_cached_license
+    tests bring it back up by 3 — net 21).
+  - cargo test --features mas: 21 passed on MAS (4 IAP serde tests + 4 new mas:: tests +
+    5 build-agnostic status tests + 8 data filter tests).
+  - cargo check --features mas: 0 warnings (down from 12 in Step 1).
+  - npm run type-check: clean.
+  - npm run lint: clean.
+- PRD.md P2 section: Step 2 marked [DONE] with the full description of which items moved
+  behind cfg gates, the CachedLicense abstraction, and the per-build translator helpers.
+
 ## MAS PRD P2 — Step 1: IAP backend scaffold + Dodo/updater feature gating [DONE]
 - Sets up the source-level boundary between the Direct (Dodo Payments + tauri-plugin-updater)
   build and the MAS (StoreKit IAP, no in-app updater) build. The Direct build is bit-for-bit
