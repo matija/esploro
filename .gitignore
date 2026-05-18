@@ -10,5 +10,6 @@ prds/
 plans/
 .ralph/
 PRD.md
+CONTEXT.md
 progress.txt
 build-and-release
