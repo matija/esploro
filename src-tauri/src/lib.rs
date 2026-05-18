@@ -36,9 +36,15 @@ impl Default for AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_process::init());
+
+    // The Tauri updater plugin polls a GitHub Releases endpoint and replaces
+    // the .app on disk. App Store rules disallow self-updating outside the
+    // store mechanism, so the MAS build omits it entirely.
+    #[cfg(not(feature = "mas"))]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .manage(AppState::default())
         .setup(|app| {
             // Native macOS menu bar
@@ -95,13 +101,19 @@ pub fn run() {
                 }
             });
 
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                loop {
-                    commands::license::revalidate_license_background(handle.clone()).await;
-                    tokio::time::sleep(tokio::time::Duration::from_secs(24 * 60 * 60)).await;
-                }
-            });
+            // Dodo Payments background re-validation is Direct-build only.
+            // The MAS build sources entitlement from StoreKit and has no
+            // license key to re-validate.
+            #[cfg(not(feature = "mas"))]
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        commands::license::revalidate_license_background(handle.clone()).await;
+                        tokio::time::sleep(tokio::time::Duration::from_secs(24 * 60 * 60)).await;
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -124,17 +136,32 @@ pub fn run() {
             commands::saved_queries::get_saved_query,
             commands::saved_queries::delete_saved_query,
             commands::license::get_license_status,
-            commands::license::activate_license,
-            commands::license::deactivate_license,
             commands::license::answer_usage_dialog,
             commands::license::dismiss_license_banner,
             commands::license::notify_connection_count,
-            commands::license::open_customer_portal,
             commands::license::open_url,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
+            // Dodo Payments + in-app updater: Direct build only.
+            #[cfg(not(feature = "mas"))]
+            commands::license::activate_license,
+            #[cfg(not(feature = "mas"))]
+            commands::license::deactivate_license,
+            #[cfg(not(feature = "mas"))]
+            commands::license::open_customer_portal,
+            #[cfg(not(feature = "mas"))]
             commands::updater::check_for_update,
+            #[cfg(not(feature = "mas"))]
             commands::updater::install_update,
+            // StoreKit IAP: MAS build only.
+            #[cfg(feature = "mas")]
+            commands::iap::iap_get_products,
+            #[cfg(feature = "mas")]
+            commands::iap::iap_purchase,
+            #[cfg(feature = "mas")]
+            commands::iap::iap_restore,
+            #[cfg(feature = "mas")]
+            commands::iap::iap_check_entitlement,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,3 +1,59 @@
+## MAS PRD P2 — Step 1: IAP backend scaffold + Dodo/updater feature gating [DONE]
+- Sets up the source-level boundary between the Direct (Dodo Payments + tauri-plugin-updater)
+  build and the MAS (StoreKit IAP, no in-app updater) build. The Direct build is bit-for-bit
+  identical; the MAS build now compiles, though the four IAP commands are stubs returning
+  Err("IAP backend not yet implemented") until Step 3 wires `objc2-store-kit`. No frontend
+  changes in this step.
+- src-tauri/src/commands/iap.rs (NEW, behind #[cfg(feature = "mas")]):
+  - Wire types matching the PRD's command return shapes (camelCase via serde):
+    - IapProduct { id, title, description, price } — price is a pre-formatted locale string
+      because SKProduct hands us the localised value via priceLocale, saving the frontend an
+      Intl pass.
+    - IapPurchaseResult { status } where status is IapPurchaseStatus::Purchased | Cancelled |
+      Failed (serde rename_all = "lowercase" so the JSON is `{ "status": "purchased" }` etc.).
+    - IapRestoreResult { restored: bool }.
+    - IapEntitlement { entitled, productId?, expiresAt? } — productId/expiresAt are None for
+      unentitled users; expiresAt is None for the non-consumable lifetime product.
+  - StoredEntitlement { product_id, expires_at: Option<String> } cached in the macOS Keychain
+    (service "app.esploro", account "mas-entitlement" — distinct from the existing Dodo
+    "commercial-license" account so the two builds never collide). read/write/clear helpers
+    are pub(crate) + #[allow(dead_code)] until Step 2 hooks them into compute_status_pure.
+  - Four #[tauri::command] stubs (iap_get_products, iap_purchase, iap_restore,
+    iap_check_entitlement) all returning Err("IAP backend not yet implemented"). They exist
+    so lib.rs registration, command signatures, and future frontend invokes can be wired
+    without coupling to the StoreKit work.
+  - 4 unit tests covering serde shape: lowercase purchase status, camelCase keys on
+    IapEntitlement, IapProduct field presence, and StoredEntitlement JSON round-trip.
+- src-tauri/src/commands/mod.rs: added `pub mod iap;` behind #[cfg(feature = "mas")] and
+  gated `pub mod updater;` behind #[cfg(not(feature = "mas"))] — the updater module is
+  unreachable from a MAS binary anyway, this just prevents it from being type-checked.
+- src-tauri/src/lib.rs:
+  - Restructured the Builder chain so tauri_plugin_updater is only plugged in for
+    #[cfg(not(feature = "mas"))]. App Store rules disallow self-updating outside the store
+    mechanism, so the plugin would be dead weight (and a review risk) on MAS.
+  - Wrapped the `revalidate_license_background` background spawn in
+    #[cfg(not(feature = "mas"))]. The MAS build sources entitlement from StoreKit and has
+    no license key to re-validate.
+  - generate_handler! invocation: kept the always-on commands (connections, schema, data,
+    saved_queries, license::{get_license_status, answer_usage_dialog, dismiss_license_banner,
+    notify_connection_count, open_url, get_ui_preferences, set_ui_preferences}) at the top;
+    gated activate_license, deactivate_license, open_customer_portal, updater::check_for_update,
+    updater::install_update behind #[cfg(not(feature = "mas"))] and the four iap_* commands
+    behind #[cfg(feature = "mas")]. Inline #[cfg] attributes inside tauri::generate_handler!
+    work because the macro expands the cfg gates on each item list entry.
+- Verified: cargo clippy --all-targets -- -D warnings (clean, default features),
+  cargo test (22 passed — 18 existing license/data + 4 new iap), npm run type-check (clean),
+  npm run lint (clean).
+- Also verified: cargo check --features mas exits 0. There are 12 dead-code warnings for
+  Dodo-only items in license.rs (call_dodo_validate, DodoError, StoredLicense + keychain
+  helpers, revalidate_license_background, activate_license, deactivate_license,
+  open_customer_portal, dodo_error_message, dodo_invalid_key_message). These are expected
+  and intentional for this step — Step 2 (license-layer cleanup) moves all of those behind
+  #[cfg(not(feature = "mas"))] and rewires compute_status_pure to read StoredEntitlement
+  on MAS. CI doesn't exercise --features mas, so -D warnings is unaffected.
+- PRD.md P2 section: added Step 1 [DONE] sub-status with full description, plus Step 2/3/4
+  pending markers describing the remaining scope.
+
 ## MAS PRD P1 — Config split (prerequisite for MAS build) [DONE]
 - Split tauri.conf.json so the same source tree can produce both the Direct (GitHub/Homebrew)
   build and a future MAS build via overlay configs. No runtime/source code changes — purely
