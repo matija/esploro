@@ -16,10 +16,20 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::iap_storekit;
+
 const KEYCHAIN_SERVICE: &str = "app.esploro";
 const KEYCHAIN_ACCOUNT_ENTITLEMENT: &str = "mas-entitlement";
 
-const NOT_IMPLEMENTED: &str = "IAP backend not yet implemented";
+/// IAP product identifiers registered in App Store Connect. The MAS build
+/// queries these three on every `iap_get_products` call; the App Store will
+/// reject any IDs not configured on the listing so the client side just
+/// hard-codes the canonical list.
+pub const PRODUCT_IDS: &[&str] = &[
+    "app.esploro.personal.lifetime",
+    "app.esploro.personal.annual",
+    "app.esploro.business.annual",
+];
 
 // ---------------------------------------------------------------------------
 // Wire types — kept in sync with the PRD's `iap_*` command return shapes.
@@ -95,7 +105,6 @@ pub(crate) fn read_stored_entitlement() -> Option<StoredEntitlement> {
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn write_stored_entitlement(stored: &StoredEntitlement) -> Result<(), String> {
     let json = serde_json::to_string(stored).map_err(|e| e.to_string())?;
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT_ENTITLEMENT)
@@ -111,28 +120,49 @@ pub(crate) fn clear_stored_entitlement() {
 }
 
 // ---------------------------------------------------------------------------
-// Tauri commands — stubs until the StoreKit integration lands.
+// Tauri commands — delegate to `iap_storekit` for the live StoreKit work and
+// translate cached entitlement state for the entitlement check.
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
 pub async fn iap_get_products() -> Result<Vec<IapProduct>, String> {
-    Err(NOT_IMPLEMENTED.to_string())
+    iap_storekit::fetch_products(PRODUCT_IDS.iter().map(|s| s.to_string()).collect()).await
 }
 
 #[tauri::command]
 pub async fn iap_purchase(product_id: String) -> Result<IapPurchaseResult, String> {
-    let _ = product_id;
-    Err(NOT_IMPLEMENTED.to_string())
+    iap_storekit::purchase(product_id).await
 }
 
 #[tauri::command]
 pub async fn iap_restore() -> Result<IapRestoreResult, String> {
-    Err(NOT_IMPLEMENTED.to_string())
+    iap_storekit::restore().await
 }
 
+/// Reads the cached entitlement from the Keychain and translates it into the
+/// wire shape the frontend consumes. Subscription expiry is checked against
+/// `Utc::now()` so a lapsed subscription is reported as `entitled: false`
+/// without having to walk the StoreKit transaction queue. Fresh transactions
+/// (renewals, restores) flow through the `SKPaymentTransactionObserver` in
+/// `iap_storekit` and update this cache on the fly.
 #[tauri::command]
 pub async fn iap_check_entitlement() -> Result<IapEntitlement, String> {
-    Err(NOT_IMPLEMENTED.to_string())
+    let Some(stored) = read_stored_entitlement() else {
+        return Ok(IapEntitlement::default());
+    };
+    let now = chrono::Utc::now();
+    let entitled = match stored.expires_at.as_deref() {
+        None => true, // Non-consumable (lifetime) — always entitled.
+        Some(raw) => match chrono::DateTime::parse_from_rfc3339(raw) {
+            Ok(dt) => dt.with_timezone(&chrono::Utc) > now,
+            Err(_) => false,
+        },
+    };
+    Ok(IapEntitlement {
+        entitled,
+        product_id: Some(stored.product_id),
+        expires_at: stored.expires_at,
+    })
 }
 
 #[cfg(test)]

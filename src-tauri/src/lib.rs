@@ -114,6 +114,17 @@ pub fn run() {
                     }
                 });
             }
+
+            // App Store rules require the SKPaymentQueue transaction observer
+            // to be installed at launch so we don't miss transactions
+            // delivered while the app is starting up (e.g. a renewal that
+            // fired between two launches).
+            #[cfg(feature = "mas")]
+            {
+                let mtm = objc2::MainThreadMarker::new()
+                    .expect("Tauri setup runs on the main thread");
+                commands::iap_storekit::install_observer_on_startup(mtm);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

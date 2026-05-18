@@ -1,3 +1,158 @@
+## MAS PRD P2 — Step 3: objc2-store-kit wiring [DONE]
+- Replaces the four iap_* command stubs from Step 1 with a real StoreKit 1
+  backend, wired through objc2-store-kit (pure-Rust bindings, no Swift
+  plugin). The MAS binary can now fetch product metadata, kick off purchases
+  through the App Store payment sheet, restore prior transactions, and
+  surface the current entitlement to the frontend. The Direct (GitHub/Homebrew)
+  build is bit-for-bit unchanged — the new dependencies are gated to
+  --features mas + target_os = "macos".
+- src-tauri/Cargo.toml:
+  - [features].mas now lists "dep:objc2", "dep:objc2-foundation",
+    "dep:objc2-store-kit" so enabling the feature pulls them in.
+  - New [target.'cfg(target_os = "macos")'.dependencies] block adds the three
+    crates as optional. They're target-gated so a hypothetical Linux/Windows
+    cargo check doesn't try to compile them. objc2 = "0.6", objc2-foundation
+    = "0.3", objc2-store-kit = "0.3" — default features for all three (they
+    each enable their own NS* / SK* feature flags by default, which is what
+    we need for NSString/NSDate/NSDecimalNumber/NSNumberFormatter and the
+    SK* types used here).
+- src-tauri/src/commands/iap_storekit.rs (NEW, ~430 lines, #![allow(deprecated)]
+  because every StoreKit 1 symbol upstream is #[deprecated] in favour of
+  StoreKit 2 / Swift Product — migration is the future ADR boundary):
+  - DelegateState ivar struct holds three Mutex<Option<…>> oneshot slots
+    (pending_products, pending_purchase, pending_restore), a Vec<Retained<SKProduct>>
+    cache (so we can re-use SKProduct objects across fetch_products /
+    purchase calls and read SKProductSubscriptionPeriod for expiry math),
+    and a Mutex<Option<Retained<SKProductsRequest>>> that keeps the in-flight
+    request alive until its delegate callback fires.
+  - EsploroStoreKitDelegate is defined via objc2::define_class! with
+    #[unsafe(super(NSObject))], #[name = "EsploroStoreKitDelegate"] (explicit
+    Obj-C runtime name so Apple's review tools see a stable symbol), and
+    #[ivars = DelegateState]. It conforms to three protocols:
+      * SKRequestDelegate — request:didFailWithError: routes SKProductsRequest
+        failures back through the pending_products oneshot.
+      * SKProductsRequestDelegate — productsRequest:didReceiveResponse:
+        walks SKProductsResponse.products(), turns each SKProduct into an
+        IapProduct wire value (via NSNumberFormatter with CurrencyStyle +
+        product.priceLocale for the localised price string), stores the
+        Retained<SKProduct>s in the cache, and resolves the pending oneshot.
+      * SKPaymentTransactionObserver — paymentQueue:updatedTransactions:
+        iterates transactions; Purchased and Restored both write a fresh
+        StoredEntitlement to the Keychain (via iap::write_stored_entitlement)
+        and call finishTransaction:. Purchased additionally resolves the
+        pending_purchase oneshot with status="purchased" iff the
+        productIdentifier matches the in-flight purchase. Failed inspects
+        txn.error().code() against SKErrorCode::PaymentCancelled (NSInteger
+        = 2) to distinguish status="cancelled" from status="failed".
+        paymentQueueRestoreCompletedTransactionsFinished: resolves the
+        pending_restore oneshot with the running restored_any bool;
+        paymentQueue:restoreCompletedTransactionsFailedWithError: resolves it
+        with the NSError.localizedDescription wrapped as Err.
+  - Manager singleton (held in static OnceLock<Manager>): allocates the
+    delegate via EsploroStoreKitDelegate::new() and calls
+    SKPaymentQueue::defaultQueue().addTransactionObserver(...) exactly once.
+    Apple's docs require the observer be installed at app launch so
+    transactions delivered while the app is starting up aren't dropped —
+    install_observer_on_startup(MainThreadMarker) is the public entry point
+    called from lib.rs's setup() hook for that. The MainThreadMarker
+    parameter is unused at runtime but documents that the caller must be on
+    the AppKit main thread (which Tauri's setup is).
+  - Public async API (consumed by iap.rs):
+      * fetch_products(ids: Vec<String>) -> Result<Vec<IapProduct>, String>
+      * purchase(product_id: String) -> Result<IapPurchaseResult, String>
+        (fetches and caches the SKProduct first if it isn't already cached,
+        guards on SKPaymentQueue::canMakePayments())
+      * restore() -> Result<IapRestoreResult, String>
+    Each grabs a oneshot::Sender slot, kicks off the StoreKit operation
+    (start(), addPayment:, restoreCompletedTransactions), and awaits the
+    delegate callback. Re-entrant calls (two purchases / two restores in
+    flight) return Err("Another … is already in progress") rather than
+    trampling the existing sender.
+  - Helpers:
+      * compute_expires_at(product_id, txn_date: NSDate, cached_products):
+        looks up the SKProduct, reads subscriptionPeriod() (None for
+        non-consumables like the lifetime product), and adds
+        numberOfUnits * unit (Day/Week/Month/Year) to txn_date using
+        chrono::Months (for Month/Year — calendar-correct, handles
+        end-of-month rollover) and chrono::Duration (for Day/Week). Lifetime
+        purchases get expires_at = None.
+      * format_price(NSDecimalNumber, NSLocale): NSNumberFormatter with
+        CurrencyStyle and the SKProduct's priceLocale yields strings like
+        "$129.00", "€49,00", "¥7,800" — exactly what the frontend wants
+        without an Intl round-trip.
+- src-tauri/src/commands/iap.rs:
+  - The four #[tauri::command] stubs (iap_get_products, iap_purchase,
+    iap_restore, iap_check_entitlement) now call into iap_storekit.
+  - New const PRODUCT_IDS: &[&str; 3] hard-codes the three App Store Connect
+    product identifiers (app.esploro.personal.lifetime,
+    app.esploro.personal.annual, app.esploro.business.annual). iap_get_products
+    passes them straight to iap_storekit::fetch_products — the App Store
+    rejects any IDs not registered on the listing, so there's no value in
+    making this client-driven.
+  - iap_check_entitlement reads the cached StoredEntitlement from the
+    Keychain (via the existing read_stored_entitlement helper, now no
+    longer #[allow(dead_code)] since it's actually called), then decides
+    entitled by comparing expires_at to chrono::Utc::now(). Non-consumable
+    lifetime products (expires_at = None) are always entitled; subscriptions
+    with a future expiry are entitled; past/unparseable timestamps are not.
+    This matches the mas_cached_license logic in license.rs (Step 2) but at
+    a different layer — license.rs makes the LicenseStatus decision,
+    iap_check_entitlement just reports the raw cached entitlement so the
+    frontend can show the "Manage Subscription" / "Get a License" UI in
+    Settings.
+  - write_stored_entitlement is no longer #[allow(dead_code)] because the
+    transaction observer in iap_storekit calls it on every Purchased /
+    Restored transaction. clear_stored_entitlement keeps its
+    #[allow(dead_code)] pending Step 4's "manage subscription" UI hook.
+- src-tauri/src/commands/mod.rs: added `pub mod iap_storekit;` behind
+  #[cfg(feature = "mas")].
+- src-tauri/src/lib.rs: setup() hook now has a #[cfg(feature = "mas")] block
+  that grabs objc2::MainThreadMarker::new() (asserts main thread, which
+  Tauri's setup is) and calls iap_storekit::install_observer_on_startup,
+  which forces the OnceLock<Manager> singleton + transaction observer to be
+  ready before the webview loads. This mirrors the existing
+  #[cfg(not(feature = "mas"))] revalidate_license_background loop.
+- Tests:
+  - 5 new unit tests in iap_storekit::tests cover add_period across all
+    SKProductPeriodUnit variants:
+      * add_period_year_adds_twelve_months
+      * add_period_month_adds_calendar_month (3 months from 2026-05-18 →
+        2026-08-18, exercising chrono's calendar-aware month arithmetic)
+      * add_period_week_adds_seven_days_per_unit (2 weeks → +14 days)
+      * add_period_day_adds_n_days
+      * add_period_unknown_unit_returns_none (fail-closed guard for the
+        unreachable-in-practice catch-all arm)
+    These are the only iap_storekit logic that can be exercised without a
+    live StoreKit session; everything else (delegate callbacks, SKPayment
+    flow) needs a sandbox App Store Connect account + signed MAS build, which
+    is a Step 4 / TestFlight concern.
+  - cargo test: 21 passed on Direct (unchanged), 26 passed on MAS
+    (+5 add_period tests).
+  - cargo clippy --all-targets -- -D warnings: clean (Direct).
+  - cargo clippy --all-targets --features mas -- -D warnings: clean (MAS).
+  - cargo check --features mas: clean.
+  - npm run type-check, npm run lint: clean.
+- Known limitations (deferred to Step 4 / submission time):
+  - Live StoreKit testing requires sandbox accounts in App Store Connect and
+    a packaged .pkg uploaded to TestFlight. The Rust code is wired and
+    type-checks; verifying that the payment sheet actually appears and that
+    Purchased / Restored transactions resolve correctly is a manual test
+    against a sandbox account.
+  - Receipt validation: StoreKit 1 stores a local receipt at
+    Bundle.main.appStoreReceiptURL. We currently trust SKPaymentTransactions
+    delivered by the observer rather than parsing the receipt — sufficient
+    for IAP at this scale (no server-side receipt validation is needed per
+    the PRD's Known Risks section). If we later want offline-revocable
+    entitlement, SKReceiptRefreshRequest is the entry point (the binding is
+    pulled in but unused at this step).
+  - The objc2-store-kit bindings are all #[deprecated] because Apple moved
+    everything to Swift Product / Transaction APIs. The migration boundary
+    is the four iap_* commands — the frontend won't notice. ADR 09
+    (plans/09-storekit-objc2.md) covers the reasoning for staying on
+    StoreKit 1 for the initial MAS submission.
+- PRD.md P2 section: Step 3 marked [DONE] with the full implementation
+  description; Step 4 (frontend PurchaseSheet) remains pending.
+
 ## MAS PRD P2 — Step 2: license-layer cleanup [DONE]
 - Finishes the source-level split started in Step 1: every Dodo-specific item in license.rs
   is now behind #[cfg(not(feature = "mas"))], and compute_status_pure works off a small
