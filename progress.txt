@@ -1,3 +1,46 @@
+## MAS PRD P1 — Config split (prerequisite for MAS build) [DONE]
+- Split tauri.conf.json so the same source tree can produce both the Direct (GitHub/Homebrew)
+  build and a future MAS build via overlay configs. No runtime/source code changes — purely
+  build configuration plumbing.
+- src-tauri/tauri.conf.json: stripped macOS-only fields (windows[0].titleBarStyle,
+  hiddenTitle, windowEffects, and app.macOSPrivateApi). Base config is now platform-neutral.
+- src-tauri/tauri.macos.conf.json (NEW): Direct build overlay. Auto-merged by Tauri for
+  macOS targets. Sets macOSPrivateApi: true and the NSVisualEffectView sidebar vibrancy.
+- src-tauri/tauri.mas.conf.json (NEW): MAS build overlay, passed explicitly via
+  `--config`. Overrides macos overlay with macOSPrivateApi: false and windowEffects: null
+  (the null is required to undo the macos overlay's value during config merge — without it
+  the sidebar effect would still be requested). Sets bundle.targets: ["app"],
+  createUpdaterArtifacts: false, bundle.macOS signing/provisioning/entitlements references,
+  and plugins.updater.active: false. The signingIdentity and provisioningProfile values are
+  placeholders ("Apple Distribution: <Team>", "EsploroMAS.provisionprofile") that the
+  release pipeline must replace with real values.
+- src-tauri/Esploro-MAS.entitlements (NEW): App Sandbox + network.client only. No other
+  entitlements needed since Esploro only opens outbound TCP to Postgres/MySQL.
+- src-tauri/Cargo.toml: added [features] section with `mas = []`. This flag is consumed
+  by source code (planned for P2) via `#[cfg(feature = "mas")]` to gate Dodo/updater code
+  out of the MAS binary.
+- Documented a known tauri-build constraint in Cargo.toml + PRD: tauri-build (the build
+  script) reads `tauri`'s features array in Cargo.toml LITERALLY and compares it against
+  the merged config's `macOSPrivateApi` allowlist on every `cargo build`. Cargo feature
+  aliases like `direct = ["tauri/macos-private-api"]` are NOT resolved during that check
+  (tauri-apps/tauri#11142, #7940). Tried that approach first; cargo check failed with
+  "The `tauri` dependency features on the `Cargo.toml` file does not match the allowlist
+  defined under `tauri.conf.json`. Please … add the `macos-private-api` feature."
+- Resolution: keep `tauri = { features = ["macos-private-api"] }` literally listed so the
+  default Direct build on macOS passes tauri-build, and accept that producing a
+  MAS-compliant binary (no private API symbols linked in) requires the release pipeline to
+  patch Cargo.toml at build time:
+    1. Strip "macos-private-api" from the tauri dep's features array.
+    2. cargo tauri build --target aarch64-apple-darwin
+         --config src-tauri/tauri.mas.conf.json --features mas
+    3. Restore Cargo.toml.
+  Updated PRD's Submission Flow Step 2 to spell this out. The day-to-day developer
+  experience (`cargo tauri dev`) is unchanged.
+- Verified: cargo check (1.7s), cargo clippy --all-targets -- -D warnings (clean),
+  cargo test (18 passed), npm run type-check + npm run lint (clean). All three config
+  JSON files parse. The macos overlay is now being picked up — confirmed by tauri-build
+  emitting `rerun-if-changed=tauri.macos.conf.json` during the build.
+
 ## MAS PRD P0 — Grace period bug fix [DONE]
 - Bug: compute_status_pure in src-tauri/src/commands/license.rs silently suppressed the
   Commercial Banner for 14 days after commercial_detected_at was set. The delay served no

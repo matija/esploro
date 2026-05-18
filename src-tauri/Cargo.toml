@@ -10,6 +10,28 @@ license = "MIT"
 name = "esploro_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Mac App Store build flag. Used in source code via `#[cfg(feature = "mas")]`
+# to gate out Dodo / updater code paths that App Store review rejects.
+#
+# NOTE: This feature alone is NOT sufficient to produce a MAS-compliant binary.
+# `tauri-build` strictly compares the literal `tauri` dependency features in
+# `Cargo.toml` against the merged `tauri.conf.json` allowlist — feature
+# aliases like `direct = ["tauri/macos-private-api"]` are not resolved during
+# that check (see tauri-apps/tauri#11142, #7940). So the
+# `tauri/macos-private-api` feature must stay literally listed in the
+# `[dependencies]` section below to satisfy the build script on macOS for the
+# default Direct build.
+#
+# To actually produce a MAS binary (no `macos-private-api` linked in), the
+# release pipeline must patch `Cargo.toml` at build time:
+#   1. Remove `"macos-private-api"` from `tauri`'s `features` array.
+#   2. Run `cargo tauri build --config tauri.mas.conf.json --features mas`.
+#   3. Restore `Cargo.toml`.
+# This is intentionally a CI-side concern, not a developer ergonomic, so the
+# day-to-day `cargo tauri dev` keeps working unchanged.
+mas = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
