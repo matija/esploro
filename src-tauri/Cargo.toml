@@ -10,6 +10,28 @@ license = "MIT"
 name = "esploro_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Mac App Store build flag. Used in source code via `#[cfg(feature = "mas")]`
+# to gate out Dodo / updater code paths that App Store review rejects.
+#
+# NOTE: This feature alone is NOT sufficient to produce a MAS-compliant binary.
+# `tauri-build` strictly compares the literal `tauri` dependency features in
+# `Cargo.toml` against the merged `tauri.conf.json` allowlist — feature
+# aliases like `direct = ["tauri/macos-private-api"]` are not resolved during
+# that check (see tauri-apps/tauri#11142, #7940). So the
+# `tauri/macos-private-api` feature must stay literally listed in the
+# `[dependencies]` section below to satisfy the build script on macOS for the
+# default Direct build.
+#
+# To actually produce a MAS binary (no `macos-private-api` linked in), the
+# release pipeline must patch `Cargo.toml` at build time:
+#   1. Remove `"macos-private-api"` from `tauri`'s `features` array.
+#   2. Run `cargo tauri build --config tauri.mas.conf.json --features mas`.
+#   3. Restore `Cargo.toml`.
+# This is intentionally a CI-side concern, not a developer ergonomic, so the
+# day-to-day `cargo tauri dev` keeps working unchanged.
+mas = ["dep:objc2", "dep:objc2-foundation", "dep:objc2-store-kit"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -26,3 +48,12 @@ keyring = "2"
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+# StoreKit 1 bindings for the MAS build. Pulled in only when --features mas is
+# active (see [features].mas above). The crates are macOS-only by their own
+# target cfg, so leaving them as default-disabled keeps Linux/Windows CI
+# unaffected even though we don't target those for the desktop app.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", optional = true }
+objc2-foundation = { version = "0.3", optional = true }
+objc2-store-kit = { version = "0.3", optional = true }

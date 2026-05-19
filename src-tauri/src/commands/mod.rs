@@ -1,6 +1,11 @@
 pub mod connections;
 pub mod data;
+#[cfg(feature = "mas")]
+pub mod iap;
+#[cfg(feature = "mas")]
+pub mod iap_storekit;
 pub mod license;
 pub mod saved_queries;
 pub mod schema;
+#[cfg(not(feature = "mas"))]
 pub mod updater;

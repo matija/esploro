@@ -7,15 +7,19 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 
+#[cfg(not(feature = "mas"))]
 const CUSTOMER_PORTAL_URL: &str = "https://app.dodopayments.com/customer-portal";
 
+#[cfg(not(feature = "mas"))]
 const DODO_BASE: &str = if cfg!(debug_assertions) {
     "https://test.dodopayments.com"
 } else {
     "https://live.dodopayments.com"
 };
 
+#[cfg(not(feature = "mas"))]
 const KEYCHAIN_SERVICE: &str = "app.esploro";
+#[cfg(not(feature = "mas"))]
 const KEYCHAIN_ACCOUNT: &str = "commercial-license";
 
 const DEFAULT_UI_THEME: &str = "tairiki-light";
@@ -61,10 +65,28 @@ pub struct LicenseStatus {
     pub revalidation_required: bool,
 }
 
+#[cfg(not(feature = "mas"))]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct StoredLicense {
     license_key: String,
     validated_at: String,
+}
+
+/// Cached commercial-license signal, sourced per build flavour.
+///
+/// - **Direct** build: populated from the Dodo Payments validation cache
+///   (`StoredLicense`). `Active` means the key was validated within the
+///   14-day offline grace window; `Stale` means it has been longer and the
+///   user must reconnect to revalidate.
+/// - **MAS** build: populated from the StoreKit entitlement cache
+///   (`StoredEntitlement`). Only `Active` is reachable — App Store
+///   subscriptions are the source of truth, so there is no offline-grace
+///   concept and the `Stale` variant is gated out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CachedLicense {
+    Active,
+    #[cfg(not(feature = "mas"))]
+    Stale,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -137,9 +159,10 @@ pub struct UserPrefs {
 }
 
 // ---------------------------------------------------------------------------
-// Keychain helpers
+// Keychain helpers (Direct build only — Dodo Payments cache)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "mas"))]
 fn read_stored_license() -> Option<StoredLicense> {
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).ok()?;
     match entry.get_password() {
@@ -152,6 +175,7 @@ fn read_stored_license() -> Option<StoredLicense> {
     }
 }
 
+#[cfg(not(feature = "mas"))]
 fn write_stored_license(stored: &StoredLicense) -> Result<(), String> {
     let json = serde_json::to_string(stored).map_err(|e| e.to_string())?;
     let entry =
@@ -159,6 +183,7 @@ fn write_stored_license(stored: &StoredLicense) -> Result<(), String> {
     entry.set_password(&json).map_err(|e| e.to_string())
 }
 
+#[cfg(not(feature = "mas"))]
 fn clear_stored_license() {
     if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
         entry.delete_password().ok();
@@ -411,9 +436,10 @@ fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
-// Dodo Payments validation
+// Dodo Payments validation (Direct build only)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "mas"))]
 enum DodoError {
     InvalidFormat,
     NetworkOrServer,
@@ -421,6 +447,7 @@ enum DodoError {
 
 /// Calls `POST /licenses/validate` via the system `curl` binary.
 /// Returns `Ok(true/false)` based on the `valid` field in Dodo's response.
+#[cfg(not(feature = "mas"))]
 async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoError> {
     let url = format!("{DODO_BASE}/licenses/validate");
     let body = format!("{{\"license_key\":\"{}\"}}", license_key.replace('"', "\\\""));
@@ -473,20 +500,75 @@ async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoError> {
 }
 
 // ---------------------------------------------------------------------------
+// Cached-license resolution (per build)
+// ---------------------------------------------------------------------------
+
+/// Direct build: map a Dodo `StoredLicense` to the cross-build
+/// `CachedLicense` abstraction. Returns `Active` while inside the 14-day
+/// offline grace window, `Stale` afterwards (or if the timestamp is
+/// unparseable — fail closed so the user revalidates).
+#[cfg(not(feature = "mas"))]
+fn direct_cached_license(stored: &StoredLicense, now: chrono::DateTime<Utc>) -> CachedLicense {
+    match chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
+        Ok(validated_at) => {
+            let age = now - validated_at.with_timezone(&Utc);
+            if age < chrono::Duration::days(14) {
+                CachedLicense::Active
+            } else {
+                CachedLicense::Stale
+            }
+        }
+        Err(_) => CachedLicense::Stale,
+    }
+}
+
+/// MAS build: map a StoreKit `StoredEntitlement` to the cross-build
+/// `CachedLicense` abstraction. Returns `Some(Active)` for the
+/// non-consumable lifetime product (no `expires_at`) and for subscriptions
+/// whose `expires_at` is still in the future. Returns `None` for expired or
+/// unparseable subscriptions — App Store rules treat lapsed subscriptions as
+/// unentitled, and StoreKit (not our cache) is the source of truth.
+#[cfg(feature = "mas")]
+fn mas_cached_license(
+    stored: &crate::commands::iap::StoredEntitlement,
+    now: chrono::DateTime<Utc>,
+) -> Option<CachedLicense> {
+    match stored.expires_at.as_deref() {
+        None => Some(CachedLicense::Active),
+        Some(expiry) => match chrono::DateTime::parse_from_rfc3339(expiry) {
+            Ok(exp) if exp.with_timezone(&Utc) > now => Some(CachedLicense::Active),
+            _ => None,
+        },
+    }
+}
+
+/// Read the cached license signal from the appropriate keychain entry for
+/// the current build flavour.
+#[cfg(not(feature = "mas"))]
+fn current_cached_license(now: chrono::DateTime<Utc>) -> Option<CachedLicense> {
+    read_stored_license().map(|stored| direct_cached_license(&stored, now))
+}
+
+#[cfg(feature = "mas")]
+fn current_cached_license(now: chrono::DateTime<Utc>) -> Option<CachedLicense> {
+    crate::commands::iap::read_stored_entitlement()
+        .and_then(|stored| mas_cached_license(&stored, now))
+}
+
+// ---------------------------------------------------------------------------
 // Status computation
 // ---------------------------------------------------------------------------
 
 /// Pure status computation — no I/O; accepts all inputs as parameters.
 fn compute_status_pure(
-    stored: Option<&StoredLicense>,
+    cached: Option<CachedLicense>,
     prefs: &UserPrefs,
     banner_dismissed: bool,
     now: chrono::DateTime<Utc>,
 ) -> LicenseStatus {
-    if let Some(stored) = stored {
-        if let Ok(validated_at) = chrono::DateTime::parse_from_rfc3339(&stored.validated_at) {
-            let age = now - validated_at.with_timezone(&Utc);
-            if age < chrono::Duration::days(14) {
+    if let Some(cached) = cached {
+        match cached {
+            CachedLicense::Active => {
                 return LicenseStatus {
                     tier: LicenseTier::Commercial,
                     banner_visible: false,
@@ -495,31 +577,28 @@ fn compute_status_pure(
                     revalidation_required: false,
                 };
             }
-            // Key exists but offline too long — revert to Unlicensed
-            return LicenseStatus {
-                tier: LicenseTier::Unlicensed,
-                banner_visible: false,
-                grace_period_ends: None,
-                show_usage_dialog: false,
-                revalidation_required: true,
-            };
+            #[cfg(not(feature = "mas"))]
+            CachedLicense::Stale => {
+                return LicenseStatus {
+                    tier: LicenseTier::Unlicensed,
+                    banner_visible: false,
+                    grace_period_ends: None,
+                    show_usage_dialog: false,
+                    revalidation_required: true,
+                };
+            }
         }
     }
 
-    // Commercial usage detected?
-    if let Some(detected_str) = &prefs.commercial_detected_at {
-        if let Ok(detected) = chrono::DateTime::parse_from_rfc3339(detected_str) {
-            let grace_end = detected.with_timezone(&Utc) + chrono::Duration::days(14);
-            let grace_period_ends = Some(grace_end.to_rfc3339());
-            let banner_visible = now > grace_end && !banner_dismissed;
-            return LicenseStatus {
-                tier: LicenseTier::Unlicensed,
-                banner_visible,
-                grace_period_ends,
-                show_usage_dialog: false,
-                revalidation_required: false,
-            };
-        }
+    // Commercial usage detected — show banner immediately (subject only to session dismissal).
+    if prefs.commercial_detected_at.is_some() {
+        return LicenseStatus {
+            tier: LicenseTier::Unlicensed,
+            banner_visible: !banner_dismissed,
+            grace_period_ends: None,
+            show_usage_dialog: false,
+            revalidation_required: false,
+        };
     }
 
     // Personal or unknown — check if we should show the usage dialog
@@ -547,14 +626,16 @@ fn compute_status_pure(
 /// Returns status from cached state only — no network calls.
 fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
     let prefs = load_prefs(app);
-    let stored = read_stored_license();
-    compute_status_pure(stored.as_ref(), &prefs, banner_dismissed, Utc::now())
+    let now = Utc::now();
+    let cached = current_cached_license(now);
+    compute_status_pure(cached, &prefs, banner_dismissed, now)
 }
 
 // ---------------------------------------------------------------------------
-// Error message helpers
+// Error message helpers (Direct build only)
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "mas"))]
 fn dodo_error_message(error: &DodoError) -> String {
     match error {
         DodoError::InvalidFormat => {
@@ -566,16 +647,18 @@ fn dodo_error_message(error: &DodoError) -> String {
     }
 }
 
+#[cfg(not(feature = "mas"))]
 fn dodo_invalid_key_message() -> &'static str {
     "License key is not valid or has expired — check your subscription in the customer portal"
 }
 
 // ---------------------------------------------------------------------------
-// Background re-validation
+// Background re-validation (Direct build only)
 // ---------------------------------------------------------------------------
 
 /// Re-validates the stored license key against Dodo if it is older than 24 hours.
 /// Called on launch and then every 24 hours by the background task in lib.rs.
+#[cfg(not(feature = "mas"))]
 pub async fn revalidate_license_background(app: AppHandle) {
     let Some(stored) = read_stored_license() else {
         return;
@@ -630,6 +713,7 @@ pub async fn get_license_status(
     Ok(compute_status(&app, dismissed))
 }
 
+#[cfg(not(feature = "mas"))]
 #[tauri::command]
 pub async fn activate_license(
     app: AppHandle,
@@ -651,6 +735,7 @@ pub async fn activate_license(
     }
 }
 
+#[cfg(not(feature = "mas"))]
 #[tauri::command]
 pub async fn deactivate_license(
     app: AppHandle,
@@ -699,6 +784,7 @@ pub async fn notify_connection_count(
     Ok(compute_status(&app, dismissed))
 }
 
+#[cfg(not(feature = "mas"))]
 #[tauri::command]
 pub fn open_customer_portal() -> Result<(), String> {
     std::process::Command::new("open")
@@ -715,6 +801,22 @@ pub fn open_url(url: String) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// Build flavour identifier exposed to the frontend so a single bundled
+/// `index.html` can render the right licensing UI for each binary. Returns:
+/// - `"mas"` — Mac App Store build (StoreKit IAP, no Dodo, no updater)
+/// - `"direct"` — GitHub Releases / Homebrew build (Dodo Payments, updater)
+///
+/// The frontend caches this with `staleTime: Infinity` since the value is
+/// fixed for the lifetime of the running binary.
+#[tauri::command]
+pub fn get_build_flavor() -> &'static str {
+    if cfg!(feature = "mas") {
+        "mas"
+    } else {
+        "direct"
+    }
 }
 
 #[tauri::command]
@@ -778,59 +880,57 @@ mod tests {
         }
     }
 
-    fn stored(validated_at: chrono::DateTime<Utc>) -> StoredLicense {
-        StoredLicense {
-            license_key: "test-key".to_string(),
-            validated_at: validated_at.to_rfc3339(),
-        }
-    }
-
-    // -- State-machine transitions --
+    // -- Status-state transitions (build-agnostic) --
 
     #[test]
-    fn freshly_validated_key_is_commercial() {
+    fn cached_active_is_commercial_no_banner() {
         let now = Utc::now();
-        let s = stored(now - Duration::hours(1));
-        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
+        let status =
+            compute_status_pure(Some(CachedLicense::Active), &base_prefs(), false, now);
         assert_eq!(status.tier, LicenseTier::Commercial);
         assert!(!status.banner_visible);
         assert!(!status.revalidation_required);
+        assert!(status.grace_period_ends.is_none());
     }
 
     #[test]
-    fn key_validated_13_days_ago_is_still_commercial() {
+    fn commercial_detected_shows_banner_immediately() {
+        // No 14-day grace period: as soon as commercial usage is detected the banner is shown
+        // (subject only to session dismissal).
         let now = Utc::now();
-        let s = stored(now - Duration::days(13));
-        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
-        assert_eq!(status.tier, LicenseTier::Commercial);
-        assert!(!status.revalidation_required);
-    }
-
-    #[test]
-    fn key_validated_over_14_days_ago_requires_revalidation() {
-        let now = Utc::now();
-        let s = stored(now - Duration::days(15));
-        let status = compute_status_pure(Some(&s), &base_prefs(), false, now);
+        let mut prefs = base_prefs();
+        prefs.commercial_detected_at = Some(now.to_rfc3339());
+        let status = compute_status_pure(None, &prefs, false, now);
         assert_eq!(status.tier, LicenseTier::Unlicensed);
-        assert!(status.revalidation_required);
+        assert!(status.banner_visible);
+        assert!(status.grace_period_ends.is_none());
+        assert!(!status.revalidation_required);
+    }
+
+    #[test]
+    fn commercial_detected_banner_hidden_when_dismissed_for_session() {
+        let now = Utc::now();
+        let mut prefs = base_prefs();
+        prefs.commercial_detected_at = Some(now.to_rfc3339());
+        let status = compute_status_pure(None, &prefs, true, now);
+        assert_eq!(status.tier, LicenseTier::Unlicensed);
         assert!(!status.banner_visible);
     }
 
     #[test]
-    fn no_stored_license_after_valid_false_shows_banner_when_grace_expired() {
-        // Simulates: Dodo returned valid:false → clear_stored_license() called → compute_status
-        // runs next poll with no stored key. Banner shows because commercial was detected earlier.
+    fn commercial_detected_long_ago_still_shows_banner() {
+        // Sanity: the previous 14-day grace bug suppressed the banner for 14 days. Even a
+        // long-ago detection must still surface the banner now.
         let now = Utc::now();
         let mut prefs = base_prefs();
         prefs.commercial_detected_at = Some((now - Duration::days(20)).to_rfc3339());
         let status = compute_status_pure(None, &prefs, false, now);
-        assert_eq!(status.tier, LicenseTier::Unlicensed);
         assert!(status.banner_visible);
-        assert!(!status.revalidation_required);
+        assert!(status.grace_period_ends.is_none());
     }
 
     #[test]
-    fn no_stored_license_no_commercial_detection_is_unlicensed_no_banner() {
+    fn no_cached_license_no_commercial_detection_is_unlicensed_no_banner() {
         let now = Utc::now();
         let status = compute_status_pure(None, &base_prefs(), false, now);
         assert_eq!(status.tier, LicenseTier::Unlicensed);
@@ -838,30 +938,144 @@ mod tests {
         assert!(!status.revalidation_required);
     }
 
-    // -- Error-code → message mapping --
-
+    #[cfg(not(feature = "mas"))]
     #[test]
-    fn invalid_format_error_message() {
-        assert_eq!(
-            dodo_error_message(&DodoError::InvalidFormat),
-            "Invalid license key format — check for typos"
-        );
+    fn build_flavor_reports_direct_when_mas_feature_off() {
+        assert_eq!(get_build_flavor(), "direct");
     }
 
+    #[cfg(feature = "mas")]
     #[test]
-    fn network_error_message() {
-        assert_eq!(
-            dodo_error_message(&DodoError::NetworkOrServer),
-            "Could not reach the license server — check your connection and try again"
-        );
+    fn build_flavor_reports_mas_when_mas_feature_on() {
+        assert_eq!(get_build_flavor(), "mas");
     }
 
-    #[test]
-    fn valid_false_message() {
-        assert_eq!(
-            dodo_invalid_key_message(),
-            "License key is not valid or has expired — check your subscription in the customer portal"
-        );
+    // -- Direct-only: Dodo cache mapping + error messages --
+
+    #[cfg(not(feature = "mas"))]
+    mod direct {
+        use super::*;
+
+        fn stored(validated_at: chrono::DateTime<Utc>) -> StoredLicense {
+            StoredLicense {
+                license_key: "test-key".to_string(),
+                validated_at: validated_at.to_rfc3339(),
+            }
+        }
+
+        #[test]
+        fn freshly_validated_key_maps_to_active() {
+            let now = Utc::now();
+            let cached = direct_cached_license(&stored(now - Duration::hours(1)), now);
+            assert_eq!(cached, CachedLicense::Active);
+        }
+
+        #[test]
+        fn key_validated_13_days_ago_still_active() {
+            let now = Utc::now();
+            let cached = direct_cached_license(&stored(now - Duration::days(13)), now);
+            assert_eq!(cached, CachedLicense::Active);
+        }
+
+        #[test]
+        fn key_validated_over_14_days_ago_is_stale() {
+            let now = Utc::now();
+            let cached = direct_cached_license(&stored(now - Duration::days(15)), now);
+            assert_eq!(cached, CachedLicense::Stale);
+        }
+
+        #[test]
+        fn unparseable_validated_at_is_stale() {
+            let stored = StoredLicense {
+                license_key: "test-key".to_string(),
+                validated_at: "garbage".to_string(),
+            };
+            assert_eq!(
+                direct_cached_license(&stored, Utc::now()),
+                CachedLicense::Stale
+            );
+        }
+
+        #[test]
+        fn cached_stale_maps_to_revalidation_required() {
+            let now = Utc::now();
+            let status =
+                compute_status_pure(Some(CachedLicense::Stale), &base_prefs(), false, now);
+            assert_eq!(status.tier, LicenseTier::Unlicensed);
+            assert!(status.revalidation_required);
+            assert!(!status.banner_visible);
+        }
+
+        #[test]
+        fn invalid_format_error_message() {
+            assert_eq!(
+                dodo_error_message(&DodoError::InvalidFormat),
+                "Invalid license key format — check for typos"
+            );
+        }
+
+        #[test]
+        fn network_error_message() {
+            assert_eq!(
+                dodo_error_message(&DodoError::NetworkOrServer),
+                "Could not reach the license server — check your connection and try again"
+            );
+        }
+
+        #[test]
+        fn valid_false_message() {
+            assert_eq!(
+                dodo_invalid_key_message(),
+                "License key is not valid or has expired — check your subscription in the customer portal"
+            );
+        }
     }
 
+    // -- MAS-only: StoreKit entitlement mapping --
+
+    #[cfg(feature = "mas")]
+    mod mas {
+        use super::*;
+        use crate::commands::iap::StoredEntitlement;
+
+        #[test]
+        fn lifetime_entitlement_with_no_expiry_is_active() {
+            let now = Utc::now();
+            let stored = StoredEntitlement {
+                product_id: "app.esploro.personal.lifetime".to_string(),
+                expires_at: None,
+            };
+            assert_eq!(mas_cached_license(&stored, now), Some(CachedLicense::Active));
+        }
+
+        #[test]
+        fn subscription_future_expiry_is_active() {
+            let now = Utc::now();
+            let stored = StoredEntitlement {
+                product_id: "app.esploro.business.annual".to_string(),
+                expires_at: Some((now + Duration::days(30)).to_rfc3339()),
+            };
+            assert_eq!(mas_cached_license(&stored, now), Some(CachedLicense::Active));
+        }
+
+        #[test]
+        fn subscription_past_expiry_is_none() {
+            let now = Utc::now();
+            let stored = StoredEntitlement {
+                product_id: "app.esploro.personal.annual".to_string(),
+                expires_at: Some((now - Duration::days(1)).to_rfc3339()),
+            };
+            assert_eq!(mas_cached_license(&stored, now), None);
+        }
+
+        #[test]
+        fn subscription_unparseable_expiry_is_none() {
+            let now = Utc::now();
+            let stored = StoredEntitlement {
+                product_id: "app.esploro.personal.annual".to_string(),
+                expires_at: Some("not-a-date".to_string()),
+            };
+            assert_eq!(mas_cached_license(&stored, now), None);
+        }
+    }
 }

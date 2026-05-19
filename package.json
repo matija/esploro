@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build:mas": "bash scripts/build-mas.sh"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.1",
