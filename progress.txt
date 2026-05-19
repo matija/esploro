@@ -1,3 +1,151 @@
+## MAS PRD P3 — Store Listing Assets: app icon + metadata [PARTIAL: icon + text DONE, screenshots PENDING]
+- Goal: produce the App Store Connect-ready assets and text content from
+  PRD §P3. The PRD said "no code changes" — implementation here is a new
+  store-listing/ directory plus a small Swift generator so the icon build
+  is reproducible (re-runnable if src-tauri/icons/icon.png ever changes).
+  Screenshots are intentionally not produced — they need a running app
+  with real DB content, which can't be reasonably scripted from a CLI.
+- store-listing/app-icon-1024.png (NEW, 288417 bytes): 1024×1024 8-bit RGB
+  PNG, no alpha channel, no rounded corners. App Store Connect rejects
+  PNGs with alpha or with the source's own rounded mask (Apple applies
+  its own squircle mask). Verified with `file`: "PNG image data, 1024 x
+  1024, 8-bit/color RGB, non-interlaced".
+- store-listing/scripts/build-app-store-icon.swift (NEW, ~150 lines): the
+  generator. Loads src-tauri/icons/icon.png (rounded-corner gradient with
+  transparent corners), samples the source's own corner-most fully-opaque
+  pixel along each of the four diagonals (walks inward from each corner
+  until alpha == 255 — that hit is the gradient colour at the rounded-rect
+  apex), averages the four samples for the background fill, then composites
+  the source onto a 1024×1024 noneSkipLast (RGB-only, alpha-discarding)
+  CGContext. Final PNG carries no alpha channel because the underlying
+  bitmap doesn't have one — not "alpha set to 255" but the channel is
+  genuinely absent. Reproducible: `swift store-listing/scripts/build-
+  app-store-icon.swift src-tauri/icons/icon.png store-listing/app-icon-
+  1024.png`. Sampled background for the current source: #203753.
+  - Why edge-extension by ray-cast to centre was tried and reverted: ray-
+    casting each transparent pixel toward the centre and copying the
+    nearest opaque pixel along that ray produced visible radial streaks
+    in the corners (the source's gradient varies tangentially around the
+    rounded rect, so neighbouring corner pixels picked colours from
+    different gradient positions). The "composite onto matched solid
+    fill" approach has one harmless artefact in trade — a faint outline
+    where the rounded mask used to be — but that area is fully outside
+    Apple's eventual icon mask, so it's invisible in the App Store.
+- store-listing/metadata.md (NEW, ~120 lines): full App Store Connect
+  text-content block in one file so the submission form can be filled in
+  from this alone (no PRD context-switching). Mirrors PRD §P3 Text
+  Content + IAP Products + adds Version Release Notes, Age Rating, and
+  an App Review note explaining the network entitlement scope and how to
+  exercise the commercial-license code path during review. The PRD's
+  description block is copied byte-for-byte; the IAP product table
+  mirrors PRD §IAP Products.
+- store-listing/screenshots/README.md (NEW): capture guidance + file-name
+  convention (01-connections.png … 05-settings.png so gallery order is
+  preserved during upload). Lists the five suggested shots from PRD §P3
+  with concrete instructions (which table to load, which theme to use,
+  what state to put the UI in). Calls out that the Direct build and MAS
+  build look identical in App Review's eye except for the sidebar
+  vibrancy, so captures from the Direct build are valid for MAS
+  submission.
+- store-listing/README.md (NEW): file-by-file index of the directory so a
+  future reviewer can see at a glance what's ready vs pending.
+- PRD.md: P3 section reorganised. Sub-headers are now `#### App icon
+  [DONE]`, `#### Screenshots [PENDING — manual capture]`, `#### Text
+  content [DONE]`. Each sub-section references the corresponding file
+  under store-listing/. The icon sub-section embeds the regenerate
+  command so it's discoverable from the PRD alone.
+- Verification:
+  - npm run type-check — clean (asset-only change, no TS impact).
+  - npm run lint — clean.
+  - cargo test (Direct) — 22 passed (unchanged).
+  - file store-listing/app-icon-1024.png — confirmed
+    "PNG image data, 1024 x 1024, 8-bit/color RGB, non-interlaced", i.e.
+    correct dimensions and no alpha channel.
+- Out of scope (intentionally):
+  - Screenshot capture. Requires a running app with realistic DB content,
+    correct window sizing, theme toggling, and at least 3 distinct UI
+    states. Doing it from a CLI agent without a graphical session would
+    produce sub-spec screenshots and waste re-capture effort later.
+    Documented as the next manual step in store-listing/screenshots/
+    README.md so whoever submits the app can pick it up cleanly.
+  - App Store Connect configuration (create app record, register IAP
+    product IDs, set privacy/support URLs, enrol in Small Business
+    Program). Per PRD §Submission Flow Step 1 these depend on Apple
+    Developer account access that's outside the repo.
+  - TestFlight upload via Transporter. Needs the App-Specific Password
+    + Apple Distribution cert + provisioning profile not in this repo.
+
+## MAS PRD P4 — Build pipeline (scripts/build-mas.sh) [DONE]
+- Goal: turn the Cargo.toml patch + cargo tauri build + restore sequence from
+  the PRD's P1 note into a single repeatable command. Previously the procedure
+  lived only in prose; running it by hand risked leaving Cargo.toml in a
+  half-patched state if anything went wrong mid-build. Now it's one npm
+  script.
+- scripts/build-mas.sh (NEW, ~100 lines, +x):
+  - Computes ROOT_DIR from BASH_SOURCE so it works regardless of where it's
+    invoked from (CI, repo root, src-tauri/, …).
+  - Preflight: asserts src-tauri/Cargo.toml and src-tauri/tauri.mas.conf.json
+    exist and that the literal line
+    `tauri = { version = "2", features = ["macos-private-api"] }`
+    is present (anchored full-line equality via `grep -Fxq`). Any drift in
+    the dependency declaration fails fast with a remediation hint that names
+    the EXPECTED_LINE / PATCHED_LINE constants in the script to update.
+    Better to refuse to build than to silently produce the wrong binary.
+  - Backup: copies Cargo.toml to `$(mktemp -t esploro-cargo-toml.XXXXXX)` and
+    installs `trap restore EXIT`. The restore function copies the backup
+    back, then unlinks it. EXIT fires on success, normal failure, and SIGINT
+    so Ctrl+C mid-build still leaves the working tree pristine.
+  - Patch: awk full-line match against EXPECTED_LINE replaces with
+    PATCHED_LINE (= `tauri = { version = "2", features = [] }`), writes to a
+    sibling .new file, then `mv` for atomicity. Using awk rather than sed
+    sidesteps the GNU/BSD `sed -i` flag-arg portability foot-gun.
+  - Build: invokes `npm run tauri -- build --target $TARGET --config
+    src-tauri/tauri.mas.conf.json --features mas "$@"`. Going through npm
+    (rather than `cargo tauri build`) uses the Tauri CLI pinned in
+    package.json so the developer-local build matches whatever CI ends up
+    running. Extra "$@" args forward to `tauri build` for flags like
+    --verbose or --debug.
+  - Environment: TAURI_TARGET overrides the target triple. Defaults to
+    aarch64-apple-darwin per the PRD's "ARM only initially" scope. The var
+    exists for the eventual fat-binary follow-up.
+- package.json: new "tauri:build:mas" script = "bash scripts/build-mas.sh".
+  `npm run tauri:build:mas` is now the one-liner entry point. No new
+  dependencies (awk, sed, mktemp all ship with macOS).
+- PRD.md:
+  - P1 note's trailing paragraph now references P4: "The patch+build+restore
+    dance is automated as `scripts/build-mas.sh` (see P4)."
+  - New `### P4 — MAS build pipeline [DONE]` workstream captures the script
+    behaviour, the environment variables, and the verification matrix.
+  - Submission Flow → Step 2 (Build MAS binary) collapses the three-step
+    manual procedure to `npm run tauri:build:mas`.
+- Verification:
+  - `bash -n scripts/build-mas.sh` clean (no shell syntax errors).
+  - Awk patch tested on a copy of Cargo.toml in /tmp: produces exactly the
+    expected single-line diff (line 39 `features = ["macos-private-api"]` →
+    `features = []`), no other changes.
+  - Direct build untouched: `npm run type-check` clean, `npm run lint`
+    clean, `cargo clippy --all-targets -- -D warnings` clean, `cargo test`
+    22 passed (unchanged from previous step).
+  - MAS build untouched: `cargo clippy --all-targets --features mas --
+    -D warnings` clean, `cargo test --features mas` 27 passed (unchanged
+    from previous step). Note: the Cursor terminal's sandboxed view of
+    ~/.cargo/registry/cache/ has no write permission (macOS TCC restriction
+    on this app, not a project issue), so MAS checks ran with
+    CARGO_HOME=/tmp/esploro-cargo-home. This is a local-environment quirk
+    only; CI on macos-latest writes to the default $HOME/.cargo and is
+    unaffected.
+- Out of scope (intentionally):
+  - Wiring the script into .github/workflows/ci.yml. The current CI workflow
+    only exercises the Direct build (clippy + test + tauri build). Adding a
+    MAS job needs Apple Distribution cert + provisioning profile +
+    App-Specific Password for Transporter, all of which require repository
+    secrets that aren't configured yet. The script is the unit; CI is the
+    next deliverable once the App Store Connect side is set up (PRD
+    Submission Flow Step 1).
+  - Live TestFlight build with this script. That validates end-to-end IAP
+    flow (PurchaseSheet → SKPayment → Keychain entitlement) and is a Step 3
+    Submission Flow concern, not a P4 deliverable.
+
 ## MAS PRD P2 — Step 4: Frontend (Purchase Sheet, build-flavour branching) [DONE]
 - Goal: ship the MAS-flavoured licensing UI (PurchaseSheet, Restore Purchases,
   Manage Subscription) without forking the Vite bundle. Single index.html /
