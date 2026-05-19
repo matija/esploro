@@ -803,6 +803,22 @@ pub fn open_url(url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Build flavour identifier exposed to the frontend so a single bundled
+/// `index.html` can render the right licensing UI for each binary. Returns:
+/// - `"mas"` — Mac App Store build (StoreKit IAP, no Dodo, no updater)
+/// - `"direct"` — GitHub Releases / Homebrew build (Dodo Payments, updater)
+///
+/// The frontend caches this with `staleTime: Infinity` since the value is
+/// fixed for the lifetime of the running binary.
+#[tauri::command]
+pub fn get_build_flavor() -> &'static str {
+    if cfg!(feature = "mas") {
+        "mas"
+    } else {
+        "direct"
+    }
+}
+
 #[tauri::command]
 pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, String> {
     match read_prefs_json(&app) {
@@ -920,6 +936,18 @@ mod tests {
         assert_eq!(status.tier, LicenseTier::Unlicensed);
         assert!(!status.banner_visible);
         assert!(!status.revalidation_required);
+    }
+
+    #[cfg(not(feature = "mas"))]
+    #[test]
+    fn build_flavor_reports_direct_when_mas_feature_off() {
+        assert_eq!(get_build_flavor(), "direct");
+    }
+
+    #[cfg(feature = "mas")]
+    #[test]
+    fn build_flavor_reports_mas_when_mas_feature_on() {
+        assert_eq!(get_build_flavor(), "mas");
     }
 
     // -- Direct-only: Dodo cache mapping + error messages --

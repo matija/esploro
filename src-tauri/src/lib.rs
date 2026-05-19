@@ -151,6 +151,7 @@ pub fn run() {
             commands::license::dismiss_license_banner,
             commands::license::notify_connection_count,
             commands::license::open_url,
+            commands::license::get_build_flavor,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
             // Dodo Payments + in-app updater: Direct build only.

@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { licenseApi, LICENSE_STATUS_KEY } from './api';
+import {
+  BUILD_FLAVOR_KEY,
+  LICENSE_STATUS_KEY,
+  licenseApi,
+} from './api';
 import { LicenseActivationSheet } from './LicenseActivationSheet';
+import { PurchaseSheet } from './PurchaseSheet';
 
 export function LicenseBanner() {
   const queryClient = useQueryClient();
@@ -11,8 +16,20 @@ export function LicenseBanner() {
     queryFn: licenseApi.getStatus,
     staleTime: 60_000,
   });
+  const { data: buildFlavor } = useQuery({
+    queryKey: BUILD_FLAVOR_KEY,
+    queryFn: licenseApi.getBuildFlavor,
+    staleTime: Infinity,
+  });
   const [activationOpen, setActivationOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
 
+  // `revalidationRequired` is always false on MAS (StoreKit is the source of
+  // truth, no offline-grace concept), so the dedicated revalidation banner
+  // never appears there. Fall back gracefully if the build-flavour query
+  // hasn't resolved yet by treating the build as direct (matches behaviour
+  // before P2 Step 4).
+  const isMas = buildFlavor === 'mas';
   const showBanner = status?.bannerVisible || status?.revalidationRequired;
   if (!showBanner) return null;
 
@@ -21,7 +38,7 @@ export function LicenseBanner() {
     queryClient.invalidateQueries({ queryKey: LICENSE_STATUS_KEY });
   }
 
-  if (status?.revalidationRequired) {
+  if (status?.revalidationRequired && !isMas) {
     return (
       <div className="shrink-0 flex items-center gap-3 px-4 py-2.5
         bg-amber-50 dark:bg-amber-950/50
@@ -51,22 +68,35 @@ export function LicenseBanner() {
         <span className="flex-1 text-xs">
           Esploro is free for personal use. Commercial use requires a license.
         </span>
-        <button
-          onClick={() => licenseApi.openPricingPage()}
-          className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
-            bg-amber-200 dark:bg-amber-800
-            hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
-        >
-          Purchase license
-        </button>
-        <button
-          onClick={() => setActivationOpen(true)}
-          className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
-            bg-amber-200 dark:bg-amber-800
-            hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
-        >
-          I have a license key
-        </button>
+        {isMas ? (
+          <button
+            onClick={() => setPurchaseOpen(true)}
+            className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
+              bg-amber-200 dark:bg-amber-800
+              hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+          >
+            Get a license
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => licenseApi.openPricingPage()}
+              className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
+                bg-amber-200 dark:bg-amber-800
+                hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+            >
+              Purchase license
+            </button>
+            <button
+              onClick={() => setActivationOpen(true)}
+              className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
+                bg-amber-200 dark:bg-amber-800
+                hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors"
+            >
+              I have a license key
+            </button>
+          </>
+        )}
         <button
           onClick={handleDismiss}
           className="shrink-0 p-1 rounded
@@ -77,10 +107,18 @@ export function LicenseBanner() {
         </button>
       </div>
 
-      <LicenseActivationSheet
-        open={activationOpen}
-        onClose={() => setActivationOpen(false)}
-      />
+      {!isMas && (
+        <LicenseActivationSheet
+          open={activationOpen}
+          onClose={() => setActivationOpen(false)}
+        />
+      )}
+      {isMas && (
+        <PurchaseSheet
+          open={purchaseOpen}
+          onClose={() => setPurchaseOpen(false)}
+        />
+      )}
     </>
   );
 }

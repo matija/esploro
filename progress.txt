@@ -1,3 +1,108 @@
+## MAS PRD P2 — Step 4: Frontend (Purchase Sheet, build-flavour branching) [DONE]
+- Goal: ship the MAS-flavoured licensing UI (PurchaseSheet, Restore Purchases,
+  Manage Subscription) without forking the Vite bundle. Single index.html /
+  React tree picks the right UI at runtime by querying a new build-flavour
+  Tauri command. Direct build's UI is unchanged — every Direct branch in the
+  modified components matches the previous markup byte-for-byte.
+- src-tauri/src/commands/license.rs:
+  - New always-on Tauri command get_build_flavor() -> &'static str. Returns
+    "mas" when cfg!(feature = "mas"), else "direct". cfg! is a compile-time
+    macro so each binary returns its own constant — no runtime feature
+    detection. Doc comment notes the frontend caches this with
+    staleTime: Infinity since the value is fixed for the binary's lifetime.
+  - Two new unit tests pin the cfg → string mapping per build:
+      build_flavor_reports_direct_when_mas_feature_off (#[cfg(not(feature = "mas"))])
+      build_flavor_reports_mas_when_mas_feature_on    (#[cfg(feature = "mas")])
+    They live in the existing tests module so cargo test on Direct asserts
+    "direct" and cargo test --features mas asserts "mas". One of the two is
+    always cfg'd out for any given build — there's no runtime branch to test
+    that could lie about the wrong flavour.
+- src-tauri/src/lib.rs: registered get_build_flavor in the always-on section
+  of invoke_handler! (alongside open_url and the prefs commands), so the
+  frontend's first call resolves regardless of feature flags.
+- src/features/license/types.ts: added BuildFlavor = 'direct' | 'mas' plus
+  the wire shapes for IAP — IapProduct, IapPurchaseStatus, IapPurchaseResult,
+  IapRestoreResult, IapEntitlement (camelCase fields matching the Rust
+  serde rename_all = "camelCase"). productId / expiresAt typed as
+  string | null since the Rust side serialises Option<String> as null.
+- src/features/license/api.ts: cleaned up and extended.
+  - New query keys: BUILD_FLAVOR_KEY, IAP_PRODUCTS_KEY, IAP_ENTITLEMENT_KEY.
+  - licenseApi.getBuildFlavor()
+  - licenseApi.getProducts() / .purchase(productId) / .restore() /
+    .checkEntitlement() — wrappers for the four MAS-only commands.
+  - licenseApi.openManageSubscription() — invokes open_url with
+    macappstore://apps.apple.com/account/subscriptions, the canonical
+    deep link for managing a Mac App Store subscription. macappstore://
+    opens the Mac App Store app directly; the https:// fallback would
+    detour through a browser → handoff and feels broken to users.
+  - The Direct-only methods (activate, deactivate, openCustomerPortal)
+    stayed in place; they're still callable but only reachable from the
+    Direct branch of the new components.
+- src/features/license/index.ts: re-exports PurchaseSheet, all new query
+  keys, and the new types so callers can import everything from
+  '../features/license'.
+- src/features/license/PurchaseSheet.tsx (NEW, ~210 lines):
+  - Right-side Radix Dialog (w-[360px], matches LicenseActivationSheet
+    so the two sheets feel like one component family).
+  - Fetches products via React Query keyed on IAP_PRODUCTS_KEY, enabled
+    only while the sheet is open, staleTime 5 min. Loading state shows
+    a centred spinner; failure state shows the error + a Try again
+    button that triggers refetch().
+  - Renders one card per IapProduct with title, price (StoreKit-formatted
+    on the Rust side, so no Intl needed), description, and a Buy button.
+    busyProductId tracks which card is awaiting iap_purchase; while one is
+    in flight all other Buy buttons + the Restore link disable.
+  - Purchase outcomes: status="purchased" → refresh both LICENSE_STATUS_KEY
+    and IAP_ENTITLEMENT_KEY caches, toast success, close sheet.
+    status="cancelled" → silent (user hit Cancel themselves).
+    status="failed" → toast error.
+  - Restore link at the bottom of the sheet: calls iap_restore, refreshes
+    both caches, toasts success/info based on result.restored, closes if
+    something was restored.
+- src/features/license/LicenseBanner.tsx: branches on buildFlavor.
+  - Reads buildFlavor via React Query (BUILD_FLAVOR_KEY, staleTime: Infinity).
+  - The revalidation-required banner is now Direct-only — it's gated behind
+    !isMas because revalidation_required is always false on MAS (StoreKit
+    is the source of truth, no offline-grace concept).
+  - The standard banner: Direct keeps the existing two-button layout
+    (Purchase license + I have a license key); MAS shows a single
+    Get a license button that opens PurchaseSheet. Dismiss [×] still
+    works in both flavours.
+  - Sheets are rendered conditionally: Direct mounts LicenseActivationSheet,
+    MAS mounts PurchaseSheet. Mounting both at once would either be a no-op
+    (only one ever opens) or a dead-call risk (the Direct sheet calls
+    activate_license, which doesn't exist on MAS).
+- src/features/license/LicenseSettings.tsx: branches on buildFlavor with
+  three render paths.
+  - MAS commercial: pulls IapEntitlement via React Query, maps productId
+    through PRODUCT_LABELS to a friendly plan name (Personal — Lifetime,
+    Personal — Annual, Business — Annual) with a fallback to the raw ID.
+    Subscription rows show "Renews on <localised date>" + Manage subscription
+    + Restore purchases. Lifetime row (expires_at == null) shows
+    "One-time purchase" and skips Manage subscription.
+  - MAS unlicensed: Personal (free) / No license header, Get a license
+    button (opens PurchaseSheet), Restore purchases button.
+  - Direct: existing layout untouched (Commercial / Personal / Unlicensed
+    branches all match the previous file).
+  - The IAP_ENTITLEMENT_KEY query is enabled only when isMas is true so
+    Direct doesn't try to invoke iap_check_entitlement (would 404 — the
+    command isn't registered there).
+  - Restore purchases is mounted in two places (PurchaseSheet + Settings)
+    per the PRD's mitigation for "first submission rejected for missing
+    Restore Purchases": both placements together cover the App Review
+    precedent that Restore must be discoverable without buying anything.
+- Verification:
+  - Direct: cargo clippy --all-targets -- -D warnings clean, cargo test
+    22 passed (was 21 — the new build_flavor_reports_direct test).
+  - MAS:    cargo clippy --all-targets --features mas -- -D warnings clean,
+    cargo test --features mas 27 passed (was 26 — the new
+    build_flavor_reports_mas test).
+  - Frontend: npm run type-check clean, npm run lint clean.
+- Live StoreKit testing of PurchaseSheet (sandbox accounts, three IAP
+  products appearing with correct prices, sandbox purchase end-to-end,
+  Restore Purchases) is a TestFlight-time validation per the PRD's
+  Submission Flow → TestFlight checklist; not part of this step.
+
 ## MAS PRD P2 — Step 3: objc2-store-kit wiring [DONE]
 - Replaces the four iap_* command stubs from Step 1 with a real StoreKit 1
   backend, wired through objc2-store-kit (pure-Rust bindings, no Swift
