@@ -56,7 +56,7 @@ export const defaultUiPreferences: UiPreferences = {
   },
   editor: {
     fontFamily:
-      '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
+      'ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace',
     fontSize: 12,
     lineHeight: 1.5,
     tabSize: 2,

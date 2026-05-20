@@ -360,7 +360,7 @@
 
   /* Fonts */
   --font-ui:              -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-  --font-editor:          "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
+  --font-editor:          ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
   --font-ui-size:         13px;
   --font-editor-size:     12px;
   --font-editor-line-height: 1.5;
