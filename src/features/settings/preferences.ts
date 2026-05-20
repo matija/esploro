@@ -8,6 +8,10 @@ export const uiThemeValues = [
   "tokyo-night-day",
   "github-dark",
   "github-light",
+  "catppuccin-mocha",
+  "catppuccin-macchiato",
+  "catppuccin-frappe",
+  "catppuccin-latte",
 ] as const;
 
 export type UiTheme = (typeof uiThemeValues)[number];
@@ -190,11 +194,15 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
     case "macos-light":
     case "tokyo-night-day":
     case "github-light":
+    case "catppuccin-latte":
       return "light";
     case "tairiki-dark":
     case "macos-dark":
     case "tokyo-night":
     case "github-dark":
+    case "catppuccin-mocha":
+    case "catppuccin-macchiato":
+    case "catppuccin-frappe":
       return "dark";
     case "system":
       return null;
@@ -211,6 +219,14 @@ export function themeToPaletteAttribute(theme: unknown): string | null {
       return "github-dark";
     case "github-light":
       return "github-light";
+    case "catppuccin-mocha":
+      return "catppuccin-mocha";
+    case "catppuccin-macchiato":
+      return "catppuccin-macchiato";
+    case "catppuccin-frappe":
+      return "catppuccin-frappe";
+    case "catppuccin-latte":
+      return "catppuccin-latte";
     default:
       return null;
   }

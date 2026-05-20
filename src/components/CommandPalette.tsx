@@ -352,6 +352,34 @@ export function CommandPalette() {
       title: "Theme: GitHub Light",
       action: () => setTheme("github-light"),
     },
+    {
+      id: "theme-catppuccin-mocha",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Catppuccin Mocha",
+      action: () => setTheme("catppuccin-mocha"),
+    },
+    {
+      id: "theme-catppuccin-macchiato",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Catppuccin Macchiato",
+      action: () => setTheme("catppuccin-macchiato"),
+    },
+    {
+      id: "theme-catppuccin-frappe",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Catppuccin Frappé",
+      action: () => setTheme("catppuccin-frappe"),
+    },
+    {
+      id: "theme-catppuccin-latte",
+      group: "Settings",
+      icon: <Sun size={13} />,
+      title: "Theme: Catppuccin Latte",
+      action: () => setTheme("catppuccin-latte"),
+    },
   ], [activeSessions, addTab, setPendingNewConnection, setTheme]);
 
   const allCommands: CommandResult[] = useMemo(() => [

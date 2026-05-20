@@ -257,6 +257,122 @@
   --ds-syntax-comment:   #6e7781;
 }
 
+/* ── Catppuccin Mocha (dark) ─────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="catppuccin-mocha"] {
+  --ds-content-bg:       #1e1e2e;        /* base */
+  --ds-sidebar-bg:       #181825;        /* mantle */
+  --ds-bg-subtle:        #313244;        /* surface0 */
+  --ds-bg-active:        #45475a;        /* surface1 */
+  --ds-separator:        #45475a;        /* surface1 */
+  --ds-border-strong:    #6c7086;        /* overlay0 */
+  --ds-control-bg:       rgba(205, 214, 244, 0.06);
+  --ds-label:            #cdd6f4;        /* text */
+  --ds-secondary:        #bac2de;        /* subtext1 */
+  --ds-tertiary:         #7f849c;        /* overlay1 */
+  --ds-text-inverse:     #11111b;        /* crust */
+  --ds-accent:           #89b4fa;        /* blue */
+  --ds-accent-hover:     #b4befe;        /* lavender */
+  --ds-accent-subtle:    #1e2d50;
+  --ds-success:          #a6e3a1;        /* green */
+  --ds-warning:          #f9e2af;        /* yellow */
+  --ds-destructive:      #f38ba8;        /* red */
+  --ds-syntax-keyword:   #cba6f7;        /* mauve */
+  --ds-syntax-type:      #f9e2af;        /* yellow */
+  --ds-syntax-string:    #a6e3a1;        /* green */
+  --ds-syntax-number:    #fab387;        /* peach */
+  --ds-syntax-enum:      #fab387;        /* peach */
+  --ds-syntax-special:   #f38ba8;        /* red */
+  --ds-syntax-operator:  #89dceb;        /* sky */
+  --ds-syntax-comment:   #6c7086;        /* overlay0 */
+}
+
+/* ── Catppuccin Macchiato (dark) ─────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="catppuccin-macchiato"] {
+  --ds-content-bg:       #24273a;        /* base */
+  --ds-sidebar-bg:       #1e2030;        /* mantle */
+  --ds-bg-subtle:        #363a4f;        /* surface0 */
+  --ds-bg-active:        #494d64;        /* surface1 */
+  --ds-separator:        #494d64;        /* surface1 */
+  --ds-border-strong:    #6e738d;        /* overlay0 */
+  --ds-control-bg:       rgba(202, 211, 245, 0.06);
+  --ds-label:            #cad3f5;        /* text */
+  --ds-secondary:        #b8c0e0;        /* subtext1 */
+  --ds-tertiary:         #8087a2;        /* overlay1 */
+  --ds-text-inverse:     #181926;        /* crust */
+  --ds-accent:           #8aadf4;        /* blue */
+  --ds-accent-hover:     #b7bdf8;        /* lavender */
+  --ds-accent-subtle:    #22304e;
+  --ds-success:          #a6da95;        /* green */
+  --ds-warning:          #eed49f;        /* yellow */
+  --ds-destructive:      #ed8796;        /* red */
+  --ds-syntax-keyword:   #c6a0f6;        /* mauve */
+  --ds-syntax-type:      #eed49f;        /* yellow */
+  --ds-syntax-string:    #a6da95;        /* green */
+  --ds-syntax-number:    #f5a97f;        /* peach */
+  --ds-syntax-enum:      #f5a97f;        /* peach */
+  --ds-syntax-special:   #ed8796;        /* red */
+  --ds-syntax-operator:  #91d7e3;        /* sky */
+  --ds-syntax-comment:   #6e738d;        /* overlay0 */
+}
+
+/* ── Catppuccin Frappé (dark) ────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="catppuccin-frappe"] {
+  --ds-content-bg:       #303446;        /* base */
+  --ds-sidebar-bg:       #292c3c;        /* mantle */
+  --ds-bg-subtle:        #414559;        /* surface0 */
+  --ds-bg-active:        #51576d;        /* surface1 */
+  --ds-separator:        #51576d;        /* surface1 */
+  --ds-border-strong:    #737994;        /* overlay0 */
+  --ds-control-bg:       rgba(198, 208, 245, 0.06);
+  --ds-label:            #c6d0f5;        /* text */
+  --ds-secondary:        #b5bfe2;        /* subtext1 */
+  --ds-tertiary:         #838ba7;        /* overlay1 */
+  --ds-text-inverse:     #232634;        /* crust */
+  --ds-accent:           #8caaee;        /* blue */
+  --ds-accent-hover:     #babbf1;        /* lavender */
+  --ds-accent-subtle:    #293560;
+  --ds-success:          #a6d189;        /* green */
+  --ds-warning:          #e5c890;        /* yellow */
+  --ds-destructive:      #e78284;        /* red */
+  --ds-syntax-keyword:   #ca9ee6;        /* mauve */
+  --ds-syntax-type:      #e5c890;        /* yellow */
+  --ds-syntax-string:    #a6d189;        /* green */
+  --ds-syntax-number:    #ef9f76;        /* peach */
+  --ds-syntax-enum:      #ef9f76;        /* peach */
+  --ds-syntax-special:   #e78284;        /* red */
+  --ds-syntax-operator:  #99d1db;        /* sky */
+  --ds-syntax-comment:   #737994;        /* overlay0 */
+}
+
+/* ── Catppuccin Latte (light) ────────────────────────────────────────────── */
+:root[data-theme="light"][data-palette="catppuccin-latte"] {
+  --ds-content-bg:       #eff1f5;        /* base */
+  --ds-sidebar-bg:       #e6e9ef;        /* mantle */
+  --ds-bg-subtle:        #ccd0da;        /* surface0 */
+  --ds-bg-active:        #bcc0cc;        /* surface1 */
+  --ds-separator:        #bcc0cc;        /* surface1 */
+  --ds-border-strong:    #7c7f93;        /* overlay2 */
+  --ds-control-bg:       #e6e9ef;        /* mantle */
+  --ds-label:            #4c4f69;        /* text */
+  --ds-secondary:        #6c6f85;        /* subtext0 */
+  --ds-tertiary:         #8c8fa1;        /* overlay1 */
+  --ds-text-inverse:     #ffffff;
+  --ds-accent:           #1e66f5;        /* blue */
+  --ds-accent-hover:     #209fb5;        /* sapphire */
+  --ds-accent-subtle:    #c2d4f8;
+  --ds-success:          #40a02b;        /* green */
+  --ds-warning:          #df8e1d;        /* yellow */
+  --ds-destructive:      #d20f39;        /* red */
+  --ds-syntax-keyword:   #8839ef;        /* mauve */
+  --ds-syntax-type:      #df8e1d;        /* yellow */
+  --ds-syntax-string:    #40a02b;        /* green */
+  --ds-syntax-number:    #fe640b;        /* peach */
+  --ds-syntax-enum:      #fe640b;        /* peach */
+  --ds-syntax-special:   #d20f39;        /* red */
+  --ds-syntax-operator:  #179299;        /* teal */
+  --ds-syntax-comment:   #7c7f93;        /* overlay2 */
+}
+
 /* ── Craft token contract ────────────────────────────────────────────────── */
 :root {
   /* Surfaces */

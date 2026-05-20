@@ -47,6 +47,10 @@ const THEME_OPTIONS: ThemeOption[] = [
   { value: "tokyo-night-day", label: "Tokyo Night Day", icon: <Sun size={13} /> },
   { value: "github-dark", label: "GitHub Dark", icon: <Moon size={13} /> },
   { value: "github-light", label: "GitHub Light", icon: <Sun size={13} /> },
+  { value: "catppuccin-mocha", label: "Catppuccin Mocha", icon: <Moon size={13} /> },
+  { value: "catppuccin-macchiato", label: "Catppuccin Macchiato", icon: <Moon size={13} /> },
+  { value: "catppuccin-frappe", label: "Catppuccin Frappé", icon: <Moon size={13} /> },
+  { value: "catppuccin-latte", label: "Catppuccin Latte", icon: <Sun size={13} /> },
 ];
 
 const FONT_PRESETS: FontPreset[] = [
