@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::AppState;
 
-const CUSTOMER_PORTAL_URL: &str = "https://app.dodopayments.com/customer-portal";
+const CUSTOMER_PORTAL_URL: &str = "https://customer.dodopayments.com/login/bus_0Nd287Njbj0coK51YHj55";
 
 const DODO_BASE: &str = if cfg!(debug_assertions) {
     "https://test.dodopayments.com"
