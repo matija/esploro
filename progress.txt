@@ -1348,3 +1348,13 @@
 - Font on .cm-tooltip / .cm-completionLabel left as var(--font-editor) per PRD decision
   (keep monospace, consistent with editor context).
 - All CI checks pass (tsc --noEmit, eslint).
+
+## Visual Polish P2 — Sidebar border bleeds into title bar [DONE]
+- src/components/AppShell.tsx:476 — removed `border-l border-separator` from the
+  toolbar wrapper div inside the 38px title bar. The sidebar's own
+  `border-r border-separator` (Sidebar.tsx:121) already draws the vertical
+  separator below the title bar; the duplicate border-l in the title bar caused
+  a seam through the macOS window chrome (traffic-light row).
+- One class removal, no layout/logic change. The title bar now has a clean
+  bottom border only.
+- All CI checks pass (tsc --noEmit, eslint).

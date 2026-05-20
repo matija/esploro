@@ -473,7 +473,7 @@ export function AppShell() {
         className="flex h-[38px] shrink-0 bg-sidebar border-b border-separator"
       >
         <div data-tauri-drag-region className="shrink-0" style={{ width: sidebarWidth }} />
-        <div data-tauri-drag-region className="flex flex-1 items-center justify-end border-l border-separator">
+        <div data-tauri-drag-region className="flex flex-1 items-center justify-end">
           <Toolbar />
         </div>
       </div>
