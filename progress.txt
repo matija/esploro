@@ -1,3 +1,18 @@
+## Visual Polish P0 — Commercial badge redesign [DONE]
+- src/components/AppShell.tsx LicenseBadge — applied PRD spec inside the existing
+  badgeButton className, no structural changes:
+  - Height: h-[20px] → h-[22px] (closer to toolbar context height of 26px while
+    keeping the pill visually lighter than full buttons)
+  - Indicator dot: w-1 h-1 → w-1.5 h-1.5 (6px, better proportion to text)
+  - Text size: text-[13px] → text-[12px] (gives breathing room at reduced height)
+  - Horizontal padding: px-2 → px-2.5 (slightly more room around the label/dot)
+  - Licensed-state tint softened: bg-success/20 → bg-success/15 with hover
+    /30 → /25 — the larger pill at full /20 felt too saturated; /15 reads as
+    a calm accent rather than a status block
+- font-medium retained per PRD ("font-medium refinement as needed").
+- Unlicensed amber palette unchanged — only proportions/sizing updated.
+- All CI checks pass (tsc --noEmit, eslint).
+
 ## MAS PRD P0 — Grace period bug fix [DONE]
 - Bug: compute_status_pure in src-tauri/src/commands/license.rs silently suppressed the
   Commercial Banner for 14 days after commercial_detected_at was set. The delay served no

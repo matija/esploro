@@ -148,15 +148,15 @@ function LicenseBadge() {
       type="button"
       title={isLicensed ? `${tier} license active` : "No active license"}
       className={cn(
-        "flex items-center gap-1.5 h-[20px] px-2 rounded-full text-[13px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
+        "flex items-center gap-1.5 h-[22px] px-2.5 rounded-full text-[12px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
         isLicensed
-          ? "bg-success/20 text-success hover:bg-success/30"
+          ? "bg-success/15 text-success hover:bg-success/25"
           : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900",
       )}
     >
       <span
         className={cn(
-          "w-1 h-1 rounded-full shrink-0",
+          "w-1.5 h-1.5 rounded-full shrink-0",
           isLicensed ? "bg-success" : "bg-amber-500 dark:bg-amber-500",
         )}
       />
