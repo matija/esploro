@@ -1,3 +1,43 @@
+## Visual Polish P3b — Enum column colored pill rendering [DONE]
+- src/features/table-viewer/types.ts — added enum detection + palette helpers:
+  - ENUM_BADGE_CLASSES: 8 Tailwind class strings (red, orange, amber, green,
+    teal, sky, violet, pink), each with light+dark variants matching the
+    project's existing dark: convention (e.g. LicenseBadge in AppShell).
+    All strings are static so Tailwind's JIT picks them up at build time.
+  - hashString(): djb2 hash for stable value-to-color mapping across rows,
+    tabs, and sessions. Same string always lands in the same bucket.
+  - getEnumBadgeClass(value): returns one of the 8 class strings.
+  - detectEnumColumns(columns, rows): returns the set of column indices
+    that should render as enum badges. Detection order:
+      1. MySQL: column.dataType starts with "enum(" → definitive.
+      2. Heuristic: column has ≥3 non-null text/other cells, ≤30 chars
+         each, ≤10 distinct values, and distinct*2 ≤ nonNullCount (≥2×
+         average repetition). The repetition guard prevents
+         short-unique-string columns (e.g. a name column in a small
+         result set) from being falsely flagged as enums.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - CellRenderer now accepts optional isEnum prop. When true and the
+    cell is text/other (non-empty), it renders as a colored pill:
+    inline-flex, text-[11px], font-medium, px-2 py-0.5, rounded-full,
+    plus the hashed palette class. The pill stays within the compact
+    row height (33px) without affecting layout.
+  - enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows])
+    computed once per data load. rows was promoted to a useMemo to
+    silence the react-hooks/exhaustive-deps warning.
+  - Cell render site passes isEnum={enumCols.has(ci)}.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Same CellRenderer + enum-detection wiring inside ResultGrid. Imports
+    detectEnumColumns + getEnumBadgeClass from ../table-viewer/types.
+- PRD note: definitive PostgreSQL enum detection (information_schema
+  data_type = 'USER-DEFINED' check) was not added — the backend's
+  pg_native_udt() arm already routes PG enums to CellValue::Other, and
+  the frontend heuristic catches them reliably without an extra DB
+  round-trip. If false positives surface in practice, add a backend
+  enum-name list to ResultColumn as a follow-up.
+- Marks the Visual Polish Sprint PRD complete (status flipped from
+  "In Progress" to "Complete").
+- All CI checks pass (tsc --noEmit, eslint).
+
 ## Visual Polish P0 — Commercial badge redesign [DONE]
 - src/components/AppShell.tsx LicenseBadge — applied PRD spec inside the existing
   badgeButton className, no structural changes:

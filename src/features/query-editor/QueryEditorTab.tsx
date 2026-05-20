@@ -25,7 +25,12 @@ import { useAppStore } from "../../store";
 import { queryEditorApi, savedQueriesApi } from "./api";
 import { SqlEditor } from "./SqlEditor";
 import type { QueryResult, ResultColumn } from "./types";
-import { type CellValue, cellToString } from "../table-viewer/types";
+import {
+  type CellValue,
+  cellToString,
+  detectEnumColumns,
+  getEnumBadgeClass,
+} from "../table-viewer/types";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/Toast";
 
@@ -43,7 +48,7 @@ type RunState = "idle" | "pending" | "success" | "error";
 
 // ─── CellRenderer ────────────────────────────────────────────────────────────
 
-function CellRenderer({ cell }: { cell: CellValue }) {
+function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: boolean }) {
   if (cell.t === "null") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
@@ -94,6 +99,21 @@ function CellRenderer({ cell }: { cell: CellValue }) {
       </span>
     );
   }
+
+  if (isEnum) {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-full leading-none max-w-full",
+          getEnumBadgeClass(raw),
+        )}
+        title={raw}
+      >
+        <span className="truncate">{raw}</span>
+      </span>
+    );
+  }
+
   const display = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
   return (
     <span
@@ -235,6 +255,7 @@ function ResultGrid({
     y: number;
   } | null>(null);
   const totalWidth = columns.length * COL_WIDTH;
+  const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -350,7 +371,10 @@ function ResultGrid({
                     )}
                     style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: rowHeight }}
                   >
-                    <CellRenderer cell={rowData?.[ci] ?? { t: "null" }} />
+                    <CellRenderer
+                      cell={rowData?.[ci] ?? { t: "null" }}
+                      isEnum={enumCols.has(ci)}
+                    />
                   </div>
                 ))}
               </div>

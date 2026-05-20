@@ -27,6 +27,8 @@ import {
   getOperatorsForFamily,
   typeFamilyBadgeClass,
   cellToString,
+  detectEnumColumns,
+  getEnumBadgeClass,
 } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -41,7 +43,7 @@ const ROW_HEIGHT_BY_DENSITY = {
 
 // ─── CellRenderer ────────────────────────────────────────────────────────────
 
-function CellRenderer({ cell }: { cell: CellValue }) {
+function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: boolean }) {
   if (cell.t === "null") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
@@ -92,6 +94,21 @@ function CellRenderer({ cell }: { cell: CellValue }) {
       </span>
     );
   }
+
+  if (isEnum) {
+    return (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-full leading-none max-w-full",
+          getEnumBadgeClass(raw),
+        )}
+        title={raw}
+      >
+        <span className="truncate">{raw}</span>
+      </span>
+    );
+  }
+
   const display = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
   return (
     <span
@@ -754,8 +771,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
+  const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -1144,6 +1162,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                             >
                               <CellRenderer
                                 cell={rowData[ci] ?? { t: "null" }}
+                                isEnum={enumCols.has(ci)}
                               />
                             </div>
                           );

@@ -129,3 +129,106 @@ export function getOperatorsForFamily(family: TypeFamily, driver: "postgres" | "
       return ["Eq", "Neq", "IsNull", "IsNotNull"];
   }
 }
+
+// ─── Enum badge palette ──────────────────────────────────────────────────────
+
+// 8 muted hues from the Tailwind palette. Each value is a full class string so
+// Tailwind's JIT picks them all up at build time. dark: variants follow the
+// existing convention used in LicenseBadge / AppShell.
+const ENUM_BADGE_CLASSES: readonly string[] = [
+  "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300",
+  "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300",
+  "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
+  "bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300",
+  "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300",
+  "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
+  "bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300",
+  "bg-pink-100 text-pink-800 dark:bg-pink-950/60 dark:text-pink-300",
+];
+
+// djb2 — stable across sessions and rows so the same value always maps to the
+// same colour bucket.
+function hashString(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+export function getEnumBadgeClass(value: string): string {
+  return ENUM_BADGE_CLASSES[hashString(value) % ENUM_BADGE_CLASSES.length];
+}
+
+// ─── Enum column detection ───────────────────────────────────────────────────
+
+// Maximum distinct values for a column to be treated as enum-like.
+const ENUM_MAX_DISTINCT = 10;
+// Maximum length per value — prevents long free-text columns from being badged.
+const ENUM_MAX_LENGTH = 30;
+// Minimum non-null rows needed to call the heuristic reliable.
+const ENUM_MIN_ROWS = 3;
+
+// Returns the set of column indices that should render their text/other cells
+// as colored pill badges.
+//
+// Detection order (most reliable first):
+//  1. MySQL: column data_type starts with "enum(" — definitive.
+//  2. Heuristic: column has ≥ENUM_MIN_ROWS non-null cells, all of type
+//     text/other and ≤ENUM_MAX_LENGTH chars, with ≤ENUM_MAX_DISTINCT distinct
+//     values, AND values repeat at least 2× on average (distinct*2 ≤ nonNull).
+//     The repetition guard prevents short-unique-string columns (e.g. names in
+//     a tiny result set) from being treated as enums.
+export function detectEnumColumns(
+  columns: ResultColumn[],
+  rows: CellValue[][],
+): Set<number> {
+  const enumCols = new Set<number>();
+  if (columns.length === 0) return enumCols;
+
+  for (let ci = 0; ci < columns.length; ci++) {
+    const dt = columns[ci]?.dataType?.toLowerCase() ?? "";
+    if (dt.startsWith("enum(")) {
+      enumCols.add(ci);
+      continue;
+    }
+
+    if (rows.length < ENUM_MIN_ROWS) continue;
+
+    const distinct = new Set<string>();
+    let nonNullCount = 0;
+    let qualifies = true;
+
+    for (const row of rows) {
+      const cell = row[ci];
+      if (!cell || cell.t === "null") continue;
+      if (cell.t !== "text" && cell.t !== "other") {
+        qualifies = false;
+        break;
+      }
+      const v = cell.v;
+      if (v.length === 0 || v.length > ENUM_MAX_LENGTH) {
+        qualifies = false;
+        break;
+      }
+      nonNullCount += 1;
+      distinct.add(v);
+      if (distinct.size > ENUM_MAX_DISTINCT) {
+        qualifies = false;
+        break;
+      }
+    }
+
+    if (
+      qualifies &&
+      nonNullCount >= ENUM_MIN_ROWS &&
+      distinct.size >= 1 &&
+      distinct.size <= ENUM_MAX_DISTINCT &&
+      distinct.size * 2 <= nonNullCount
+    ) {
+      enumCols.add(ci);
+    }
+  }
+
+  return enumCols;
+}
