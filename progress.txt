@@ -1328,3 +1328,23 @@
   boolean eq, numeric gte, text LIKE (unaffected path), IS NULL (no param), and multi-filter
   sequential parameter numbering. All 16 tests pass (cargo test).
 - Only src-tauri/src/commands/data.rs changed.
+
+## Visual Polish P1 — Autocomplete dropdown native-feeling redesign [DONE]
+- src/features/query-editor/tairikiTheme.ts — all changes inside the existing
+  EditorView.theme({}) call, no new files:
+  - `.cm-tooltip-autocomplete > ul > li` padding: 3px 8px → 4px 10px (more horizontal
+    breathing room, minimal vertical inflation)
+  - `.cm-tooltip-autocomplete > ul > li[aria-selected]` changed from solid accent block
+    (bg: var(--ds-accent), color: var(--text-inverse)) to soft tint
+    (bg: color-mix(in srgb, var(--ds-accent) 20%, transparent), color: var(--text-primary)).
+    macOS-style selection: visible on both light and dark themes.
+  - `.cm-tooltip-autocomplete > ul > li:hover` added with bg: var(--surface-hover) so
+    mouse hover now has a visible affordance distinct from keyboard selection.
+  - `.cm-completionMatchedText` added: text-decoration: none, font-weight: 600.
+    Removes the browser-default underline and makes the typed portion bold instead.
+  - `.cm-completionIcon` added: display: none. Hides the unthemed unicode glyphs
+    (t, k, f...) that CodeMirror renders via CSS ::before — label alone is sufficient
+    in SQL completion context.
+- Font on .cm-tooltip / .cm-completionLabel left as var(--font-editor) per PRD decision
+  (keep monospace, consistent with editor context).
+- All CI checks pass (tsc --noEmit, eslint).

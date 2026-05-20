@@ -80,15 +80,25 @@ const tairikiEditorTheme = EditorView.theme({
       fontSize: "var(--font-editor-size)",
     },
     "& > ul > li": {
-      padding: "3px 8px",
+      padding: "4px 10px",
+    },
+    "& > ul > li:hover": {
+      backgroundColor: "var(--surface-hover)",
     },
     "& > ul > li[aria-selected]": {
-      backgroundColor: "var(--ds-accent)",
-      color: "var(--text-inverse)",
+      backgroundColor: "color-mix(in srgb, var(--ds-accent) 20%, transparent)",
+      color: "var(--text-primary)",
     },
   },
   ".cm-completionLabel": {
     color: "var(--text-primary)",
+  },
+  ".cm-completionMatchedText": {
+    textDecoration: "none",
+    fontWeight: "600",
+  },
+  ".cm-completionIcon": {
+    display: "none",
   },
   ".cm-completionDetail": {
     color: "var(--text-tertiary)",
