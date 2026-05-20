@@ -1358,3 +1358,13 @@
 - One class removal, no layout/logic change. The title bar now has a clean
   bottom border only.
 - All CI checks pass (tsc --noEmit, eslint).
+
+## Visual Polish P0 — Default theme: System [DONE]
+- src/features/settings/preferences.ts:52 — `defaultUiPreferences.ui.theme`
+  changed from "tokyo-night" to "system". Only affects fresh installs and
+  users who haven't persisted a theme preference; existing users with a
+  saved theme are unaffected.
+- Rationale: shipping a dark theme by default on a light macOS setup is
+  jarring for first-time users. "system" follows the OS appearance, which
+  is the least surprising default.
+- All CI checks pass (tsc --noEmit, eslint).
