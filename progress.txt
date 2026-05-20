@@ -1383,3 +1383,17 @@
   jarring for first-time users. "system" follows the OS appearance, which
   is the least surprising default.
 - All CI checks pass (tsc --noEmit, eslint).
+
+## Visual Polish P3a — Column header tooltips for truncated names [DONE]
+- src/features/table-viewer/TableViewerTab.tsx — ColumnHeaderCell: added
+  title={col.name} on the truncated column-name span (line ~251). Native
+  browser tooltip now shows the full identifier on hover, so long names
+  like `block_users_audit_action` that get clipped mid-word remain
+  readable without resizing the column.
+- src/features/query-editor/QueryEditorTab.tsx — same fix on the query
+  result header span (line ~289).
+- No layout change; truncation + ellipsis behaviour unchanged.
+- The filter button retained its own `Filter by ${col.name}` title; the
+  new title sits on the inner span, so each element keeps its own
+  contextual tooltip without interfering.
+- All CI checks pass (tsc --noEmit, eslint).

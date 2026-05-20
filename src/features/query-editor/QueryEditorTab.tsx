@@ -286,7 +286,10 @@ function ResultGrid({
               className="flex items-center gap-1.5 px-2 select-none shrink-0 bg-sidebar"
               style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
             >
-              <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
+              <span
+                className="text-xs font-semibold text-label truncate flex-1 min-w-0"
+                title={col.name}
+              >
                 {col.name}
               </span>
               {col.dataType && (

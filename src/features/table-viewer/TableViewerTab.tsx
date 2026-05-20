@@ -248,7 +248,10 @@ function ColumnHeaderCell({
       {col.isForeignKey && !col.isPrimaryKey && (
         <Link size={10} className="text-schema-foreign-key shrink-0" aria-label="Foreign key" />
       )}
-      <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
+      <span
+        className="text-xs font-semibold text-label truncate flex-1 min-w-0"
+        title={col.name}
+      >
         {col.name}
       </span>
       {col.isNullable && (
