@@ -1481,3 +1481,23 @@
 - src/features/settings/EditorSettings.tsx:71 — `cursor-pointer` → `cursor-default` on the
   word-wrap toggle switch.
 - All CI checks pass (tsc --noEmit, eslint).
+
+## PRD P6 — Cell copy affordance [DONE]
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added `ClipboardCopy` and `ClipboardCheck` to the lucide-react import.
+  - Added `copiedCell` state (row+col pair, null when no recent copy) and
+    `copiedTimerRef` (ReturnType<typeof setTimeout>) to manage the 1.5s
+    checkmark window.
+  - Added `copyCell(row, col, rows)` useCallback that writes the cell value
+    to the clipboard and sets `copiedCell`, clearing it after 1500ms via a
+    ref-tracked timer. The existing Cmd+C handler now delegates to `copyCell`
+    instead of duplicating the clipboard write.
+  - Inside the cell render loop, when `isSelected`, a small `<button>` is
+    absolutely positioned in the right-center of the cell (right-1,
+    top-1/2 -translate-y-1/2). It renders `ClipboardCheck` (size=12, accent
+    color) when `copiedCell` matches this cell, and `ClipboardCopy` (size=12,
+    secondary color) otherwise. Clicking it calls `copyCell` and stops
+    propagation so the cell stays selected.
+  - Cell div gained `relative` class to anchor the absolute button.
+  - tabIndex=-1 on the button so it doesn't steal keyboard focus.
+- tsc --noEmit: clean.

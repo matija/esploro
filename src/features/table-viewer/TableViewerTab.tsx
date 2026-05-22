@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDown as SelectChevron, Check } from "lucide-react";
@@ -795,17 +795,30 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     col: number;
   } | null>(null);
 
+  const [copiedCell, setCopiedCell] = useState<{
+    row: number;
+    col: number;
+  } | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const copyCell = useCallback((row: number, col: number, rows: CellValue[][]) => {
+    const cell = rows[row]?.[col];
+    navigator.clipboard.writeText(cell ? (cellToString(cell) ?? "") : "");
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    setCopiedCell({ row, col });
+    copiedTimerRef.current = setTimeout(() => setCopiedCell(null), 1500);
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedCell && data) {
         e.preventDefault();
-        const cell = data.rows[selectedCell.row]?.[selectedCell.col];
-        navigator.clipboard.writeText(cell ? (cellToString(cell) ?? "") : "");
+        copyCell(selectedCell.row, selectedCell.col, data.rows);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedCell, data]);
+  }, [selectedCell, data, copyCell]);
 
   // ── Cell context menu ──────────────────────────────────────────────────────
 
@@ -1136,7 +1149,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                             <div
                               key={col.name}
                               className={cn(
-                                "flex items-center px-2 overflow-hidden shrink-0 cursor-default",
+                                "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
                                 isSelected &&
                                   "ring-2 ring-inset ring-accent/50 bg-accent/5",
                               )}
@@ -1164,6 +1177,20 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 cell={rowData[ci] ?? { t: "null" }}
                                 isEnum={enumCols.has(ci)}
                               />
+                              {isSelected && (
+                                <button
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors cursor-default"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyCell(vr.index, ci, data!.rows);
+                                  }}
+                                  tabIndex={-1}
+                                >
+                                  {copiedCell?.row === vr.index && copiedCell?.col === ci
+                                    ? <ClipboardCheck size={12} className="text-accent" />
+                                    : <ClipboardCopy size={12} />}
+                                </button>
+                              )}
                             </div>
                           );
                         })}
