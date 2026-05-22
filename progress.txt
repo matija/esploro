@@ -1632,3 +1632,30 @@
       already set so the strip can pick it up in a follow-up).
 
 - tsc --noEmit, eslint, cargo test --lib, npm run build all clean.
+
+## PRD P4 — Dependency cooldown (14-day minimum age) [DONE]
+
+- tools/check-dep-cooldown.mjs (new):
+  - Parses package-lock.json (lockfileVersion 3) and/or root Cargo.lock (workspace).
+  - Flags any pinned version published < 14 days ago.
+  - Fetches publish dates from npm registry (time[version]) and crates.io API
+    (/api/v1/crates/{name} → versions[].created_at).
+  - 8 concurrent requests, 429 backoff with retry-after / exponential fallback.
+  - Caches results in node_modules/.cache/dep-cooldown.json; publish dates are
+    immutable so cache entries never expire.
+  - Reads .dep-cooldown-allowlist.toml for manual overrides (package, version,
+    reason, expires_at). Expired entries fail like violations.
+  - First run with no allowlist auto-generates .dep-cooldown-allowlist.toml with
+    all current violators at expires_at = today+14. Subsequent runs require
+    explicit manual entries or abort.
+  - Warm-cache run: ~80ms. First run (933 packages): ~60s via 8-way concurrency.
+- package.json: added "preinstall": "node tools/check-dep-cooldown.mjs --npm"
+- .git/hooks/pre-commit (new, chmod +x): runs full check (both npm+cargo) when
+  any Cargo.lock is staged.
+- .dep-cooldown-allowlist.toml (new, auto-generated on first run): 5 bootstrap
+  entries — filetime@0.2.28, hashbrown@0.17.1, hybrid-array@0.4.12,
+  serde_with@3.20.0, serde_with_macros@3.20.0 — all expire 2026-06-05.
+- All success criteria verified:
+  - npm install --dry-run invokes preinstall cleanly.
+  - Expired allowlist entry → exit 1 with clear violation list.
+  - Warm cache: 0.08s.

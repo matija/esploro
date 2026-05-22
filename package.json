@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "preinstall": "node tools/check-dep-cooldown.mjs --npm",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
