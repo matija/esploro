@@ -11,6 +11,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { ChevronDown as SelectChevron, Check } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { Tab } from "../../store";
@@ -239,25 +240,32 @@ function RefreshButton({
 
 function ColumnHeaderCell({
   col,
+  width,
   sortDir,
   isFiltered,
   onClick,
   onFilterClick,
+  onResizeStart,
+  onContextMenu,
 }: {
   col: ResultColumn;
+  width: number;
   sortDir: "asc" | "desc" | null;
   isFiltered: boolean;
   onClick: () => void;
   onFilterClick: (e: React.MouseEvent) => void;
+  onResizeStart: (e: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
 }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
+        "relative flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
         isFiltered && "bg-accent/5",
       )}
-      style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
+      style={{ width, minWidth: width, height: HEADER_HEIGHT }}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       {col.isPrimaryKey && (
         <KeyRound size={10} className="text-schema-key shrink-0" aria-label="Primary key" />
@@ -265,12 +273,22 @@ function ColumnHeaderCell({
       {col.isForeignKey && !col.isPrimaryKey && (
         <Link size={10} className="text-schema-foreign-key shrink-0" aria-label="Foreign key" />
       )}
-      <span
-        className="text-xs font-semibold text-label truncate flex-1 min-w-0"
-        title={col.name}
-      >
-        {col.name}
-      </span>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
+            {col.name}
+          </span>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="bottom"
+            sideOffset={4}
+            className="z-50 px-2 py-1 rounded-[var(--radius-control)] border border-separator bg-raised shadow-[var(--shadow-popover)] text-xs text-label font-mono"
+          >
+            {col.name}
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
       {col.isNullable && (
         <span className="text-[8px] font-mono text-tertiary shrink-0 group-hover:hidden" title="Nullable">?</span>
       )}
@@ -301,6 +319,12 @@ function ColumnHeaderCell({
       {sortDir === "desc" && (
         <ChevronDown size={12} className="text-accent shrink-0" />
       )}
+      {/* Resize handle */}
+      <div
+        className="absolute right-0 top-1 bottom-1 w-1 rounded-full opacity-0 group-hover:opacity-100 bg-separator hover:bg-accent/60 cursor-col-resize transition-opacity"
+        onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
+        onClick={(e) => e.stopPropagation()}
+      />
     </div>
   );
 }
@@ -829,6 +853,75 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     y: number;
   } | null>(null);
 
+  // ── Column widths ──────────────────────────────────────────────────────────
+
+  const colWidthsKey = ctx
+    ? `esploro-col-widths:${ctx.connectionId}:${ctx.database}:${ctx.schema}:${ctx.table}`
+    : null;
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    if (!ctx) return {};
+    const key = `esploro-col-widths:${ctx.connectionId}:${ctx.database}:${ctx.schema}:${ctx.table}`;
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? (JSON.parse(stored) as Record<string, number>) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    if (!colWidthsKey || Object.keys(colWidths).length === 0) return;
+    try { localStorage.setItem(colWidthsKey, JSON.stringify(colWidths)); } catch { /* ignore */ }
+  }, [colWidths, colWidthsKey]);
+
+  const dragRef = useRef<{ colName: string; startX: number; startWidth: number } | null>(null);
+
+  const handleResizeMouseDown = useCallback((colName: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const startWidth = colWidths[colName] ?? COL_WIDTH;
+    dragRef.current = { colName, startX: e.clientX, startWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = ev.clientX - dragRef.current.startX;
+      const newWidth = Math.max(60, dragRef.current.startWidth + delta);
+      setColWidths((prev) => ({ ...prev, [dragRef.current!.colName]: newWidth }));
+    };
+
+    const onMouseUp = () => {
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [colWidths]);
+
+  // ── Header context menu ────────────────────────────────────────────────────
+
+  const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!headerMenu) return;
+    const close = () => setHeaderMenu(null);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [headerMenu]);
+
+  const resetColWidths = useCallback(() => {
+    setColWidths({});
+    if (colWidthsKey) {
+      try { localStorage.removeItem(colWidthsKey); } catch { /* ignore */ }
+    }
+    setHeaderMenu(null);
+  }, [colWidthsKey]);
+
   // ── Pagination helpers ─────────────────────────────────────────────────────
 
   const totalCount = showTotalCount
@@ -908,7 +1001,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [columns, sortColumn]);
 
-  const totalWidth = columns.length * COL_WIDTH;
+  const totalWidth = useMemo(
+    () => columns.reduce((sum, col) => sum + (colWidths[col.name] ?? COL_WIDTH), 0),
+    [columns, colWidths],
+  );
 
   // ── Guard ──────────────────────────────────────────────────────────────────
 
@@ -1057,6 +1153,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                   <ColumnHeaderCell
                     key={col.name}
                     col={col}
+                    width={colWidths[col.name] ?? COL_WIDTH}
                     sortDir={
                       sortColumn === col.name
                         ? sortDirection === "Asc"
@@ -1072,6 +1169,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                       setOpenFilterCol((prev) =>
                         prev === col.name ? null : col.name,
                       );
+                    }}
+                    onResizeStart={(e) => handleResizeMouseDown(col.name, e)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setHeaderMenu({ x: e.clientX, y: e.clientY });
                     }}
                   />
                 ))}
@@ -1154,8 +1256,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                   "ring-2 ring-inset ring-accent/50 bg-accent/5",
                               )}
                               style={{
-                                width: COL_WIDTH,
-                                minWidth: COL_WIDTH,
+                                width: colWidths[col.name] ?? COL_WIDTH,
+                                minWidth: colWidths[col.name] ?? COL_WIDTH,
                                 height: rowHeight,
                               }}
                               onClick={() =>
@@ -1265,6 +1367,23 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           onClose={() => setCellMenu(null)}
           onFilterByValue={handleFilterByValue}
         />
+      )}
+
+      {/* Header context menu */}
+      {headerMenu && createPortal(
+        <div
+          className="fixed z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
+          style={{ left: headerMenu.x, top: headerMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={resetColWidths}
+            className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+          >
+            Reset column widths
+          </button>
+        </div>,
+        document.body,
       )}
     </div>
   );

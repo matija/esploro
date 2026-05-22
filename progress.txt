@@ -1501,3 +1501,32 @@
   - Cell div gained `relative` class to anchor the absolute button.
   - tabIndex=-1 on the button so it doesn't steal keyboard focus.
 - tsc --noEmit: clean.
+
+## P3 — Column resizing in data grid [2026-05-22]
+
+- src/main.tsx:
+  - Added `<Tooltip.Provider delayDuration={500}>` wrapping `<App />` to
+    enable Radix Tooltip app-wide.
+
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Imported `@radix-ui/react-tooltip`.
+  - `ColumnHeaderCell` — added `width`, `onResizeStart`, `onContextMenu`
+    props. Replaced native `title` attribute with `Tooltip.Root/Trigger/
+    Content` (themed, uses `--radius-control`, `--shadow-popover`, `bg-raised`).
+    Added `position: relative` to host element. Added a `w-1` resize handle
+    div at the right edge: `opacity-0` by default, `group-hover:opacity-100`,
+    `bg-separator hover:bg-accent/60`, `cursor-col-resize`. Handle stops
+    click propagation so sort is not triggered during resize.
+  - `TableViewerTab` — column width state (`colWidths: Record<string,
+    number>`) initialized from localStorage on mount, keyed by
+    `esploro-col-widths:{connectionId}:{database}:{schema}:{table}`.
+    Persisted to localStorage via `useEffect` whenever widths change.
+    Drag resize via `handleResizeMouseDown`: sets `document.body.style
+    .cursor/userSelect` during drag, cleans up on `mouseup`. Min column
+    width: 60px. `totalWidth` converted to `useMemo` summing actual widths.
+  - Header context menu (`headerMenu` state): right-click any column header
+    → shows a portal-rendered menu with "Reset column widths". Clicking it
+    calls `resetColWidths()` which clears the state and removes the
+    localStorage entry.
+  - Cell divs updated to use `colWidths[col.name] ?? COL_WIDTH` instead
+    of the constant.
