@@ -1448,3 +1448,13 @@
   for any newly-exposed pixels while the first repaint is pending.
 - tauri.conf.json `backgroundColor: "#00000000"` unchanged — vibrancy sidebar unaffected.
 - tsc --noEmit: clean.
+
+## PRD P1 — Sidebar table name font size [DONE]
+- src/features/schema/SchemaTree.tsx:348 — changed `text-xs` to `text-[13px]` on
+  the tree node label span. This is the shared label for all non-column tree rows
+  (database, schema, table, view, sequence, function).
+- Column child rows (line 229, `def.name`) remain at `text-xs` to preserve the
+  visual hierarchy between table rows and their column children.
+- Group rows ("Tables", "Views", etc.) already override to `text-[11px] uppercase
+  tracking-wide` via cn(), so they are unaffected by the base class change.
+- All CI checks pass (tsc --noEmit, eslint).

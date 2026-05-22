@@ -345,7 +345,7 @@ function TreeRow({
       {/* Label */}
       <span
         className={cn(
-          "text-xs text-label truncate flex-1 min-w-0",
+          "text-[13px] text-label truncate flex-1 min-w-0",
           node.kind === "group" &&
             "text-secondary text-[11px] uppercase tracking-wide",
         )}
