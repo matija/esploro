@@ -176,10 +176,12 @@ function ConnectionRow({
             <Loader2 size={10} className="text-accent animate-spin" />
           ) : (
             <span
-              className="block w-2 h-2 rounded-full border"
-              style={{
-                backgroundColor: isActive ? 'var(--ds-success)' : 'transparent',
-                borderColor: profile.color ?? 'var(--border-default)',
+              className="block w-2.5 h-2.5 rounded-full"
+              style={isActive ? {
+                backgroundColor: 'var(--ds-success)',
+                boxShadow: `0 0 0 2px ${profile.color ?? 'var(--border-default)'}`,
+              } : {
+                border: '1.5px solid var(--border-default)',
               }}
             />
           )}
@@ -206,19 +208,19 @@ function ConnectionRow({
           {isActive ? (
             <button
               onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
-              title="Disconnect"
-              className="p-1 rounded hover:bg-pressed text-secondary hover:text-label transition-colors"
+              title={`Disconnect from ${profile.displayName}`}
+              className="p-1 rounded hover:bg-pressed text-secondary hover:text-query-failed transition-colors"
             >
-              <PlugZap size={11} />
+              <PlugZap size={14} />
             </button>
           ) : (
             <button
               onClick={(e) => { e.stopPropagation(); onConnect(); }}
               disabled={isConnecting}
-              title="Connect"
+              title={`Connect to ${profile.displayName}`}
               className="p-1 rounded hover:bg-pressed text-secondary hover:text-success transition-colors disabled:opacity-40"
             >
-              <Plug size={11} />
+              <Plug size={14} />
             </button>
           )}
           <button

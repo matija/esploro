@@ -1,3 +1,25 @@
+## PRD P1 — Connection state visibility [DONE]
+- src/features/connections/ConnectionList.tsx:
+  - Status dot: bumped from 8px (w-2 h-2) to 10px (w-2.5 h-2.5).
+    Connected state: filled with var(--ds-success) + 2px box-shadow ring in
+    profile.color (or var(--border-default) when no color set), making the
+    connected state visually prominent.
+    Disconnected state: hollow ring with 1.5px border in var(--border-default)
+    so the dot is always visible, not just by absence of fill.
+  - Connect / Disconnect icon buttons: bumped from size={11} to size={14}.
+    Disconnect hover color changed from hover:text-label to hover:text-query-failed
+    so the action feels destructive. Tooltip text updated to include the connection
+    name: "Connect to <name>" / "Disconnect from <name>".
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Connection badge dot: bumped from 6px (w-1.5 h-1.5) to 9px (inline style
+    width/height: 9px). Dot color: green (var(--ds-success)) when connected,
+    warning (var(--ds-warning)) when error contains "Could not reconnect",
+    var(--border-default) when no session.
+  - Added explicit "Connected" / "Disconnected" status text label to the right
+    of the connection name inside the chip (text-[11px] text-tertiary). Max
+    width widened from 160px to 220px to accommodate the added label.
+- All CI checks pass (tsc --noEmit, eslint).
+
 ## Visual Polish P3b — Enum column colored pill rendering [DONE]
 - src/features/table-viewer/types.ts — added enum detection + palette helpers:
   - ENUM_BADGE_CLASSES: 8 Tailwind class strings (red, orange, amber, green,

@@ -1290,14 +1290,22 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
         {/* Connection badge */}
         {connectionLabel && (
-          <div className="flex items-center gap-1.5 text-xs text-secondary bg-control px-2 py-1 rounded shrink-0 max-w-[160px]">
+          <div className="flex items-center gap-1.5 text-xs text-secondary bg-control px-2 py-1 rounded shrink-0 max-w-[220px]">
             <span
-              className={cn(
-                "w-1.5 h-1.5 rounded-full shrink-0",
-                sessionId ? "bg-query-succeeded" : "bg-secondary opacity-40",
-              )}
+              className="rounded-full shrink-0"
+              style={{
+                width: 9,
+                height: 9,
+                backgroundColor:
+                  error instanceof Error && error.message.includes("Could not reconnect")
+                    ? 'var(--ds-warning)'
+                    : sessionId ? 'var(--ds-success)' : 'var(--border-default)',
+              }}
             />
             <span className="truncate">{connectionLabel}</span>
+            <span className="shrink-0 text-tertiary text-[11px]">
+              {error instanceof Error && error.message.includes("Could not reconnect") ? "Disconnected" : "Connected"}
+            </span>
           </div>
         )}
 
