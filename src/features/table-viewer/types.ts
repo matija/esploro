@@ -185,18 +185,18 @@ export function getOperatorsForFamily(family: TypeFamily, driver: "postgres" | "
 
 // ─── Enum badge palette ──────────────────────────────────────────────────────
 
-// 8 muted hues from the Tailwind palette. Each value is a full class string so
-// Tailwind's JIT picks them all up at build time. dark: variants follow the
-// existing convention used in LicenseBadge / AppShell.
+// 8 muted hues. Backgrounds use the 500-series at low opacity so the badge
+// tints into whatever theme surface is behind it instead of carrying its own
+// solid colour. Text picks a darker/lighter shade per scheme for readability.
 const ENUM_BADGE_CLASSES: readonly string[] = [
-  "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300",
-  "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300",
-  "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
-  "bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-300",
-  "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300",
-  "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
-  "bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300",
-  "bg-pink-100 text-pink-800 dark:bg-pink-950/60 dark:text-pink-300",
+  "bg-red-500/10 text-red-700 dark:text-red-300",
+  "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  "bg-green-500/10 text-green-700 dark:text-green-300",
+  "bg-teal-500/10 text-teal-700 dark:text-teal-300",
+  "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  "bg-pink-500/10 text-pink-700 dark:text-pink-300",
 ];
 
 // djb2 — stable across sessions and rows so the same value always maps to the

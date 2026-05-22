@@ -51,6 +51,9 @@ const THEME_OPTIONS: ThemeOption[] = [
   { value: "catppuccin-macchiato", label: "Catppuccin Macchiato", icon: <Moon size={13} /> },
   { value: "catppuccin-frappe", label: "Catppuccin Frappé", icon: <Moon size={13} /> },
   { value: "catppuccin-latte", label: "Catppuccin Latte", icon: <Sun size={13} /> },
+  { value: "rose-pine", label: "Rosé Pine", icon: <Moon size={13} /> },
+  { value: "rose-pine-moon", label: "Rosé Pine Moon", icon: <Moon size={13} /> },
+  { value: "rose-pine-dawn", label: "Rosé Pine Dawn", icon: <Sun size={13} /> },
 ];
 
 const FONT_PRESETS: FontPreset[] = [

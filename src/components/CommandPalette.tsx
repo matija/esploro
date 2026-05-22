@@ -380,6 +380,27 @@ export function CommandPalette() {
       title: "Theme: Catppuccin Latte",
       action: () => setTheme("catppuccin-latte"),
     },
+    {
+      id: "theme-rose-pine",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Rosé Pine",
+      action: () => setTheme("rose-pine"),
+    },
+    {
+      id: "theme-rose-pine-moon",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Rosé Pine Moon",
+      action: () => setTheme("rose-pine-moon"),
+    },
+    {
+      id: "theme-rose-pine-dawn",
+      group: "Settings",
+      icon: <Sun size={13} />,
+      title: "Theme: Rosé Pine Dawn",
+      action: () => setTheme("rose-pine-dawn"),
+    },
   ], [activeSessions, addTab, setPendingNewConnection, setTheme]);
 
   const allCommands: CommandResult[] = useMemo(() => [

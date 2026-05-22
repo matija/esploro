@@ -344,6 +344,93 @@
   --ds-syntax-comment:   #737994;        /* overlay0 */
 }
 
+/* ── Rosé Pine (dark, main) ──────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="rose-pine"] {
+  --ds-content-bg:       #191724;        /* base */
+  --ds-sidebar-bg:       #1f1d2e;        /* surface */
+  --ds-bg-subtle:        #26233a;        /* overlay */
+  --ds-bg-active:        #403d52;        /* highlight med */
+  --ds-separator:        #26233a;        /* overlay */
+  --ds-border-strong:    #524f67;        /* highlight high */
+  --ds-control-bg:       rgba(224, 222, 244, 0.06);
+  --ds-label:            #e0def4;        /* text */
+  --ds-secondary:        #908caa;        /* subtle */
+  --ds-tertiary:         #6e6a86;        /* muted */
+  --ds-text-inverse:     #191724;        /* base */
+  --ds-accent:           #c4a7e7;        /* iris */
+  --ds-accent-hover:     #ebbcba;        /* rose */
+  --ds-accent-subtle:    #2a2440;
+  --ds-success:          #31748f;        /* pine */
+  --ds-warning:          #f6c177;        /* gold */
+  --ds-destructive:      #eb6f92;        /* love */
+  --ds-syntax-keyword:   #31748f;        /* pine */
+  --ds-syntax-type:      #9ccfd8;        /* foam */
+  --ds-syntax-string:    #f6c177;        /* gold */
+  --ds-syntax-number:    #ebbcba;        /* rose */
+  --ds-syntax-enum:      #c4a7e7;        /* iris */
+  --ds-syntax-special:   #eb6f92;        /* love */
+  --ds-syntax-operator:  #908caa;        /* subtle */
+  --ds-syntax-comment:   #6e6a86;        /* muted */
+}
+
+/* ── Rosé Pine Moon (dark) ───────────────────────────────────────────────── */
+:root[data-theme="dark"][data-palette="rose-pine-moon"] {
+  --ds-content-bg:       #232136;        /* base */
+  --ds-sidebar-bg:       #2a273f;        /* surface */
+  --ds-bg-subtle:        #393552;        /* overlay */
+  --ds-bg-active:        #44415a;        /* highlight med */
+  --ds-separator:        #393552;        /* overlay */
+  --ds-border-strong:    #56526e;        /* highlight high */
+  --ds-control-bg:       rgba(224, 222, 244, 0.06);
+  --ds-label:            #e0def4;        /* text */
+  --ds-secondary:        #908caa;        /* subtle */
+  --ds-tertiary:         #6e6a86;        /* muted */
+  --ds-text-inverse:     #232136;        /* base */
+  --ds-accent:           #c4a7e7;        /* iris */
+  --ds-accent-hover:     #ea9a97;        /* rose */
+  --ds-accent-subtle:    #393552;
+  --ds-success:          #3e8fb0;        /* pine */
+  --ds-warning:          #f6c177;        /* gold */
+  --ds-destructive:      #eb6f92;        /* love */
+  --ds-syntax-keyword:   #3e8fb0;        /* pine */
+  --ds-syntax-type:      #9ccfd8;        /* foam */
+  --ds-syntax-string:    #f6c177;        /* gold */
+  --ds-syntax-number:    #ea9a97;        /* rose */
+  --ds-syntax-enum:      #c4a7e7;        /* iris */
+  --ds-syntax-special:   #eb6f92;        /* love */
+  --ds-syntax-operator:  #908caa;        /* subtle */
+  --ds-syntax-comment:   #6e6a86;        /* muted */
+}
+
+/* ── Rosé Pine Dawn (light) ──────────────────────────────────────────────── */
+:root[data-theme="light"][data-palette="rose-pine-dawn"] {
+  --ds-content-bg:       #fffaf3;        /* surface — bright reading surface */
+  --ds-sidebar-bg:       #faf4ed;        /* base — slightly muted frame */
+  --ds-bg-subtle:        #f2e9e1;        /* overlay */
+  --ds-bg-active:        #dfdad9;        /* highlight med */
+  --ds-separator:        #dfdad9;        /* highlight med */
+  --ds-border-strong:    #cecacd;        /* highlight high */
+  --ds-control-bg:       #faf4ed;        /* base */
+  --ds-label:            #575279;        /* text */
+  --ds-secondary:        #797593;        /* subtle */
+  --ds-tertiary:         #9893a5;        /* muted */
+  --ds-text-inverse:     #fffaf3;
+  --ds-accent:           #907aa9;        /* iris */
+  --ds-accent-hover:     #b4637a;        /* love */
+  --ds-accent-subtle:    #ece1ea;
+  --ds-success:          #286983;        /* pine */
+  --ds-warning:          #ea9d34;        /* gold */
+  --ds-destructive:      #b4637a;        /* love */
+  --ds-syntax-keyword:   #286983;        /* pine */
+  --ds-syntax-type:      #56949f;        /* foam */
+  --ds-syntax-string:    #ea9d34;        /* gold */
+  --ds-syntax-number:    #d7827e;        /* rose */
+  --ds-syntax-enum:      #907aa9;        /* iris */
+  --ds-syntax-special:   #b4637a;        /* love */
+  --ds-syntax-operator:  #797593;        /* subtle */
+  --ds-syntax-comment:   #9893a5;        /* muted */
+}
+
 /* ── Catppuccin Latte (light) ────────────────────────────────────────────── */
 :root[data-theme="light"][data-palette="catppuccin-latte"] {
   --ds-content-bg:       #eff1f5;        /* base */

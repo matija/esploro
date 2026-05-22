@@ -62,10 +62,8 @@ function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: bool
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded leading-none tracking-wide",
-          cell.v
-            ? "bg-success/10 text-success"
-            : "bg-control text-tertiary border border-separator/50",
+          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded bg-control border border-separator/50 leading-none tracking-wide",
+          cell.v ? "text-label" : "text-tertiary",
         )}
       >
         {cell.v ? "true" : "false"}
@@ -85,7 +83,7 @@ function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: bool
     const raw = JSON.stringify(cell.v);
     const preview = raw.length > 100 ? raw.slice(0, 100) + "…" : raw;
     return (
-      <span className="font-mono text-[12px] text-data-json truncate block" title={raw}>
+      <span className="font-mono text-[12px] text-secondary truncate block" title={raw}>
         {preview}
       </span>
     );

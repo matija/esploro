@@ -12,6 +12,9 @@ export const uiThemeValues = [
   "catppuccin-macchiato",
   "catppuccin-frappe",
   "catppuccin-latte",
+  "rose-pine",
+  "rose-pine-moon",
+  "rose-pine-dawn",
 ] as const;
 
 export type UiTheme = (typeof uiThemeValues)[number];
@@ -195,6 +198,7 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
     case "tokyo-night-day":
     case "github-light":
     case "catppuccin-latte":
+    case "rose-pine-dawn":
       return "light";
     case "tairiki-dark":
     case "macos-dark":
@@ -203,6 +207,8 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
     case "catppuccin-mocha":
     case "catppuccin-macchiato":
     case "catppuccin-frappe":
+    case "rose-pine":
+    case "rose-pine-moon":
       return "dark";
     case "system":
       return null;
@@ -227,6 +233,12 @@ export function themeToPaletteAttribute(theme: unknown): string | null {
       return "catppuccin-frappe";
     case "catppuccin-latte":
       return "catppuccin-latte";
+    case "rose-pine":
+      return "rose-pine";
+    case "rose-pine-moon":
+      return "rose-pine-moon";
+    case "rose-pine-dawn":
+      return "rose-pine-dawn";
     default:
       return null;
   }

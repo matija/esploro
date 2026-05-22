@@ -1,6 +1,6 @@
 [package]
 name = "esploro"
-version = "0.6.1"
+version = "0.6.2"
 description = "A modern, sleek and fast database client for PostgreSQL, MySQL, and MariaDB."
 authors = ["Matija Munjaković"]
 edition = "2021"
