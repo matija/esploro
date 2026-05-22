@@ -102,6 +102,9 @@
           root.style.setProperty('--font-editor', preferences.editor.fontFamily);
           root.style.setProperty('--font-editor-size', preferences.editor.fontSize + 'px');
           root.style.setProperty('--font-editor-line-height', String(preferences.editor.lineHeight));
+          var isDark = domTheme === 'dark' ||
+            (!domTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          root.style.backgroundColor = isDark ? '#1c1c1e' : '#ffffff';
         }
 
         try {

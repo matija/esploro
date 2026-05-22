@@ -19,6 +19,7 @@
         "minHeight": 600,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
+        "backgroundColor": "#00000000",
         "windowEffects": {
           "effects": ["sidebar"],
           "state": "followsWindowActiveState"
