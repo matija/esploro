@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use deadpool_postgres::{Config as PoolConfig, Runtime};
+use deadpool_postgres::{Config as PoolConfig, ManagerConfig, RecyclingMethod, Runtime};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tokio_postgres::NoTls;
@@ -149,6 +149,7 @@ fn build_pg_pool(
         max_size: max,
         ..Default::default()
     });
+    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Verified });
 
     cfg.create_pool(Some(Runtime::Tokio1), NoTls)
         .map_err(|e| e.to_string())

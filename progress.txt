@@ -1530,3 +1530,22 @@
     localStorage entry.
   - Cell divs updated to use `colWidths[col.name] ?? COL_WIDTH` instead
     of the constant.
+
+## P4 — Connection drop resilience [DONE]
+- src-tauri/src/commands/connections.rs:
+  - Added `ManagerConfig, RecyclingMethod` to `deadpool_postgres` import
+  - Set `cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Verified })` in
+    `build_pg_pool`. With `Verified`, the pool pings each connection before returning it from the
+    pool; stale connections (e.g. after a 10+ minute VPN/SSH idle) are detected and replaced
+    transparently before any user query is attempted.
+- src-tauri/src/commands/data.rs:
+  - Added `#[derive(Clone)]` to `TableQueryRequest`, `ColumnFilter`, `FilterOperator`,
+    `SortDirection` to support retry without re-parsing.
+  - Added `is_pg_connection_err(e: &str) -> bool`: detects SQLSTATE codes 57P01
+    (admin_shutdown), 57P02 (crash_shutdown), 08006 (connection_failure), plus common
+    OS-level messages (broken pipe, connection closed, reset, unexpected eof).
+  - `query_table_data`, `query_table_count`, `execute_sql` (Postgres path): each now
+    attempts the operation once; if the error matches `is_pg_connection_err`, retries once
+    silently with a fresh pool connection. If the retry also fails, the error is surfaced
+    normally. MySQL paths are unchanged.
+- All 18 existing tests pass.

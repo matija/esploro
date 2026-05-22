@@ -39,7 +39,7 @@ fn pg_cast_for_udt(udt: &str) -> &'static str {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryRequest {
     #[allow(dead_code)]
@@ -53,7 +53,7 @@ pub struct TableQueryRequest {
     pub page_size: u32,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnFilter {
     pub column: String,
@@ -61,7 +61,7 @@ pub struct ColumnFilter {
     pub value: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum FilterOperator {
     Eq,
     Neq,
@@ -75,10 +75,24 @@ pub enum FilterOperator {
     IsNotNull,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub enum SortDirection {
     Asc,
     Desc,
+}
+
+fn is_pg_connection_err(e: &str) -> bool {
+    // SQLSTATE: 57P01=admin_shutdown, 57P02=crash_shutdown, 08006=connection_failure
+    e.contains("57P01")
+        || e.contains("57P02")
+        || e.contains("08006")
+        || {
+            let lower = e.to_lowercase();
+            lower.contains("connection closed")
+                || lower.contains("broken pipe")
+                || lower.contains("connection reset")
+                || lower.contains("unexpected eof")
+        }
 }
 
 // Tagged cell value sent to the frontend.
@@ -211,7 +225,12 @@ pub async fn query_table_data(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => query_table_pg(pool, request).await,
+        PoolHandle::Pg(pool) => {
+            match query_table_pg(pool.clone(), request.clone()).await {
+                Err(ref e) if is_pg_connection_err(e) => query_table_pg(pool, request).await,
+                other => other,
+            }
+        }
         PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
     }
 }
@@ -231,7 +250,12 @@ pub async fn query_table_count(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => count_table_pg(pool, request).await,
+        PoolHandle::Pg(pool) => {
+            match count_table_pg(pool.clone(), request.clone()).await {
+                Err(ref e) if is_pg_connection_err(e) => count_table_pg(pool, request).await,
+                other => other,
+            }
+        }
         PoolHandle::Mysql(pool) => count_table_mysql(pool, request).await,
     }
 }
@@ -677,7 +701,12 @@ pub async fn execute_sql(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => execute_sql_pg(pool, sql).await,
+        PoolHandle::Pg(pool) => {
+            match execute_sql_pg(pool.clone(), sql.clone()).await {
+                Err(ref e) if is_pg_connection_err(e) => execute_sql_pg(pool, sql).await,
+                other => other,
+            }
+        }
         PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,
     }
 }
