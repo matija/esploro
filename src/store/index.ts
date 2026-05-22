@@ -55,6 +55,7 @@ export interface Tab {
   queryContext?: {
     sql: string;
     savedQueryId?: string;
+    connectionId?: string;
   };
   isDirty?: boolean;
   isLoading?: boolean;

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
+import { withSessionRetry } from "../../lib/sessionRetry";
 import { queryEditorApi, savedQueriesApi } from "./api";
 import { SqlEditor } from "./SqlEditor";
 import type { QueryResult, ResultColumn } from "./types";
@@ -685,18 +686,14 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const savedSql = useRef(tab.queryContext?.sql ?? "");
   const runStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Pick the session to run against
-  const sessionId = useMemo(() => {
-    if (tab.sessionId) return tab.sessionId;
-    return Object.values(activeSessions)[0] ?? null;
-  }, [tab.sessionId, activeSessions]);
+  // Use connectionId from queryContext — always looks up the live session from the store
+  // so stale tab.sessionId values don't cause "Session not found" failures.
+  const connectionId = tab.queryContext?.connectionId ?? null;
+  const sessionId = connectionId ? (activeSessions[connectionId] ?? null) : null;
 
-  const connectionLabel = useMemo(() => {
-    if (!sessionId) return "No connection";
-    const connId = Object.entries(activeSessions).find(([, s]) => s === sessionId)?.[0];
-    if (!connId) return "Unknown";
-    return profiles.find((p) => p.id === connId)?.displayName ?? "Unknown";
-  }, [sessionId, activeSessions, profiles]);
+  const connectionLabel = connectionId
+    ? (profiles.find((p) => p.id === connectionId)?.displayName ?? "Unknown")
+    : "No connection";
 
   // Build schema completions from React Query cache
   const schemaCompletions = useMemo(() => {
@@ -737,8 +734,8 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
 
   const runMutation = useMutation({
     mutationFn: async (sqlText: string) => {
-      if (!sessionId) throw new Error("No active connection");
-      return queryEditorApi.executeSql(sessionId, sqlText);
+      if (!connectionId) throw new Error("No active connection");
+      return withSessionRetry(connectionId, (sid) => queryEditorApi.executeSql(sid, sqlText), toast);
     },
     onSuccess: (data) => {
       setResults(data);
@@ -862,6 +859,14 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const hasResults = results.length > 0;
   const isDirty = sql !== savedSql.current;
   const showResultPane = hasResults || hasEverRun;
+
+  if (!connectionId) {
+    return (
+      <div className="flex items-center justify-center h-full text-secondary text-sm">
+        No connection — pick one
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

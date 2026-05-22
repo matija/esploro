@@ -18,6 +18,7 @@ import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { useToast } from "../../components/Toast";
 import { tableApi } from "./api";
+import { withSessionRetry } from "../../lib/sessionRetry";
 import {
   type FilterOperator,
   type SortDirection,
@@ -786,16 +787,19 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       page,
     ],
     queryFn: () =>
-      tableApi.queryTableData(sessionId!, {
-        database: ctx!.database,
-        schema: ctx!.schema,
-        table: ctx!.table,
-        filters: apiFilters,
-        sortColumn: sortColumn ?? undefined,
-        sortDirection: sortColumn ? sortDirection : undefined,
-        page,
-        pageSize: gridPageSize,
-      }),
+      withSessionRetry(ctx!.connectionId, (sid) =>
+        tableApi.queryTableData(sid, {
+          database: ctx!.database,
+          schema: ctx!.schema,
+          table: ctx!.table,
+          filters: apiFilters,
+          sortColumn: sortColumn ?? undefined,
+          sortDirection: sortColumn ? sortDirection : undefined,
+          page,
+          pageSize: gridPageSize,
+        }),
+        toast,
+      ),
     enabled,
     placeholderData: (prev) => prev,
   });
@@ -818,7 +822,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       ctx?.table,
       apiFilters,
     ],
-    queryFn: () => tableApi.queryTableCount(sessionId!, countRequest),
+    queryFn: () => withSessionRetry(ctx!.connectionId, (sid) => tableApi.queryTableCount(sid, countRequest), toast),
     enabled: enabled && showTotalCount,
     staleTime: 60_000,
     placeholderData: (prev) => prev,
@@ -973,7 +977,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // ── Save handler ───────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
-    if (!data || !sessionId || !ctx || pendingEdits.size === 0) return;
+    if (!data || !ctx || pendingEdits.size === 0) return;
     setIsSaving(true);
     try {
       const pkCols = columns.filter((c) => c.isPrimaryKey).map((c) => c.name);
@@ -1009,11 +1013,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         }
       }
 
-      await tableApi.updateRows(sessionId, {
-        schema: ctx.schema,
-        table: ctx.table,
-        changes,
-      });
+      await withSessionRetry(ctx.connectionId, (sid) =>
+        tableApi.updateRows(sid, {
+          schema: ctx.schema,
+          table: ctx.table,
+          changes,
+        }),
+        toast,
+      );
 
       const n = totalPendingChanges;
       setPendingEdits(new Map());
@@ -1026,7 +1033,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     } finally {
       setIsSaving(false);
     }
-  }, [data, sessionId, ctx, pendingEdits, columns, ctids, totalPendingChanges, toast, refetch]);
+  }, [data, ctx, pendingEdits, columns, ctids, totalPendingChanges, toast, refetch]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -1376,7 +1383,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               )}
             >
               <RotateCw size={12} />
-              Retry
+              {error instanceof Error && error.message.includes("Could not reconnect") ? "Reconnect" : "Retry"}
             </button>
           </div>
         )}

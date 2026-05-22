@@ -240,8 +240,10 @@ function Toolbar() {
       <button
         type="button"
         onClick={() => {
-          const sessionId = Object.values(activeSessions)[0];
-          addTab({ type: "query", title: "Query", sessionId });
+          const entries = Object.entries(activeSessions);
+          const connectionId = entries[0]?.[0];
+          const sessionId = entries[0]?.[1];
+          addTab({ type: "query", title: "Query", sessionId, queryContext: connectionId ? { sql: "", connectionId } : undefined });
         }}
         className={toolbarBtnClass}
         title="New Query (⌘T)"
@@ -382,8 +384,10 @@ export function AppShell() {
       // ⌘T → New query.
       if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "t") {
         e.preventDefault();
-        const sessionId = Object.values(activeSessions)[0];
-        addTab({ type: "query", title: "Query", sessionId });
+        const entries = Object.entries(activeSessions);
+        const connectionId = entries[0]?.[0];
+        const sessionId = entries[0]?.[1];
+        addTab({ type: "query", title: "Query", sessionId, queryContext: connectionId ? { sql: "", connectionId } : undefined });
         return;
       }
 

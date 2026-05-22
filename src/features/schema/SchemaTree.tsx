@@ -18,7 +18,9 @@ import {
   Terminal as TerminalIcon,
 } from "lucide-react";
 import { useAppStore } from "../../store";
+import { useToast } from "../../components/Toast";
 import { fuzzyScore } from "../../lib/fuzzy";
+import { withSessionRetry } from "../../lib/sessionRetry";
 import { schemaApi } from "./api";
 import type { TreeNode, SchemaObjects, ColumnDef, GroupLabel } from "./types";
 import { cn } from "../../lib/utils";
@@ -428,6 +430,7 @@ function nodeDepth(node: TreeNode): number {
 }
 
 export function SchemaTree({ sessionId, connectionId }: Props) {
+  const { toast } = useToast();
   const {
     expandedNodes,
     toggleNode,
@@ -521,7 +524,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const objectQueries = useQueries({
     queries: expandedSchemaEntries.map(({ db, schema }) => ({
       queryKey: ["objects", sessionId, db, schema],
-      queryFn: () => schemaApi.listObjects(sessionId, db, schema),
+      queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listObjects(sid, db, schema), toast),
       staleTime: SCHEMA_STALE_MS,
     })),
   });
@@ -552,7 +555,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const columnQueries = useQueries({
     queries: expandedTableEntries.map(({ db, schema, table }) => ({
       queryKey: ["columns", sessionId, db, schema, table],
-      queryFn: () => schemaApi.listColumns(sessionId, db, schema, table),
+      queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listColumns(sid, db, schema, table), toast),
       staleTime: SCHEMA_STALE_MS,
     })),
   });
@@ -936,7 +939,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           type: "query",
           title: `Query ${node.name}`,
           sessionId,
-          queryContext: { sql },
+          queryContext: { sql, connectionId },
           tableContext: {
             database: node.database,
             schema: node.schema,

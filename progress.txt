@@ -1659,3 +1659,59 @@
   - npm install --dry-run invokes preinstall cleanly.
   - Expired allowlist entry → exit 1 with clear violation list.
   - Warm cache: 0.08s.
+
+## PRD P0 — Stale session auto-reconnect [DONE]
+
+- src/lib/sessionRetry.ts (new):
+  - withSessionRetry<T>(connectionId, fn, toast?) — reads live sessionId from
+    activeSessions[connectionId], calls fn(sessionId). On "Session not found"
+    error: logs console.warn with prevSessionId/connectionId/stack, calls
+    reconnectOnce(connectionId), updates store via connectSession, fires
+    success toast, retries fn once. On reconnect failure: fires error toast and
+    rethrows "Could not reconnect to <name>: <reason>".
+  - reconnectOnce(connectionId) — module-scoped dedup: concurrent callers for
+    the same connectionId share one in-flight Promise, minting exactly one new
+    session. The toastFiredForReconnect Set ensures only the first concurrent
+    caller fires the success toast.
+  - SESSION_NOT_FOUND constant with comment pointing at the two Rust source
+    files emitting the string.
+
+- src/store/index.ts:
+  - Tab.queryContext gains connectionId?: string so query tabs carry a stable
+    connectionId that survives session rotation.
+
+- src/components/AppShell.tsx:
+  - Toolbar "New Query" button and ⌘T keyboard handler now pass
+    queryContext: { sql: "", connectionId } when at least one session is active,
+    so newly created query tabs have a stable connectionId.
+
+- src/features/query-editor/QueryEditorTab.tsx:
+  - sessionId derivation replaced: reads connectionId from
+    tab.queryContext?.connectionId, then activeSessions[connectionId] — always
+    the live session, no stale tab.sessionId.
+  - connectionLabel simplified (no longer does a reverse lookup through sessions).
+  - runMutation.mutationFn wraps executeSql with withSessionRetry.
+  - Guard: if !connectionId renders "No connection — pick one" empty state
+    instead of guessing Object.values(activeSessions)[0].
+
+- src/features/table-viewer/TableViewerTab.tsx:
+  - queryTableData queryFn wrapped with withSessionRetry(ctx.connectionId, ...).
+  - queryTableCount queryFn wrapped with withSessionRetry(ctx.connectionId, ...).
+  - handleSave's updateRows call wrapped with withSessionRetry(ctx.connectionId, ...).
+    Guard simplified: removed !sessionId check (helper handles it).
+  - Error state Retry button relabels to "Reconnect" when error message contains
+    "Could not reconnect".
+
+- src/features/schema/SchemaTree.tsx:
+  - listObjects queryFn wrapped with withSessionRetry(connectionId, ...).
+  - listColumns queryFn wrapped with withSessionRetry(connectionId, ...).
+  - Added useToast() for the toast callback.
+  - "Open in query editor" action now passes connectionId into queryContext so
+    the resulting tab has a stable connectionId.
+
+- src-tauri/src/commands/connections.rs:
+  - eprintln! added after sessions.insert (connect), sessions.remove
+    (disconnect), and sessions.retain (delete_connection), each logging
+    session_id / connection_id and UTC timestamp for future attribution.
+
+- tsc --noEmit, eslint, cargo test --lib, npm run build all clean.

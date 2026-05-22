@@ -283,6 +283,11 @@ pub async fn delete_connection(
     // Close any active sessions for this connection
     let mut sessions = state.sessions.lock().await;
     sessions.retain(|_, info| info.connection_id != id);
+    eprintln!(
+        "[sessions] retain remove_connection_id={} ts={}",
+        id,
+        chrono::Utc::now().to_rfc3339(),
+    );
 
     Ok(())
 }
@@ -351,7 +356,7 @@ pub async fn connect(
                 session_id.clone(),
                 SessionInfo {
                     driver: DriverSession::Postgres(Arc::new(pool)),
-                    connection_id: id,
+                    connection_id: id.clone(),
                 },
             );
         }
@@ -365,11 +370,17 @@ pub async fn connect(
                 session_id.clone(),
                 SessionInfo {
                     driver: DriverSession::Mysql(Arc::new(pool)),
-                    connection_id: id,
+                    connection_id: id.clone(),
                 },
             );
         }
     }
+    eprintln!(
+        "[sessions] insert session_id={} connection_id={} ts={}",
+        session_id,
+        id,
+        chrono::Utc::now().to_rfc3339(),
+    );
 
     Ok(session_id)
 }
@@ -377,5 +388,10 @@ pub async fn connect(
 #[tauri::command]
 pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), String> {
     state.sessions.lock().await.remove(&session_id);
+    eprintln!(
+        "[sessions] remove session_id={} ts={}",
+        session_id,
+        chrono::Utc::now().to_rfc3339(),
+    );
     Ok(())
 }
