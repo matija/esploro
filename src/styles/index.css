@@ -74,6 +74,10 @@ body,
   overflow: hidden;
 }
 
+html {
+  background: var(--ds-content-bg);
+}
+
 body {
   font-family: var(--font-ui);
   font-size: var(--font-ui-size);

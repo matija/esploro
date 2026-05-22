@@ -1437,3 +1437,14 @@
   new title sits on the inner span, so each element keeps its own
   contextual tooltip without interfering.
 - All CI checks pass (tsc --noEmit, eslint).
+
+## PRD P0 — Window resize white flash [DONE]
+- src/styles/index.css: added `html { background: var(--ds-content-bg); }` after the
+  `html, body, #root` shared rule.
+- Root cause: `html` had no background set; `body` had `background: var(--surface-base)`
+  (= `var(--ds-content-bg)`) but `html` was transparent. macOS fills the raw transparent
+  WebView area with white before the first JS paint cycle.
+- Fix: setting background on `html` gives WebKit's compositor the correct color to use
+  for any newly-exposed pixels while the first repaint is pending.
+- tauri.conf.json `backgroundColor: "#00000000"` unchanged — vibrancy sidebar unaffected.
+- tsc --noEmit: clean.
