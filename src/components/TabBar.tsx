@@ -123,7 +123,7 @@ function TabItem({
       onContextMenu={onContextMenu}
       className={cn(
         "group flex items-center gap-1 px-3 h-full",
-        "text-xs cursor-pointer select-none shrink-0",
+        "text-xs cursor-default select-none shrink-0",
         "border-r border-separator border-b-2",
         active
           ? "bg-content text-label border-b-accent"

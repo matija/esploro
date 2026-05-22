@@ -166,7 +166,7 @@ function LicenseBadge() {
 
   if (!isLicensed) {
     return (
-      <div onClick={openLicenseSettings} className="contents cursor-pointer">
+      <div onClick={openLicenseSettings} className="contents cursor-default">
         {badgeButton}
       </div>
     );

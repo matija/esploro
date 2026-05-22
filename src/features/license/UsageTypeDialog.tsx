@@ -44,7 +44,7 @@ export function UsageTypeDialog() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <label className="flex items-start gap-3 cursor-pointer group">
+            <label className="flex items-start gap-3 cursor-default group">
               <input
                 type="radio"
                 name="usage"
@@ -61,7 +61,7 @@ export function UsageTypeDialog() {
               </div>
             </label>
 
-            <label className="flex items-start gap-3 cursor-pointer group">
+            <label className="flex items-start gap-3 cursor-default group">
               <input
                 type="radio"
                 name="usage"

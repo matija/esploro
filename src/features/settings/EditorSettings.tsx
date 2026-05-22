@@ -68,7 +68,7 @@ export function EditorSettings() {
             aria-checked={editorWordWrap}
             onClick={() => setEditorWordWrap(!editorWordWrap)}
             className={cn(
-              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent",
+              "relative inline-flex h-5 w-9 shrink-0 cursor-default rounded-full border-2 border-transparent",
               "transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30",
               editorWordWrap ? "bg-accent" : "bg-control shadow-[var(--shadow-hairline)]",
             )}

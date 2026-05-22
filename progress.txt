@@ -1458,3 +1458,26 @@
 - Group rows ("Tables", "Views", etc.) already override to `text-[11px] uppercase
   tracking-wide` via cn(), so they are unaffected by the base class change.
 - All CI checks pass (tsc --noEmit, eslint).
+
+## PRD P2 — macOS native app best practices [DONE]
+- src/styles/index.css:
+  - `-webkit-font-smoothing: auto` → `antialiased` for crisper text matching native macOS apps.
+  - Added `overscroll-behavior: auto` to body (explicit; was already the default, confirms
+    rubber-band scrolling is active and no container overrides it with `contain`).
+  - Updated `:focus-visible` to use `var(--ds-accent)` directly (was `var(--border-focus)`,
+    which aliases to `--ds-accent` in tokens.css — no visual change, just explicit per PRD).
+  - Added `::selection { background-color: color-mix(in srgb, var(--ds-accent) 30%, transparent); }`
+    so text selection matches the app accent color on all surfaces, not the system blue.
+- src/components/TabBar.tsx:126 — `cursor-pointer` → `cursor-default` on tab labels.
+- src/components/AppShell.tsx:169 — `cursor-pointer` → `cursor-default` on license badge wrapper.
+- src/features/schema/SchemaTree.tsx:301 — Removed conditional `cursor-pointer` / `cursor-default`;
+  now always `cursor-default` since all tree nodes are app navigation, not hyperlinks.
+- src/features/table-viewer/TableViewerTab.tsx:256 — `cursor-pointer` → `cursor-default` on
+  column header rows.
+- src/features/table-viewer/TableViewerTab.tsx:975 — `cursor-pointer` → `cursor-default` on
+  the filter-chip remove button.
+- src/features/license/UsageTypeDialog.tsx:47,64 — `cursor-pointer` → `cursor-default` on
+  radio-button labels (both occurrences replaced).
+- src/features/settings/EditorSettings.tsx:71 — `cursor-pointer` → `cursor-default` on the
+  word-wrap toggle switch.
+- All CI checks pass (tsc --noEmit, eslint).

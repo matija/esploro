@@ -298,7 +298,7 @@ function TreeRow({
       className={cn(
         "group flex items-center gap-1 py-[3px] select-none transition-colors",
         "hover:bg-control",
-        expandable || isDataNode ? "cursor-pointer" : "cursor-default",
+        "cursor-default",
         isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
       )}
       style={{ paddingLeft: depth * 10 + 8, paddingRight: 8 }}

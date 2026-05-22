@@ -253,7 +253,7 @@ function ColumnHeaderCell({
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 px-2 select-none cursor-pointer hover:bg-hover group shrink-0 transition-colors",
+        "flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
         isFiltered && "bg-accent/5",
       )}
       style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
@@ -972,7 +972,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               <span
                 role="button"
                 onClick={(e) => { e.stopPropagation(); removeFilter(f.column); }}
-                className="hover:text-destructive transition-colors ml-0.5 cursor-pointer"
+                className="hover:text-destructive transition-colors ml-0.5 cursor-default"
               >
                 ×
               </span>

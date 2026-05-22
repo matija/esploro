@@ -81,15 +81,20 @@ html {
 body {
   font-family: var(--font-ui);
   font-size: var(--font-ui-size);
-  -webkit-font-smoothing: auto;
+  -webkit-font-smoothing: antialiased;
   color: var(--text-primary);
   background: var(--surface-base);
+  overscroll-behavior: auto;
 }
 
 /* Disable default outline; use custom focus styles */
 :focus-visible {
-  outline: 2px solid var(--border-focus);
+  outline: 2px solid var(--ds-accent);
   outline-offset: 2px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--ds-accent) 30%, transparent);
 }
 
 @keyframes toast-enter {
