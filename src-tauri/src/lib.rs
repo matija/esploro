@@ -119,6 +119,7 @@ pub fn run() {
             commands::data::query_table_data,
             commands::data::query_table_count,
             commands::data::update_rows,
+            commands::data::preview_update_rows_sql,
             commands::data::execute_sql,
             commands::saved_queries::save_query,
             commands::saved_queries::list_saved_queries,

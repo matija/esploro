@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2 } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -748,6 +748,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setLastAction,
     profiles,
     activeSessions,
+    addTab,
   } = useAppStore(
     useShallow((state) => ({
       setTabLoading: state.setTabLoading,
@@ -759,6 +760,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       setLastAction: state.setLastAction,
       profiles: state.profiles,
       activeSessions: state.activeSessions,
+      addTab: state.addTab,
     })),
   );
   const { toast } = useToast();
@@ -1111,42 +1113,50 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   // ── Save handler ───────────────────────────────────────────────────────────
 
+  // Build the RowChange[] payload from pendingEdits. Shared by handleSave and
+  // handleOpenAsSql. Throws if a row has neither a PK nor a ctid.
+  const buildRowChanges = useCallback((): RowChange[] => {
+    if (!data || pendingEdits.size === 0) return [];
+    const pkCols = columns.filter((c) => c.isPrimaryKey).map((c) => c.name);
+    const colIndexByName = new Map(columns.map((c, i) => [c.name, i]));
+    const changes: RowChange[] = [];
+
+    for (const [rowIdx, colMap] of pendingEdits.entries()) {
+      const row = data.rows[rowIdx];
+      if (!row) continue;
+
+      const columnChanges = Array.from(colMap.entries()).map(([colIdx, value]) => ({
+        column: columns[colIdx].name,
+        value,
+      }));
+      if (columnChanges.length === 0) continue;
+
+      if (pkCols.length > 0) {
+        const pkConditions = pkCols.map((pkName) => {
+          const pkColIdx = colIndexByName.get(pkName)!;
+          // Use the original (un-edited) cell value for the WHERE clause.
+          const cellStr = cellToString(row[pkColIdx] ?? { t: "null" });
+          return { column: pkName, value: cellStr ?? "" };
+        });
+        changes.push({ pkConditions, columnChanges });
+      } else {
+        const ctid = ctids[rowIdx];
+        if (!ctid) {
+          throw new Error(
+            `Row ${rowIdx + 1} has no primary key and no ctid — cannot update.`,
+          );
+        }
+        changes.push({ pkConditions: [], ctid, columnChanges });
+      }
+    }
+    return changes;
+  }, [data, pendingEdits, columns, ctids]);
+
   const handleSave = useCallback(async () => {
     if (!data || !ctx || pendingEdits.size === 0) return;
     setIsSaving(true);
     try {
-      const pkCols = columns.filter((c) => c.isPrimaryKey).map((c) => c.name);
-      const colIndexByName = new Map(columns.map((c, i) => [c.name, i]));
-      const changes: RowChange[] = [];
-
-      for (const [rowIdx, colMap] of pendingEdits.entries()) {
-        const row = data.rows[rowIdx];
-        if (!row) continue;
-
-        const columnChanges = Array.from(colMap.entries()).map(([colIdx, value]) => ({
-          column: columns[colIdx].name,
-          value,
-        }));
-        if (columnChanges.length === 0) continue;
-
-        if (pkCols.length > 0) {
-          const pkConditions = pkCols.map((pkName) => {
-            const pkColIdx = colIndexByName.get(pkName)!;
-            // Use the original (un-edited) cell value for the WHERE clause.
-            const cellStr = cellToString(row[pkColIdx] ?? { t: "null" });
-            return { column: pkName, value: cellStr ?? "" };
-          });
-          changes.push({ pkConditions, columnChanges });
-        } else {
-          const ctid = ctids[rowIdx];
-          if (!ctid) {
-            throw new Error(
-              `Row ${rowIdx + 1} has no primary key and no ctid — cannot update.`,
-            );
-          }
-          changes.push({ pkConditions: [], ctid, columnChanges });
-        }
-      }
+      const changes = buildRowChanges();
 
       await withSessionRetry(ctx.connectionId, (sid) =>
         tableApi.updateRows(sid, {
@@ -1168,7 +1178,34 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     } finally {
       setIsSaving(false);
     }
-  }, [data, ctx, pendingEdits, columns, ctids, totalPendingChanges, toast, refetch]);
+  }, [data, ctx, pendingEdits, buildRowChanges, totalPendingChanges, toast, refetch]);
+
+  // ── Open as SQL handler ────────────────────────────────────────────────────
+  // Pending edits are kept; user can run the SQL from the new tab, then click
+  // Discard once it succeeds. Errors leave pending state untouched.
+  const handleOpenAsSql = useCallback(async () => {
+    if (!data || !ctx || pendingEdits.size === 0) return;
+    try {
+      const changes = buildRowChanges();
+      const sql = await withSessionRetry(ctx.connectionId, (sid) =>
+        tableApi.previewUpdateRowsSql(sid, {
+          schema: ctx.schema,
+          table: ctx.table,
+          changes,
+        }),
+        toast,
+      );
+      addTab({
+        type: "query",
+        title: `Edit ${ctx.schema}.${ctx.table}`,
+        sessionId,
+        queryContext: { sql, connectionId: ctx.connectionId },
+        isDirty: true,
+      });
+    } catch (e) {
+      toast(`Open as SQL failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+    }
+  }, [data, ctx, pendingEdits, buildRowChanges, sessionId, toast, addTab]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -1772,6 +1809,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="inline-flex items-center gap-1.5"><X size={12} /> Discard</span>
+            </button>
+            <button
+              onClick={() => void handleOpenAsSql()}
+              disabled={isSaving}
+              title="Open the generated UPDATE statements in a new query editor tab"
+              className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="inline-flex items-center gap-1.5"><FileCode2 size={12} /> Open as SQL</span>
             </button>
             <button
               onClick={() => void handleSave()}

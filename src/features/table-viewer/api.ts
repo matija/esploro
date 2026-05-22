@@ -11,4 +11,7 @@ export const tableApi = {
   updateRows(sessionId: string, request: UpdateRowsRequest): Promise<void> {
     return invoke("update_rows", { sessionId, request });
   },
+  previewUpdateRowsSql(sessionId: string, request: UpdateRowsRequest): Promise<string> {
+    return invoke("preview_update_rows_sql", { sessionId, request });
+  },
 };

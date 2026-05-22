@@ -1796,3 +1796,48 @@
     returning `"Inline editing is not supported for MySQL"`.
 - All CI checks pass (cargo clippy --workspace --all-targets -- -D warnings,
   tsc --noEmit, eslint).
+
+## PRD P2 — "Open as SQL" button in edits bar [DONE]
+
+- src-tauri/src/lib.rs:
+  - Registered `commands::data::preview_update_rows_sql` in invoke_handler. The
+    Rust command was already implemented (BEGIN/COMMIT-wrapped UPDATE statements
+    with the same identifier validation and cast resolution as update_rows_pg /
+    update_rows_mysql) but not exposed to the frontend.
+
+- src/features/table-viewer/api.ts:
+  - Added `previewUpdateRowsSql(sessionId, request): Promise<string>` binding
+    that invokes the new Tauri command. Same UpdateRowsRequest shape as
+    updateRows, returns the generated SQL string.
+
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added `FileCode2` icon import (lucide-react).
+  - Added `addTab` to the useAppStore useShallow destructuring.
+  - Extracted `buildRowChanges()` from handleSave into a shared useCallback.
+    Both handleSave and the new handleOpenAsSql use it to build the RowChange[]
+    payload from pendingEdits (PK columns → pkConditions, ctid fallback for PG
+    tables without PK). Throws if a row has neither a PK nor a ctid.
+  - handleSave now calls buildRowChanges() instead of duplicating the loop.
+  - Added `handleOpenAsSql` useCallback:
+    - Calls buildRowChanges() + tableApi.previewUpdateRowsSql via
+      withSessionRetry (auto-reconnects via the P0 helper).
+    - Opens a new query editor tab via addTab with title
+      `Edit ${schema}.${table}`, queryContext.sql = generated SQL,
+      queryContext.connectionId = ctx.connectionId, isDirty: true.
+    - Pending edits are NOT discarded (per PRD: user can run from the editor or
+      come back to click Save).
+    - On error: toast `Open as SQL failed: <msg>`, pending state preserved.
+  - Added "Open as SQL" button to the Save/Discard bar, between Discard and
+    Save. Styled like Discard (ghost/secondary). Order is now:
+    `[n unsaved] [Discard] [Open as SQL] [Save]`. Save stays rightmost as the
+    primary action. Tooltip: "Open the generated UPDATE statements in a new
+    query editor tab".
+
+- The QueryEditorTab tracks dirty state via sql !== savedSql.current. Since we
+  seed both with the same generated SQL, the dirty flag we pass to addTab is
+  immediately overwritten to false on mount. Acceptable: if the user edits the
+  SQL afterwards it becomes dirty as expected, and close-tab confirmation
+  works correctly for any subsequent edits.
+
+- All CI checks pass: tsc --noEmit, eslint, cargo clippy --workspace
+  --all-targets -- -D warnings, cargo test --lib (18 passed), npm run build.
