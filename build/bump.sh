@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Bumps the project version in every place that drives a release:
+#   - package.json + package-lock.json
+#   - src-tauri/tauri.conf.json
+#   - src-tauri/Cargo.toml + Cargo.lock
+# Usage: ./build/bump.sh 0.7.0
+#
+# After running, review the diff, commit, then run build/release.sh.
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+CURRENT=$(node -e 'process.stdout.write(require("./package.json").version)')
+VERSION="${1:-}"
+if [[ -z "$VERSION" ]]; then
+  echo "Usage: $0 <version>   (current: $CURRENT)" >&2
+  exit 1
+fi
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "error: '$VERSION' doesn't look like a semver (e.g. 0.7.0 or 0.7.0-rc.1)." >&2
+  exit 1
+fi
+
+echo "==> $CURRENT -> $VERSION"
+
+npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
+
+# Replace only the top-level "version" string; don't reformat the rest of the file.
+VERSION="$VERSION" perl -i -0pe '
+  s/("version"\s*:\s*)"[^"]*"/$1"$ENV{VERSION}"/
+' src-tauri/tauri.conf.json
+
+# Replace the version line inside the [package] section only.
+# Uses `...` (not `..`) so the end pattern is only checked starting next line.
+VERSION="$VERSION" perl -i -pe '
+  if (/^\[package\]/.../^\[/) {
+    s/^version\s*=\s*"[^"]*"/version = "$ENV{VERSION}"/;
+  }
+' src-tauri/Cargo.toml
+
+# Cargo.lock: update the esploro workspace member entry.
+VERSION="$VERSION" perl -i -0pe '
+  s/(name = "esploro"\nversion = ")[^"]*"/$1$ENV{VERSION}"/g
+' src-tauri/Cargo.lock
+
+echo
+git diff --stat package.json package-lock.json \
+  src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock 2>/dev/null || true
+echo
+echo "Review the diff, commit, then run build/release.sh"

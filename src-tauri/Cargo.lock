@@ -4410,7 +4410,7 @@ dependencies = [
 
 [[package]]
 name = "esploro"
-version = "0.4.2"
+version = "0.6.1"
 dependencies = [
  "serde",
  "serde_json",
