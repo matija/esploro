@@ -35,8 +35,40 @@ fn pg_cast_for_udt(udt: &str) -> &'static str {
         "timetz" | "time" => "time",
         "bool" | "boolean" => "boolean",
         "uuid" => "uuid",
+        "json" => "json",
+        "jsonb" => "jsonb",
         _ => "text",
     }
+}
+
+// Convert a JSON-array string (e.g. `[1, 2, 3]`) to a PostgreSQL array literal
+// (e.g. `{1,2,3}`).  Each element is double-quoted to let Postgres do the type
+// coercion from text.  NULL JSON elements become SQL NULL elements.
+fn json_to_pg_array_literal(json_str: &str) -> Result<String, String> {
+    let arr: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("Invalid JSON array: {e}"))?;
+    let elements = arr
+        .as_array()
+        .ok_or_else(|| "Expected a JSON array".to_string())?;
+    let parts: Vec<String> = elements
+        .iter()
+        .map(|v| {
+            if v.is_null() {
+                "NULL".to_string()
+            } else {
+                let s = match v {
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                // PG array element: double-quote and escape backslashes and double-quotes
+                let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                format!("\"{escaped}\"")
+            }
+        })
+        .collect();
+    Ok(format!("{{{}}}", parts.join(",")))
 }
 
 #[derive(Deserialize, Clone)]
@@ -724,7 +756,7 @@ pub async fn update_rows(
                 other => other,
             }
         }
-        PoolHandle::Mysql(_) => Err("Inline editing is not supported for MySQL".to_string()),
+        PoolHandle::Mysql(pool) => update_rows_mysql(pool, request).await,
     }
 }
 
@@ -765,11 +797,26 @@ async fn update_rows_pg(
 
         for cc in &change.column_changes {
             if let Some(ref val) = cc.value {
-                params.push(val.clone());
-                let p = params.len();
                 let udt = col_type_map.get(&cc.column).map(|s| s.as_str()).unwrap_or("text");
-                let cast = pg_cast_for_udt(udt);
-                set_parts.push(format!("\"{}\" = ${}::text::{}", cc.column, p, cast));
+                if udt.starts_with('_') {
+                    // PG array type: convert JSON array to PG array literal
+                    let elem_type = udt.trim_start_matches('_');
+                    let pg_array = match json_to_pg_array_literal(val) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            client.batch_execute("ROLLBACK").await.ok();
+                            return Err(e);
+                        }
+                    };
+                    params.push(pg_array);
+                    let p = params.len();
+                    set_parts.push(format!("\"{}\" = ${}::text::{}[]", cc.column, p, elem_type));
+                } else {
+                    params.push(val.clone());
+                    let p = params.len();
+                    let cast = pg_cast_for_udt(udt);
+                    set_parts.push(format!("\"{}\" = ${}::text::{}", cc.column, p, cast));
+                }
             } else {
                 set_parts.push(format!("\"{}\" = NULL", cc.column));
             }
@@ -813,6 +860,96 @@ async fn update_rows_pg(
     }
 
     client.batch_execute("COMMIT").await.map_err(|e| e.to_string())
+}
+
+async fn update_rows_mysql(
+    pool: std::sync::Arc<mysql_async::Pool>,
+    request: UpdateRowsRequest,
+) -> Result<(), String> {
+    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+
+    // Look up PK columns — required for MySQL (no ctid)
+    let pk_cols: std::collections::HashSet<String> = {
+        let rows: Vec<mysql_async::Row> = conn
+            .exec(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS \
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI'",
+                (&request.schema, &request.table),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        rows.iter().filter_map(|r| mysql_str(r, 0)).collect()
+    };
+
+    if pk_cols.is_empty() {
+        return Err(
+            "Inline editing requires a primary key — this table has none".to_string(),
+        );
+    }
+
+    conn.exec_drop("START TRANSACTION", ()).await.map_err(|e| e.to_string())?;
+
+    let result: Result<(), String> = (async {
+        for change in &request.changes {
+            if change.column_changes.is_empty() {
+                continue;
+            }
+            for cc in &change.column_changes {
+                validate_identifier(&cc.column)?;
+            }
+            for pk in &change.pk_conditions {
+                validate_identifier(&pk.column)?;
+            }
+
+            let mut set_params: Vec<mysql_async::Value> = vec![];
+            let mut set_parts: Vec<String> = vec![];
+
+            for cc in &change.column_changes {
+                if let Some(ref val) = cc.value {
+                    set_parts.push(format!("`{}` = ?", cc.column));
+                    set_params.push(mysql_async::Value::Bytes(val.as_bytes().to_vec()));
+                } else {
+                    set_parts.push(format!("`{}` = NULL", cc.column));
+                }
+            }
+
+            if change.pk_conditions.is_empty() {
+                return Err("MySQL row change has no PK conditions".to_string());
+            }
+
+            let mut where_parts: Vec<String> = vec![];
+            let mut where_params: Vec<mysql_async::Value> = vec![];
+            for pk in &change.pk_conditions {
+                where_parts.push(format!("`{}` = ?", pk.column));
+                where_params.push(mysql_async::Value::Bytes(pk.value.as_bytes().to_vec()));
+            }
+
+            let sql = format!(
+                "UPDATE `{}`.`{}` SET {} WHERE {}",
+                request.schema,
+                request.table,
+                set_parts.join(", "),
+                where_parts.join(" AND "),
+            );
+
+            let all_params: Vec<mysql_async::Value> = set_params
+                .into_iter()
+                .chain(where_params)
+                .collect();
+
+            conn.exec_drop(sql.as_str(), all_params)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })
+    .await;
+
+    if result.is_err() {
+        conn.exec_drop("ROLLBACK", ()).await.ok();
+        return result;
+    }
+    conn.exec_drop("COMMIT", ()).await.map_err(|e| e.to_string())
 }
 
 // ─── execute_sql ─────────────────────────────────────────────────────────────

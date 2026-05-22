@@ -83,6 +83,30 @@ export interface UpdateRowsRequest {
   changes: RowChange[];
 }
 
+export type EditableKind = "scalar" | "json" | "array" | "none";
+
+export function editableKind(udt: string, driver: "postgres" | "mysql"): EditableKind {
+  if (driver === "postgres") {
+    if (udt === "json" || udt === "jsonb") return "json";
+    if (udt.startsWith("_")) return "array";  // PG array types: _int4, _text, _uuid, …
+    if (udt === "bytea") return "none";
+    return "scalar";
+  }
+  // MySQL: COLUMN_TYPE is e.g. "int", "varchar(255)", "tinyint(1)", "enum('a','b')", "json"
+  const t = udt.toLowerCase().replace(/\(.*\)$/, "").trim();
+  if (t === "json") return "json";
+  if (["binary", "varbinary", "tinyblob", "blob", "mediumblob", "longblob"].includes(t)) return "none";
+  const mysqlScalars = [
+    "int", "bigint", "smallint", "tinyint", "mediumint",
+    "decimal", "float", "double",
+    "char", "varchar", "text", "tinytext", "mediumtext", "longtext",
+    "date", "datetime", "timestamp", "time", "year",
+    "enum", "set",
+  ];
+  if (mysqlScalars.includes(t)) return "scalar";
+  return "none";
+}
+
 export function isEditableType(udt: string): boolean {
   if (udt.endsWith("[]")) return false;
   const t = udt.toLowerCase();

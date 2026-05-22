@@ -26,6 +26,7 @@ import {
   type ResultColumn,
   type CellValue,
   type RowChange,
+  type EditableKind,
   OP_LABELS,
   getTypeFamily,
   getOperatorsForFamily,
@@ -33,7 +34,7 @@ import {
   cellToString,
   detectEnumColumns,
   getEnumBadgeClass,
-  isEditableType,
+  editableKind,
 } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -483,6 +484,115 @@ function ColumnFilterPopover({
   );
 }
 
+// ─── JsonArrayEditor ─────────────────────────────────────────────────────────
+
+function JsonArrayEditor({
+  kind,
+  anchorEl,
+  initialValue,
+  onCommit,
+  onCancel,
+}: {
+  kind: "json" | "array";
+  anchorEl: Element | null;
+  initialValue: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(initialValue);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+    textareaRef.current?.select();
+  }, []);
+
+  const virtualRef = useRef({ getBoundingClientRect: () => anchorEl?.getBoundingClientRect() ?? new DOMRect() });
+  useEffect(() => {
+    virtualRef.current = { getBoundingClientRect: () => anchorEl?.getBoundingClientRect() ?? new DOMRect() };
+  }, [anchorEl]);
+
+  const validation = useMemo((): { ok: boolean; msg: string } => {
+    if (draft.toLowerCase() === "null") return { ok: true, msg: "" };
+    try {
+      const parsed = JSON.parse(draft);
+      if (kind === "array" && !Array.isArray(parsed)) {
+        return { ok: false, msg: "Expected a JSON array" };
+      }
+      const count = kind === "array" && Array.isArray(parsed) ? ` — ${parsed.length} elements` : "";
+      return { ok: true, msg: count };
+    } catch (e) {
+      return { ok: false, msg: e instanceof SyntaxError ? e.message : String(e) };
+    }
+  }, [draft, kind]);
+
+  const format = () => {
+    if (validation.ok && draft.toLowerCase() !== "null") {
+      try {
+        setDraft(JSON.stringify(JSON.parse(draft), null, 2));
+      } catch { /* ignore */ }
+    }
+  };
+
+  const commit = () => {
+    if (!validation.ok) return;
+    onCommit(draft);
+  };
+
+  return (
+    <Popover.Root open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <Popover.Anchor virtualRef={virtualRef} />
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={2}
+          onEscapeKeyDown={onCancel}
+          onInteractOutside={commit}
+          className="z-50 w-80 rounded-[var(--radius-popover)] border-2 border-[var(--ds-warning)] bg-raised shadow-[var(--shadow-popover)] flex flex-col gap-2 p-2"
+        >
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); commit(); }
+            }}
+            className="w-full font-mono text-xs text-label bg-control rounded-[var(--radius-control)] border border-separator p-2 resize-none outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+            style={{ minHeight: 80, maxHeight: 240 }}
+            spellCheck={false}
+          />
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "flex-1 text-[10px] font-mono truncate",
+                validation.ok ? "text-success" : "text-query-failed",
+              )}
+            >
+              {validation.ok ? `Valid${validation.msg}` : `Invalid: ${validation.msg}`}
+            </span>
+            <button
+              onClick={format}
+              disabled={!validation.ok || draft.toLowerCase() === "null"}
+              className="px-2 py-0.5 rounded text-[10px] text-secondary hover:text-label hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Format
+            </button>
+            <button
+              onClick={commit}
+              disabled={!validation.ok}
+              className="px-2 py-0.5 rounded text-[10px] bg-accent text-inverse disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-hover transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
 // ─── CellContextMenu ──────────────────────────────────────────────────────────
 
 function CellContextMenu({
@@ -661,6 +771,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const [pendingEdits, setPendingEdits] = useState<Map<number, Map<number, string | null>>>(new Map());
   const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
   const [editDraft, setEditDraft] = useState<string>("");
+  const [jsonEditorCell, setJsonEditorCell] = useState<{ row: number; col: number } | null>(null);
+  const jsonEditorAnchorRef = useRef<Element | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
@@ -686,6 +798,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const discardEdits = useCallback(() => {
     setPendingEdits(new Map());
     setEditingCell(null);
+    setJsonEditorCell(null);
   }, []);
 
   const commitEditDraft = useCallback((rowIdx: number, colIdx: number, draft: string, originalCell: CellValue) => {
@@ -721,18 +834,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [pendingEdits],
   );
 
-  // A column is editable in this tab if the table is not a view and the column's
-  // udt is a scalar Postgres type (handled by isEditableType).
-  const isColEditable = useCallback(
-    (dataType: string): boolean => !isView && isEditableType(dataType),
-    [isView],
-  );
-
   const connectionLabel = useMemo(() => {
     if (!sessionId) return null;
     const connId = Object.entries(activeSessions).find(([, s]) => s === sessionId)?.[0];
     return profiles.find((p) => p.id === connId)?.displayName ?? null;
   }, [sessionId, activeSessions, profiles]);
+
+  const driver = useMemo(() => {
+    return profiles.find((p) => p.id === ctx?.connectionId)?.driver ?? "postgres";
+  }, [profiles, ctx?.connectionId]);
 
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -886,15 +996,33 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const ctids = useMemo(() => data?.ctids ?? [], [data?.ctids]);
   const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
 
+  // MySQL requires a PK to edit any row. If none exists, nothing is editable.
+  const hasTablePk = useMemo(() => columns.some((c) => c.isPrimaryKey), [columns]);
+
+  const getColKind = useCallback(
+    (dataType: string): EditableKind => {
+      if (isView) return "none";
+      if (driver === "mysql" && !hasTablePk) return "none";
+      return editableKind(dataType, driver);
+    },
+    [isView, driver, hasTablePk],
+  );
+
+  const isColEditable = useCallback(
+    (dataType: string): boolean => getColKind(dataType) !== "none",
+    [getColKind],
+  );
+
   // ── Edit lifecycle ─────────────────────────────────────────────────────────
 
-  const startEdit = useCallback((rowIdx: number, colIdx: number) => {
+  const startEdit = useCallback((rowIdx: number, colIdx: number, anchorEl?: Element | null) => {
     const col = columns[colIdx];
-    if (!col || !isColEditable(col.dataType)) return;
+    if (!col) return;
+    const kind = getColKind(col.dataType);
+    if (kind === "none") return;
     const row = rows[rowIdx];
     if (!row) return;
     const pending = pendingEdits.get(rowIdx)?.get(colIdx);
-    // If there's a pending edit, prefill with its value (null → "NULL" literal so it round-trips).
     let initial: string;
     if (pending !== undefined) {
       initial = pending === null ? "NULL" : pending;
@@ -902,14 +1030,21 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       const cellStr = cellToString(row[colIdx] ?? { t: "null" });
       initial = cellStr ?? "NULL";
     }
-    setEditDraft(initial);
-    setEditingCell({ row: rowIdx, col: colIdx });
     setSelectedCell({ row: rowIdx, col: colIdx });
-  }, [columns, rows, isColEditable, pendingEdits]);
+    if (kind === "json" || kind === "array") {
+      jsonEditorAnchorRef.current = anchorEl ?? null;
+      setJsonEditorCell({ row: rowIdx, col: colIdx });
+      setEditDraft(initial);
+    } else {
+      setEditDraft(initial);
+      setEditingCell({ row: rowIdx, col: colIdx });
+    }
+  }, [columns, rows, getColKind, pendingEdits]);
 
   const cancelEdit = useCallback(() => {
     setEditingCell(null);
     setEditDraft("");
+    setJsonEditorCell(null);
   }, []);
 
   // Set to true by Tab/Shift+Tab handlers so the input's blur (fired when the
@@ -1542,8 +1677,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               onClick={() =>
                                 setSelectedCell({ row: vr.index, col: ci })
                               }
-                              onDoubleClick={() => {
-                                if (editable) startEdit(vr.index, ci);
+                              onDoubleClick={(e) => {
+                                if (editable) startEdit(vr.index, ci, e.currentTarget);
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
@@ -1706,6 +1841,31 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             onOpenChange={(o) => { if (!o) setOpenFilterCol(null); }}
             entry={filterDraft[openFilterCol]}
             onApply={(entry) => applyFilterEntry(openFilterCol, entry)}
+          />
+        );
+      })()}
+
+      {/* JSON / Array inline editor popover */}
+      {jsonEditorCell !== null && (() => {
+        const col = columns[jsonEditorCell.col];
+        if (!col) return null;
+        const kind = getColKind(col.dataType);
+        if (kind !== "json" && kind !== "array") return null;
+        return (
+          <JsonArrayEditor
+            kind={kind}
+            anchorEl={jsonEditorAnchorRef.current}
+            initialValue={editDraft}
+            onCommit={(value) => {
+              const original = rows[jsonEditorCell.row]?.[jsonEditorCell.col] ?? { t: "null" as const };
+              commitEditDraft(jsonEditorCell.row, jsonEditorCell.col, value, original);
+              setJsonEditorCell(null);
+              setEditDraft("");
+            }}
+            onCancel={() => {
+              setJsonEditorCell(null);
+              setEditDraft("");
+            }}
           />
         );
       })()}

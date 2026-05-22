@@ -1737,3 +1737,62 @@
     session_id / connection_id and UTC timestamp for future attribution.
 
 - tsc --noEmit, eslint, cargo test --lib, npm run build all clean.
+
+## PRD P3 — Inline edit for JSON, JSONB, arrays + MySQL parity [DONE]
+
+### Frontend (P3a)
+- src/features/table-viewer/types.ts:
+  - Added `EditableKind = "scalar" | "json" | "array" | "none"` type.
+  - Added `editableKind(udt, driver)` function:
+    - PG `json`/`jsonb` → "json"; udt starting with `_` (e.g. `_int4`, `_text`) → "array";
+      `bytea` → "none"; everything else → "scalar".
+    - MySQL `json` → "json"; binary/blob family → "none"; int/varchar/text/date/enum etc. → "scalar".
+  - Legacy `isEditableType` kept for backward compat (not used in TableViewerTab any more).
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added `JsonArrayEditor` popover component:
+    - Anchors to the cell element (same amber border treatment as scalar inline edit).
+    - Multiline textarea (monospace, min 80px, max 240px, no resize handle).
+    - Live `Valid` / `Invalid: <error>` badge (green/red) using `JSON.parse`.
+    - For `kind="array"`, additionally validates that the parsed value is a JSON array
+      and shows element count.
+    - **Format** button: `JSON.stringify(JSON.parse(v), null, 2)` on valid input.
+    - Esc → cancel; Cmd-Enter / OK button → commit; outside-click → commit if valid.
+    - Save disabled (OK button disabled) while invalid.
+  - Added `driver` useMemo derived from `profiles` + `ctx.connectionId`.
+  - Added `getColKind(dataType)` callback replacing the old `isColEditable(dataType)`:
+    - Returns "none" when `isView`, or when driver=mysql and table has no PK column,
+      otherwise delegates to `editableKind`.
+  - `isColEditable` now wraps `getColKind !== "none"`.
+  - `hasTablePk` = `columns.some(c => c.isPrimaryKey)` — MySQL non-PK tables show
+    all columns non-editable (cursor-not-allowed), no destructive fallback.
+  - `startEdit` now accepts an optional `anchorEl` (the double-clicked DOM element):
+    - `kind === "scalar"` → existing single-line `<input>` path (unchanged).
+    - `kind === "json" | "array"` → opens `JsonArrayEditor` popover anchored to cell.
+  - Added `jsonEditorCell` + `jsonEditorAnchorRef` state for the popover.
+  - `discardEdits` clears `jsonEditorCell` too.
+  - `JsonArrayEditor` is rendered at the bottom of the component JSX alongside the
+    filter popover and context menu.
+
+### Backend PG (P3b)
+- src-tauri/src/commands/data.rs:
+  - `pg_cast_for_udt`: added `"json"` → `"json"` and `"jsonb"` → `"jsonb"` arms.
+  - Added `json_to_pg_array_literal(json_str)` helper:
+    parses JSON array, emits PG array literal `{el1,el2,...}` with each element
+    double-quoted and backslash-escaped; NULL JSON elements become SQL NULL elements.
+  - `update_rows_pg` SET-clause loop: detects array UDTs (udt starts with `_`),
+    converts the JSON array value to a PG array literal, and casts with
+    `$N::text::elem_type[]`. Non-array/JSON types use the existing `$N::text::cast` path.
+    On parse failure, rolls back and returns the error.
+
+### Backend MySQL (P3c)
+- src-tauri/src/commands/data.rs:
+  - Added `update_rows_mysql` async function:
+    - Looks up PK columns via `INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_KEY = 'PRI'`.
+    - Returns error if no PK (same non-editable contract as the frontend).
+    - Wraps all UPDATEs in `START TRANSACTION` / `COMMIT` / `ROLLBACK`.
+    - Builds `UPDATE schema.table SET col=? WHERE pk=?` with `mysql_async::Value::Bytes`
+      params. NULL values emit bare `col = NULL` in SQL.
+  - `update_rows` command: MySQL branch now calls `update_rows_mysql` instead of
+    returning `"Inline editing is not supported for MySQL"`.
+- All CI checks pass (cargo clippy --workspace --all-targets -- -D warnings,
+  tsc --noEmit, eslint).
