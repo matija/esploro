@@ -1549,3 +1549,86 @@
     silently with a fresh pool connection. If the retry also fails, the error is surfaced
     normally. MySQL paths are unchanged.
 - All 18 existing tests pass.
+
+## P5 — Inline cell editing [DONE]
+- Rust backend (src-tauri/src/commands/data.rs): added #[derive(Clone)] to
+  UpdateRowsRequest so the connection-drop retry path (update_rows → match …
+  request.clone()) compiles. All 18 existing tests pass (cargo test --lib).
+  The `update_rows` Tauri command, PkCondition / ColumnChange / RowChange
+  types, and the BEGIN/COMMIT/ROLLBACK transaction loop with $p::text::{cast}
+  parameter binding were already in place from earlier scaffolding work.
+
+- src/features/table-viewer/TableViewerTab.tsx:
+  - commitEditDraft: when the edited value reverts to the original, the
+    pending edit entry is removed (and the row entry pruned if its last
+    edit is removed). Prevents zombie "0 unsaved changes" rows.
+  - getPendingValue(rowIdx, colIdx): typed helper returning either
+    `{has:false}` or `{has:true, value: string|null}`. The inner null
+    distinguishes "pending edit to SQL NULL" from "no pending edit".
+  - isColEditable(dataType): false when the tab's table is a view OR the
+    column's udt is non-scalar (arrays, json/jsonb, bytea — already handled
+    by isEditableType in types.ts).
+  - ctids: data?.ctids surfaced via useMemo so handleSave can fall back
+    to WHERE ctid = $1 when the table has no primary key.
+  - startEdit(rowIdx, colIdx): no-op for non-editable cells. Prefills
+    editDraft from the pending edit (rendering null as the literal "NULL"
+    so it round-trips) or from cellToString(originalCell) (null cells
+    seed the draft with "NULL").
+  - cancelEdit: clears editingCell + editDraft. Wired to Escape.
+  - useEffect on editingCell: focuses + selects the input so the user can
+    immediately overwrite the existing value.
+  - findNextEditableCol(fromCol, dir): scans columns in the requested
+    direction skipping non-editable ones. Used by Tab / Shift+Tab.
+  - commitAndAdvance("none" | "next" | "prev"): commits the current draft
+    via commitEditDraft, then either clears editingCell ("none") or
+    synchronously sets up the new cell's editingCell + editDraft +
+    selectedCell so React batches the updates and the input remounts in
+    the new column on the next render.
+  - skipNextBlurRef: set by commitAndAdvance when advancing. The
+    just-unmounting input fires blur with a stale closure that would
+    otherwise re-fire commitAndAdvance("none") and clobber the next-cell
+    state; the ref short-circuits that one blur event.
+  - handleSave: groups pendingEdits into RowChange[] using either
+    isPrimaryKey columns (cellToString of the ORIGINAL row cell for the
+    WHERE clause) or the captured ctid. Calls tableApi.updateRows, then
+    on success clears pendingEdits/editingCell/editDraft, toasts
+    "Saved n change(s)", and refetches. On failure: error toast, pending
+    state preserved so the user can fix and retry.
+  - Cmd+C handler now bails if the event target is an INPUT / TEXTAREA /
+    contenteditable so the user can copy text inside the edit input
+    natively.
+
+  - Cell rendering (inside the virtualized row map):
+    - rowHasEdits → row gets a `border-l-4 border-l-[var(--ds-warning)]`
+      left stripe and a faint amber row fill via color-mix.
+    - displayCell: pending edit overrides the original cell; renders the
+      new value via CellRenderer (or NULL badge if the edit is null).
+    - isEdited → cell gets `ring-2 ring-[var(--ds-warning)]` + amber
+      inner fill via color-mix. The cursor flips to `not-allowed` on
+      non-editable cells.
+    - onDoubleClick → startEdit when the column is editable.
+    - When isEditing, the cell renders an `<input>` (font-mono, transparent
+      background) with onKeyDown handlers for Escape (cancel) / Enter
+      (commit "none") / Tab / Shift+Tab (commit "next" / "prev").
+    - When isEditing, the copy button is suppressed.
+
+  - Save / Discard bar:
+    - Renders only when `hasPendingEdits`, just above the pagination
+      footer. amber-tinted border + bg via color-mix on var(--ds-warning).
+    - Label: "n unsaved change(s)" (and " in m rows" when m > 1).
+    - Discard button: ghost style, calls discardEdits.
+    - Save button: accent primary, runs handleSave, shows a spinner
+      while isSaving and disables both buttons.
+
+  - Navigate-away guards (window.confirm "You have unsaved changes. Discard
+    and continue?"):
+    - handleSort, removeFilter (chip ×), clearAllFilters, applyFilterEntry
+      (popover), handleFilterByValue (context menu), RefreshButton onClick,
+      and both pagination buttons (Prev / Next). On confirmation each path
+      calls discardEdits() before mutating state.
+    - Out of scope for this change: tab-close and tab-switch guards (the
+      tab strip's own closeTab / setActiveTab paths in src/store/index.ts
+      are not wired through the table viewer; the tab dirty flag is
+      already set so the strip can pick it up in a follow-up).
+
+- tsc --noEmit, eslint, cargo test --lib, npm run build all clean.

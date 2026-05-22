@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -16,6 +16,7 @@ import { ChevronDown as SelectChevron, Check } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
+import { useToast } from "../../components/Toast";
 import { tableApi } from "./api";
 import {
   type FilterOperator,
@@ -23,6 +24,7 @@ import {
   type ColumnFilter,
   type ResultColumn,
   type CellValue,
+  type RowChange,
   OP_LABELS,
   getTypeFamily,
   getOperatorsForFamily,
@@ -30,6 +32,7 @@ import {
   cellToString,
   detectEnumColumns,
   getEnumBadgeClass,
+  isEditableType,
 } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -627,6 +630,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const {
     setTabLoading,
     setTabError,
+    setTabDirty,
     gridPageSize,
     gridRowDensity,
     showTotalCount,
@@ -637,6 +641,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     useShallow((state) => ({
       setTabLoading: state.setTabLoading,
       setTabError: state.setTabError,
+      setTabDirty: state.setTabDirty,
       gridPageSize: state.gridPageSize,
       gridRowDensity: state.gridRowDensity,
       showTotalCount: state.showTotalCount,
@@ -645,7 +650,82 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       activeSessions: state.activeSessions,
     })),
   );
+  const { toast } = useToast();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
+  const isView = ctx?.isView ?? false;
+
+  // ── Inline editing state ───────────────────────────────────────────────────
+
+  // rowIndex → colIndex → new value (null = SQL NULL)
+  const [pendingEdits, setPendingEdits] = useState<Map<number, Map<number, string | null>>>(new Map());
+  const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
+  const [editDraft, setEditDraft] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  const hasPendingEdits = pendingEdits.size > 0;
+
+  const totalPendingChanges = useMemo(() => {
+    let count = 0;
+    pendingEdits.forEach((colMap) => { count += colMap.size; });
+    return count;
+  }, [pendingEdits]);
+
+  // Keep tab dirty flag in sync
+  useEffect(() => {
+    setTabDirty(tab.id, hasPendingEdits);
+  }, [hasPendingEdits, tab.id, setTabDirty]);
+
+  // Guard helper — returns true if safe to proceed, false if user cancelled
+  const guardNavigation = useCallback((): boolean => {
+    if (!hasPendingEdits) return true;
+    return window.confirm("You have unsaved changes. Discard and continue?");
+  }, [hasPendingEdits]);
+
+  const discardEdits = useCallback(() => {
+    setPendingEdits(new Map());
+    setEditingCell(null);
+  }, []);
+
+  const commitEditDraft = useCallback((rowIdx: number, colIdx: number, draft: string, originalCell: CellValue) => {
+    const normalised = draft.toLowerCase() === "null" ? null : draft;
+    const originalStr = cellToString(originalCell);
+    setPendingEdits((prev) => {
+      const next = new Map(prev);
+      const colMap = new Map(next.get(rowIdx) ?? []);
+      if (normalised === originalStr) {
+        // Reverting to original — drop the pending edit
+        colMap.delete(colIdx);
+        if (colMap.size === 0) {
+          next.delete(rowIdx);
+        } else {
+          next.set(rowIdx, colMap);
+        }
+      } else {
+        colMap.set(colIdx, normalised);
+        next.set(rowIdx, colMap);
+      }
+      return next;
+    });
+  }, []);
+
+  // Returns the pending edit value for a cell, if any. The outer null is "no pending edit";
+  // an inner null is "pending edit = SQL NULL".
+  const getPendingValue = useCallback(
+    (rowIdx: number, colIdx: number): { has: false } | { has: true; value: string | null } => {
+      const colMap = pendingEdits.get(rowIdx);
+      if (!colMap || !colMap.has(colIdx)) return { has: false };
+      return { has: true, value: colMap.get(colIdx) ?? null };
+    },
+    [pendingEdits],
+  );
+
+  // A column is editable in this tab if the table is not a view and the column's
+  // udt is a scalar Postgres type (handled by isEditableType).
+  const isColEditable = useCallback(
+    (dataType: string): boolean => !isView && isEditableType(dataType),
+    [isView],
+  );
 
   const connectionLabel = useMemo(() => {
     if (!sessionId) return null;
@@ -774,6 +854,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const handleSort = useCallback(
     (colName: string) => {
+      if (!guardNavigation()) return;
+      discardEdits();
       if (sortColumn === colName) {
         if (sortDirection === "Asc") {
           setSortDirection("Desc");
@@ -787,7 +869,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       }
       setPage(0);
     },
-    [sortColumn, sortDirection],
+    [sortColumn, sortDirection, guardNavigation, discardEdits],
   );
 
   // ── Virtualizer ────────────────────────────────────────────────────────────
@@ -797,7 +879,154 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
+  const ctids = useMemo(() => data?.ctids ?? [], [data?.ctids]);
   const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
+
+  // ── Edit lifecycle ─────────────────────────────────────────────────────────
+
+  const startEdit = useCallback((rowIdx: number, colIdx: number) => {
+    const col = columns[colIdx];
+    if (!col || !isColEditable(col.dataType)) return;
+    const row = rows[rowIdx];
+    if (!row) return;
+    const pending = pendingEdits.get(rowIdx)?.get(colIdx);
+    // If there's a pending edit, prefill with its value (null → "NULL" literal so it round-trips).
+    let initial: string;
+    if (pending !== undefined) {
+      initial = pending === null ? "NULL" : pending;
+    } else {
+      const cellStr = cellToString(row[colIdx] ?? { t: "null" });
+      initial = cellStr ?? "NULL";
+    }
+    setEditDraft(initial);
+    setEditingCell({ row: rowIdx, col: colIdx });
+    setSelectedCell({ row: rowIdx, col: colIdx });
+  }, [columns, rows, isColEditable, pendingEdits]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingCell(null);
+    setEditDraft("");
+  }, []);
+
+  // Set to true by Tab/Shift+Tab handlers so the input's blur (fired when the
+  // input unmounts as we move to a new cell) doesn't re-commit and clobber the
+  // next-cell state.
+  const skipNextBlurRef = useRef(false);
+
+  // Focus the input when entering edit mode
+  useEffect(() => {
+    if (editingCell && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingCell]);
+
+  const findNextEditableCol = useCallback(
+    (fromCol: number, dir: 1 | -1): number | null => {
+      let idx = fromCol + dir;
+      while (idx >= 0 && idx < columns.length) {
+        if (isColEditable(columns[idx].dataType)) return idx;
+        idx += dir;
+      }
+      return null;
+    },
+    [columns, isColEditable],
+  );
+
+  // Commit the current draft and optionally move to a different cell.
+  const commitAndAdvance = useCallback(
+    (advance: "next" | "prev" | "none") => {
+      if (!editingCell) return;
+      const { row: rowIdx, col: colIdx } = editingCell;
+      const original = rows[rowIdx]?.[colIdx] ?? { t: "null" as const };
+      commitEditDraft(rowIdx, colIdx, editDraft, original);
+      if (advance === "none") {
+        setEditingCell(null);
+        setEditDraft("");
+        return;
+      }
+      const next = findNextEditableCol(colIdx, advance === "next" ? 1 : -1);
+      if (next === null) {
+        setEditingCell(null);
+        setEditDraft("");
+        return;
+      }
+      // The unmount of the current input fires a blur with a stale closure that
+      // would otherwise call commitAndAdvance("none") and clear editingCell.
+      skipNextBlurRef.current = true;
+      // Prefill the next cell's draft synchronously so React batches the updates.
+      const nextRow = rows[rowIdx];
+      const pending = pendingEdits.get(rowIdx)?.get(next);
+      const initial: string =
+        pending !== undefined
+          ? pending === null
+            ? "NULL"
+            : pending
+          : (cellToString(nextRow?.[next] ?? { t: "null" }) ?? "NULL");
+      setEditDraft(initial);
+      setEditingCell({ row: rowIdx, col: next });
+      setSelectedCell({ row: rowIdx, col: next });
+    },
+    [editingCell, editDraft, rows, commitEditDraft, findNextEditableCol, pendingEdits],
+  );
+
+  // ── Save handler ───────────────────────────────────────────────────────────
+
+  const handleSave = useCallback(async () => {
+    if (!data || !sessionId || !ctx || pendingEdits.size === 0) return;
+    setIsSaving(true);
+    try {
+      const pkCols = columns.filter((c) => c.isPrimaryKey).map((c) => c.name);
+      const colIndexByName = new Map(columns.map((c, i) => [c.name, i]));
+      const changes: RowChange[] = [];
+
+      for (const [rowIdx, colMap] of pendingEdits.entries()) {
+        const row = data.rows[rowIdx];
+        if (!row) continue;
+
+        const columnChanges = Array.from(colMap.entries()).map(([colIdx, value]) => ({
+          column: columns[colIdx].name,
+          value,
+        }));
+        if (columnChanges.length === 0) continue;
+
+        if (pkCols.length > 0) {
+          const pkConditions = pkCols.map((pkName) => {
+            const pkColIdx = colIndexByName.get(pkName)!;
+            // Use the original (un-edited) cell value for the WHERE clause.
+            const cellStr = cellToString(row[pkColIdx] ?? { t: "null" });
+            return { column: pkName, value: cellStr ?? "" };
+          });
+          changes.push({ pkConditions, columnChanges });
+        } else {
+          const ctid = ctids[rowIdx];
+          if (!ctid) {
+            throw new Error(
+              `Row ${rowIdx + 1} has no primary key and no ctid — cannot update.`,
+            );
+          }
+          changes.push({ pkConditions: [], ctid, columnChanges });
+        }
+      }
+
+      await tableApi.updateRows(sessionId, {
+        schema: ctx.schema,
+        table: ctx.table,
+        changes,
+      });
+
+      const n = totalPendingChanges;
+      setPendingEdits(new Map());
+      setEditingCell(null);
+      setEditDraft("");
+      toast(`Saved ${n} change${n === 1 ? "" : "s"}`, "success");
+      await refetch();
+    } catch (e) {
+      toast(`Save failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [data, sessionId, ctx, pendingEdits, columns, ctids, totalPendingChanges, toast, refetch]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -835,6 +1064,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack copy while the user is editing an input/textarea/contenteditable.
+      const target = e.target as HTMLElement | null;
+      const isTyping = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+      if (isTyping) return;
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedCell && data) {
         e.preventDefault();
         copyCell(selectedCell.row, selectedCell.col, data.rows);
@@ -944,6 +1177,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   );
 
   const removeFilter = (col: string) => {
+    if (!guardNavigation()) return;
+    discardEdits();
     setFilterDraft((prev) => {
       const next = { ...prev };
       delete next[col];
@@ -952,6 +1187,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   };
 
   const clearAllFilters = () => {
+    if (!guardNavigation()) return;
+    discardEdits();
     setFilterDraft({});
   };
 
@@ -962,6 +1199,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const applyFilterEntry = useCallback(
     (colName: string, entry: FilterEntry | null) => {
+      if (!guardNavigation()) return;
+      discardEdits();
       setFilterDraft((prev) => {
         const next = { ...prev };
         if (entry === null) {
@@ -972,11 +1211,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         return next;
       });
     },
-    [],
+    [guardNavigation, discardEdits],
   );
 
   const handleFilterByValue = useCallback(
     (colName: string, value: string | null) => {
+      if (!guardNavigation()) return;
+      discardEdits();
       setFilterDraft((prev) => ({
         ...prev,
         [colName]: {
@@ -985,7 +1226,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         },
       }));
     },
-    [],
+    [guardNavigation, discardEdits],
   );
 
   // ⌘F: open filter popover for sorted column or first column
@@ -1057,7 +1298,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           dataUpdatedAt={dataUpdatedAt}
           isFetching={isFetching}
           isLoading={isLoading}
-          onRefresh={() => void refetch()}
+          onRefresh={() => {
+            if (!guardNavigation()) return;
+            discardEdits();
+            void refetch();
+          }}
         />
       </div>
 
@@ -1229,12 +1474,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 >
                   {rowVirtualizer.getVirtualItems().map((vr) => {
                     const rowData = rows[vr.index];
+                    const rowHasEdits = pendingEdits.has(vr.index);
                     return (
                       <div
                         key={vr.key}
                         className={cn(
                           "flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-subtle/60 transition-colors",
                           vr.index % 2 === 1 && "bg-subtle/30",
+                          rowHasEdits &&
+                            "bg-[color-mix(in_srgb,var(--ds-warning)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-warning)_12%,transparent)] border-l-4 border-l-[var(--ds-warning)]",
                         )}
                         style={{
                           position: "absolute",
@@ -1247,13 +1495,29 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           const isSelected =
                             selectedCell?.row === vr.index &&
                             selectedCell?.col === ci;
+                          const isEditing =
+                            editingCell?.row === vr.index &&
+                            editingCell?.col === ci;
+                          const pending = getPendingValue(vr.index, ci);
+                          const isEdited = pending.has;
+                          const editable = isColEditable(col.dataType);
+                          // Cell to render: pending edit overrides original
+                          const displayCell: CellValue = isEdited
+                            ? pending.value === null
+                              ? { t: "null" }
+                              : { t: "text", v: pending.value }
+                            : rowData[ci] ?? { t: "null" };
                           return (
                             <div
                               key={col.name}
                               className={cn(
                                 "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
                                 isSelected &&
+                                  !isEdited &&
                                   "ring-2 ring-inset ring-accent/50 bg-accent/5",
+                                isEdited &&
+                                  "ring-2 ring-inset ring-[var(--ds-warning)] bg-[color-mix(in_srgb,var(--ds-warning)_15%,transparent)]",
+                                !editable && "cursor-not-allowed",
                               )}
                               style={{
                                 width: colWidths[col.name] ?? COL_WIDTH,
@@ -1263,6 +1527,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               onClick={() =>
                                 setSelectedCell({ row: vr.index, col: ci })
                               }
+                              onDoubleClick={() => {
+                                if (editable) startEdit(vr.index, ci);
+                              }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1275,11 +1542,44 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 });
                               }}
                             >
-                              <CellRenderer
-                                cell={rowData[ci] ?? { t: "null" }}
-                                isEnum={enumCols.has(ci)}
-                              />
-                              {isSelected && (
+                              {isEditing ? (
+                                <input
+                                  ref={editInputRef}
+                                  type="text"
+                                  value={editDraft}
+                                  onChange={(e) => setEditDraft(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      cancelEdit();
+                                    } else if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      commitAndAdvance("none");
+                                    } else if (e.key === "Tab") {
+                                      e.preventDefault();
+                                      commitAndAdvance(e.shiftKey ? "prev" : "next");
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    // Tab handoff: the just-unmounting input fires blur, but
+                                    // the next-cell edit is already set up — don't clobber it.
+                                    if (skipNextBlurRef.current) {
+                                      skipNextBlurRef.current = false;
+                                      return;
+                                    }
+                                    // Otherwise, commit on blur so clicking another cell
+                                    // or button persists what the user typed.
+                                    commitAndAdvance("none");
+                                  }}
+                                  className="w-full bg-transparent text-xs text-label outline-none font-mono"
+                                />
+                              ) : (
+                                <CellRenderer
+                                  cell={displayCell}
+                                  isEnum={!isEdited && enumCols.has(ci)}
+                                />
+                              )}
+                              {isSelected && !isEditing && (
                                 <button
                                   className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors cursor-default"
                                   onClick={(e) => {
@@ -1306,6 +1606,37 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         )}
       </div>
 
+      {/* Save / Discard bar — visible only when there are pending edits */}
+      {hasPendingEdits && (
+        <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2 border-t border-[var(--ds-warning)]/40 bg-[color-mix(in_srgb,var(--ds-warning)_10%,transparent)] text-xs">
+          <span className="text-label font-medium">
+            {totalPendingChanges} unsaved change{totalPendingChanges === 1 ? "" : "s"}
+            {pendingEdits.size > 1 && (
+              <span className="text-secondary"> in {pendingEdits.size} rows</span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={discardEdits}
+              disabled={isSaving}
+              className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="inline-flex items-center gap-1.5"><X size={12} /> Discard</span>
+            </button>
+            <button
+              onClick={() => void handleSave()}
+              disabled={isSaving}
+              className="px-3 py-1 rounded-[var(--radius-control)] bg-accent text-inverse font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                {isSaving ? "Saving…" : "Save"}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-separator bg-sidebar/50 text-xs text-secondary">
         <span>
@@ -1324,14 +1655,22 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            onClick={() => {
+              if (!guardNavigation()) return;
+              discardEdits();
+              setPage((p) => Math.max(0, p - 1));
+            }}
             disabled={!hasPrev}
             className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             ← Prev
           </button>
           <button
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => {
+              if (!guardNavigation()) return;
+              discardEdits();
+              setPage((p) => p + 1);
+            }}
             disabled={!hasNext}
             className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >

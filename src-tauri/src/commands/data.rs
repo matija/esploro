@@ -114,9 +114,40 @@ pub enum CellValue {
 pub struct TableQueryResult {
     pub columns: Vec<ResultColumn>,
     pub rows: Vec<Vec<CellValue>>,
+    pub ctids: Vec<Option<String>>,
     pub page: u32,
     pub page_size: u32,
     pub execution_ms: u64,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PkCondition {
+    pub column: String,
+    pub value: String,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnChange {
+    pub column: String,
+    pub value: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RowChange {
+    pub pk_conditions: Vec<PkCondition>,
+    pub ctid: Option<String>,
+    pub column_changes: Vec<ColumnChange>,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRowsRequest {
+    pub schema: String,
+    pub table: String,
+    pub changes: Vec<RowChange>,
 }
 
 #[derive(Serialize)]
@@ -371,8 +402,11 @@ async fn query_table_pg(
     let offset = (request.page * request.page_size) as i64;
     let limit = request.page_size as i64;
 
+    // ctid_idx is the index of the appended ctid column in each result row
+    let ctid_idx = result_columns.len();
+
     let data_sql = format!(
-        "SELECT {col_select} FROM \"{}\".\"{}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
+        "SELECT {col_select}, ctid::text AS __ctid FROM \"{}\".\"{}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
         request.schema, request.table
     );
 
@@ -388,23 +422,26 @@ async fn query_table_pg(
         .map_err(|e| e.to_string())?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
-    let rows: Vec<Vec<CellValue>> = data_rows
-        .iter()
-        .map(|row| {
-            result_columns
-                .iter()
-                .enumerate()
-                .map(|(i, col)| {
-                    let udt = col_type_map.get(&col.name).map(|s| s.as_str()).unwrap_or("text");
-                    pg_cell_value(row, i, udt)
-                })
-                .collect()
-        })
-        .collect();
+    let mut rows: Vec<Vec<CellValue>> = Vec::with_capacity(data_rows.len());
+    let mut ctids: Vec<Option<String>> = Vec::with_capacity(data_rows.len());
+
+    for row in &data_rows {
+        let cells: Vec<CellValue> = result_columns
+            .iter()
+            .enumerate()
+            .map(|(i, col)| {
+                let udt = col_type_map.get(&col.name).map(|s| s.as_str()).unwrap_or("text");
+                pg_cell_value(row, i, udt)
+            })
+            .collect();
+        rows.push(cells);
+        ctids.push(row.try_get::<_, Option<String>>(ctid_idx).ok().flatten());
+    }
 
     Ok(TableQueryResult {
         columns: result_columns,
         rows,
+        ctids,
         page: request.page,
         page_size: request.page_size,
         execution_ms,
@@ -598,6 +635,7 @@ async fn query_table_mysql(
     Ok(TableQueryResult {
         columns: result_columns,
         rows,
+        ctids: vec![],
         page: request.page,
         page_size: request.page_size,
         execution_ms,
@@ -661,6 +699,120 @@ async fn count_table_mysql(
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     Ok(TableCountResult { count, is_estimate: false })
+}
+
+// ─── update_rows ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn update_rows(
+    session_id: String,
+    request: UpdateRowsRequest,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    validate_identifier(&request.schema)?;
+    validate_identifier(&request.table)?;
+
+    let handle = {
+        let sessions = state.sessions.lock().await;
+        resolve_pool(&sessions, &session_id)?
+    };
+
+    match handle {
+        PoolHandle::Pg(pool) => {
+            match update_rows_pg(pool.clone(), request.clone()).await {
+                Err(ref e) if is_pg_connection_err(e) => update_rows_pg(pool, request).await,
+                other => other,
+            }
+        }
+        PoolHandle::Mysql(_) => Err("Inline editing is not supported for MySQL".to_string()),
+    }
+}
+
+async fn update_rows_pg(
+    pool: std::sync::Arc<deadpool_postgres::Pool>,
+    request: UpdateRowsRequest,
+) -> Result<(), String> {
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let col_type_map: HashMap<String, String> = client
+        .query(
+            "SELECT column_name, udt_name FROM information_schema.columns \
+             WHERE table_schema = $1 AND table_name = $2",
+            &[&request.schema, &request.table],
+        )
+        .await
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
+        .collect();
+
+    client.batch_execute("BEGIN").await.map_err(|e| e.to_string())?;
+
+    for change in &request.changes {
+        if change.column_changes.is_empty() {
+            continue;
+        }
+
+        for cc in &change.column_changes {
+            validate_identifier(&cc.column)?;
+        }
+        for pk in &change.pk_conditions {
+            validate_identifier(&pk.column)?;
+        }
+
+        let mut params: Vec<String> = vec![];
+        let mut set_parts: Vec<String> = vec![];
+
+        for cc in &change.column_changes {
+            if let Some(ref val) = cc.value {
+                params.push(val.clone());
+                let p = params.len();
+                let udt = col_type_map.get(&cc.column).map(|s| s.as_str()).unwrap_or("text");
+                let cast = pg_cast_for_udt(udt);
+                set_parts.push(format!("\"{}\" = ${}::text::{}", cc.column, p, cast));
+            } else {
+                set_parts.push(format!("\"{}\" = NULL", cc.column));
+            }
+        }
+
+        let where_clause = if !change.pk_conditions.is_empty() {
+            let mut parts = vec![];
+            for pk in &change.pk_conditions {
+                params.push(pk.value.clone());
+                let p = params.len();
+                let udt = col_type_map.get(&pk.column).map(|s| s.as_str()).unwrap_or("text");
+                let cast = pg_cast_for_udt(udt);
+                parts.push(format!("\"{}\" = ${}::text::{}", pk.column, p, cast));
+            }
+            parts.join(" AND ")
+        } else if let Some(ref ctid) = change.ctid {
+            params.push(ctid.clone());
+            let p = params.len();
+            format!("ctid = ${}::tid", p)
+        } else {
+            client.batch_execute("ROLLBACK").await.ok();
+            return Err("Row change has no PK conditions and no ctid".to_string());
+        };
+
+        let sql = format!(
+            "UPDATE \"{}\".\"{}\" SET {} WHERE {}",
+            request.schema, request.table,
+            set_parts.join(", "),
+            where_clause
+        );
+
+        let pg_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+            .iter()
+            .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
+            .collect();
+
+        if let Err(e) = client.execute(sql.as_str(), pg_params.as_slice()).await {
+            client.batch_execute("ROLLBACK").await.ok();
+            return Err(e.to_string());
+        }
+    }
+
+    client.batch_execute("COMMIT").await.map_err(|e| e.to_string())
 }
 
 // ─── execute_sql ─────────────────────────────────────────────────────────────

@@ -989,6 +989,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           table: node.name,
           connectionId,
           estimatedRows: node.kind === "table" ? node.estimatedRows : null,
+          isView: node.kind === "view",
         },
       });
     }

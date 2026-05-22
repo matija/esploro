@@ -55,9 +55,38 @@ export function cellToString(cell: CellValue): string | null {
 export interface TableQueryResult {
   columns: ResultColumn[];
   rows: CellValue[][];
+  ctids: (string | null)[];
   page: number;
   pageSize: number;
   executionMs: number;
+}
+
+export interface PkCondition {
+  column: string;
+  value: string;
+}
+
+export interface ColumnChange {
+  column: string;
+  value: string | null;
+}
+
+export interface RowChange {
+  pkConditions: PkCondition[];
+  ctid?: string;
+  columnChanges: ColumnChange[];
+}
+
+export interface UpdateRowsRequest {
+  schema: string;
+  table: string;
+  changes: RowChange[];
+}
+
+export function isEditableType(udt: string): boolean {
+  if (udt.endsWith("[]")) return false;
+  const t = udt.toLowerCase();
+  return t !== "json" && t !== "jsonb" && t !== "bytea";
 }
 
 export interface TableCountResult {

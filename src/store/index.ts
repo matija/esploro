@@ -50,6 +50,7 @@ export interface Tab {
     table: string;
     connectionId: string;
     estimatedRows?: number | null;
+    isView?: boolean;
   };
   queryContext?: {
     sql: string;
