@@ -20,8 +20,8 @@ export function WelcomeView() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 h-full gap-5 select-none">
       <div className="flex flex-col items-center gap-2">
-        <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
-          <Database size={40} className="text-accent" />
+        <div className="w-16 h-16 rounded-[var(--radius-panel)] border border-separator bg-sidebar shadow-[var(--shadow-hairline)] flex items-center justify-center">
+          <Database size={40} className="text-secondary" />
         </div>
         <div className="text-center">
           <p className="text-xl font-semibold text-label">Esploro</p>
@@ -29,11 +29,11 @@ export function WelcomeView() {
         </div>
       </div>
 
-      <div className="bg-control/40 rounded-lg px-5 py-3 space-y-2.5">
+      <div className="rounded-[var(--radius-panel)] border border-separator bg-sidebar px-5 py-3 shadow-[var(--shadow-hairline)] space-y-2.5">
         {SHORTCUTS.map(({ icon: Icon, keys, label }) => (
           <div key={keys} className="flex items-center gap-3 text-secondary">
             <Icon size={14} className="text-tertiary shrink-0" />
-            <kbd className="font-mono bg-control px-1.5 py-0.5 rounded text-[12px] text-tertiary shrink-0">
+            <kbd className="font-mono bg-content border border-separator/60 px-1.5 py-0.5 rounded-[var(--radius-badge)] text-[12px] text-tertiary shrink-0">
               {keys}
             </kbd>
             <span className="text-sm">{label}</span>
@@ -43,9 +43,11 @@ export function WelcomeView() {
 
       {!hasSession && (
         <button
+          type="button"
           onClick={() => setPendingNewConnection(true)}
-          className="px-4 py-1.5 rounded-full bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+          className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] border border-separator bg-control px-3 text-sm font-medium text-label shadow-[var(--shadow-hairline)] transition-colors duration-[var(--motion-fast)] hover:bg-subtle active:bg-active"
         >
+          <Plus size={14} className="text-secondary" />
           Connect to a database
         </button>
       )}

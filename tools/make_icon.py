@@ -17,14 +17,14 @@ except ImportError as e:
     print("Run: pip3 install cairosvg pillow --break-system-packages")
     raise
 
-# Tairiki dark-mode tones (sourced from src/styles/tokens.css)
-#   --ds-accent-subtle (dark): #1e3a5f   ← deep blue tint
-#   --ds-accent (light):       #2563eb   ← blue-600 (highlight hint)
-# Plus a deeper navy `#0a1929` extension to anchor the bottom of the gradient.
-TAIRIKI_DEEP_NAVY = "#0a1929"
-TAIRIKI_DEEP_BLUE = "#1e3a5f"
-TAIRIKI_BLUE_HIGHLIGHT = "#2f6fcf"  # lifted Tairiki blue for the top-left lume
-ICON_INNER_STROKE = "rgba(255,255,255,0.10)"
+# Rosé Pine Moon tones (sourced from src/styles/tokens.css)
+ROSE_PINE_MOON_BASE = "#232136"
+ROSE_PINE_MOON_SURFACE = "#2a273f"
+ROSE_PINE_MOON_OVERLAY = "#393552"
+ROSE_PINE_MOON_HIGHLIGHT_MED = "#44415a"
+ROSE_PINE_MOON_HIGHLIGHT_HIGH = "#56526e"
+ROSE_PINE_MOON_TEXT = "#e0def4"
+ICON_INNER_STROKE = "rgba(224,222,244,0.16)"
 
 # Phosphor binoculars-bold path (256x256 viewBox). This is the same icon Phosphor
 # returns for the search query "explore" — see https://phosphoricons.com/?q=explore
@@ -54,24 +54,27 @@ def make_icon_svg(size: int) -> str:
     inner_h = size - padding * 2 - 1
     inner_r = radius - 0.5
 
-    # Highlight ellipse near the top-left to suggest a soft Tairiki-blue lume.
-    lume_cx = padding + (size - padding * 2) * 0.28
-    lume_cy = padding + (size - padding * 2) * 0.22
-    lume_rx = (size - padding * 2) * 0.55
-    lume_ry = (size - padding * 2) * 0.45
+    highlight_cx = padding + (size - padding * 2) * 0.30
+    highlight_cy = padding + (size - padding * 2) * 0.22
+    highlight_rx = (size - padding * 2) * 0.62
+    highlight_ry = (size - padding * 2) * 0.50
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
   <defs>
-    <!-- Diagonal Tairiki gradient: deep blue → near-black navy -->
+    <!-- Diagonal Rosé Pine Moon gradient: surface to base -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="{TAIRIKI_DEEP_BLUE}"/>
-      <stop offset="100%" stop-color="{TAIRIKI_DEEP_NAVY}"/>
+      <stop offset="0%"  stop-color="{ROSE_PINE_MOON_SURFACE}"/>
+      <stop offset="62%" stop-color="{ROSE_PINE_MOON_BASE}"/>
+      <stop offset="100%" stop-color="#1f1d2f"/>
     </linearGradient>
-    <!-- Subtle Tairiki-blue lume in the upper-left for depth -->
-    <radialGradient id="lume" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%"   stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0.55"/>
-      <stop offset="60%"  stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="{TAIRIKI_BLUE_HIGHLIGHT}" stop-opacity="0"/>
+    <linearGradient id="glyph" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="{ROSE_PINE_MOON_TEXT}"/>
+      <stop offset="100%" stop-color="#d8d5ee"/>
+    </linearGradient>
+    <radialGradient id="tonal-highlight" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="{ROSE_PINE_MOON_HIGHLIGHT_HIGH}" stop-opacity="0.55"/>
+      <stop offset="58%"  stop-color="{ROSE_PINE_MOON_HIGHLIGHT_MED}" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="{ROSE_PINE_MOON_OVERLAY}" stop-opacity="0"/>
     </radialGradient>
     <!-- Squircle clip so the lume doesn't bleed past the corners -->
     <clipPath id="squircle">
@@ -87,11 +90,11 @@ def make_icon_svg(size: int) -> str:
         rx="{radius}" ry="{radius}"
         fill="url(#bg)"/>
 
-  <!-- Tairiki-blue lume (clipped to the squircle) -->
+  <!-- Monotone Moon highlight (clipped to the squircle) -->
   <g clip-path="url(#squircle)">
-    <ellipse cx="{lume_cx:.3f}" cy="{lume_cy:.3f}"
-             rx="{lume_rx:.3f}" ry="{lume_ry:.3f}"
-             fill="url(#lume)"/>
+    <ellipse cx="{highlight_cx:.3f}" cy="{highlight_cy:.3f}"
+             rx="{highlight_rx:.3f}" ry="{highlight_ry:.3f}"
+             fill="url(#tonal-highlight)"/>
   </g>
 
   <!-- Subtle inner stroke for depth -->
@@ -102,9 +105,9 @@ def make_icon_svg(size: int) -> str:
         stroke="{ICON_INNER_STROKE}"
         stroke-width="1"/>
 
-  <!-- Binoculars glyph (white, centered) -->
+  <!-- Binoculars glyph (centered) -->
   <g transform="translate({offset}, {offset}) scale({scale})">
-    <path d="{BINOCULARS_PATH}" fill="white"/>
+    <path d="{BINOCULARS_PATH}" fill="url(#glyph)"/>
   </g>
 </svg>"""
 
@@ -135,6 +138,7 @@ def write_png(path: Path, size: int) -> None:
 
 def make_icns(icons_dir: Path) -> None:
     """Build icon.icns using iconutil from a generated iconset directory."""
+    icns_path = icons_dir / "icon.icns"
     iconset_dir = icons_dir / "AppIcon.iconset"
     iconset_dir.mkdir(exist_ok=True)
 
@@ -157,13 +161,20 @@ def make_icns(icons_dir: Path) -> None:
         (iconset_dir / name).write_bytes(data)
 
     result = subprocess.run(
-        ["iconutil", "-c", "icns", str(iconset_dir), "-o", str(icons_dir / "icon.icns")],
+        ["iconutil", "-c", "icns", str(iconset_dir), "-o", str(icns_path)],
         capture_output=True, text=True
     )
     if result.returncode != 0:
         print(f"  iconutil error: {result.stderr}")
+        img = Image.open(io.BytesIO(svg_to_png_bytes(make_icon_svg(1024), 1024))).convert("RGBA")
+        img.save(
+            icns_path,
+            format="ICNS",
+            sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256), (512, 512), (1024, 1024)],
+        )
+        print(f"  wrote {icns_path} (Pillow fallback)")
     else:
-        print(f"  wrote {icons_dir / 'icon.icns'}")
+        print(f"  wrote {icns_path}")
     shutil.rmtree(iconset_dir)
 
 
@@ -203,8 +214,10 @@ def make_ico(path: Path) -> None:
 
 
 def main():
+    root_dir = Path(__file__).parent.parent
     icons_dir = Path(__file__).parent.parent / "src-tauri" / "icons"
     icons_dir.mkdir(exist_ok=True)
+    assets_dir = root_dir / "src" / "assets"
 
     print("Generating Esploro icon assets...")
 
@@ -212,6 +225,7 @@ def main():
     write_png(icons_dir / "128x128.png", 128)
     write_png(icons_dir / "128x128@2x.png", 256)
     write_png(icons_dir / "icon.png", 1024)
+    write_png(assets_dir / "app-icon.png", 128)
 
     make_icns(icons_dir)
     make_ico(icons_dir / "icon.ico")
