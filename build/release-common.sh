@@ -17,6 +17,28 @@ expand_tilde() {
   esac
 }
 
+# Refuse to release from a dirty tree or an unpushed HEAD. GitHub rejects
+# `gh release create --target <sha>` (HTTP 422) if the SHA isn't on the remote,
+# and a dirty tree means the built artifacts don't correspond to any commit.
+require_clean_pushed_tree() {
+  if ! git diff --quiet --ignore-submodules HEAD; then
+    echo "error: working tree has uncommitted changes. Commit your version bump first." >&2
+    git status --short >&2
+    exit 1
+  fi
+  if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    echo "error: current branch has no upstream. Run 'git push -u origin <branch>' first." >&2
+    exit 1
+  fi
+  git fetch --quiet
+  if ! git merge-base --is-ancestor HEAD '@{u}'; then
+    echo "error: HEAD is not on the remote. Run 'git push' first." >&2
+    exit 1
+  fi
+}
+
+require_clean_pushed_tree
+
 require_env APPLE_SIGNING_IDENTITY APPLE_API_KEY_PATH APPLE_API_ISSUER
 APPLE_API_KEY="${APPLE_API_KEY:-${APPLE_API_KEY_ID:-}}"
 require_env APPLE_API_KEY
