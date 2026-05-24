@@ -103,7 +103,7 @@ function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: bool
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-full leading-none max-w-full",
+          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-full leading-none max-w-full font-mono",
           getEnumBadgeClass(raw),
         )}
         title={raw}
@@ -116,7 +116,7 @@ function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: bool
   const display = raw.length > 300 ? raw.slice(0, 300) + "…" : raw;
   return (
     <span
-      className="text-xs text-label truncate block"
+      className="font-mono text-xs text-label truncate block"
       title={raw.length > 300 ? raw : undefined}
     >
       {display}
