@@ -1270,10 +1270,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     : null;
 
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
-    if (!ctx) return {};
-    const key = `esploro-col-widths:${ctx.connectionId}:${ctx.database}:${ctx.schema}:${ctx.table}`;
+    if (!colWidthsKey) return {};
     try {
-      const stored = localStorage.getItem(key);
+      const stored = localStorage.getItem(colWidthsKey);
       return stored ? (JSON.parse(stored) as Record<string, number>) : {};
     } catch {
       return {};

@@ -1841,3 +1841,15 @@
 
 - All CI checks pass: tsc --noEmit, eslint, cargo clippy --workspace
   --all-targets -- -D warnings, cargo test --lib (18 passed), npm run build.
+
+## Quick-Win P4 — colWidths useState key deduplication [DONE]
+
+- src/features/table-viewer/TableViewerTab.tsx (lines 1272–1281):
+  - The `useState` lazy initializer was recomputing the localStorage key as a
+    string literal instead of reading the `colWidthsKey` const defined 4 lines
+    earlier. If the key format changed in one place, the other would silently
+    diverge, causing column widths to stop persisting or to read stale data.
+  - Fix: replaced `if (!ctx) return {}` + inline key template with
+    `if (!colWidthsKey) return {}` + `localStorage.getItem(colWidthsKey)`.
+    Single source of truth for the key format.
+- tsc --noEmit and eslint both pass clean.
