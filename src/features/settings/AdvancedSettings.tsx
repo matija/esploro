@@ -23,13 +23,7 @@ export function AdvancedSettings() {
     applyUiPreferencesToDocument(defaultUiPreferences);
     cacheUiPreferencesForBootstrap(defaultUiPreferences);
     hydrateTheme(defaultUiPreferences.ui.theme);
-    hydrateEditorAndGridPrefs(
-      defaultUiPreferences.editor.tabSize,
-      defaultUiPreferences.editor.wordWrap,
-      defaultUiPreferences.grid.rowDensity,
-      defaultUiPreferences.grid.pageSize,
-      defaultUiPreferences.grid.showTotalCount,
-    );
+    hydrateEditorAndGridPrefs(defaultUiPreferences);
     try {
       await invoke("set_ui_preferences", { preferences: defaultUiPreferences });
     } catch (error) {

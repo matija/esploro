@@ -332,13 +332,7 @@ export function AppShell() {
         applyUiPreferencesToDocument(normalizedPreferences);
         cacheUiPreferencesForBootstrap(normalizedPreferences);
         hydrateTheme(normalizedPreferences.ui.theme);
-        hydrateEditorAndGridPrefs(
-          normalizedPreferences.editor.tabSize,
-          normalizedPreferences.editor.wordWrap,
-          normalizedPreferences.grid.rowDensity,
-          normalizedPreferences.grid.pageSize,
-          normalizedPreferences.grid.showTotalCount,
-        );
+        hydrateEditorAndGridPrefs(normalizedPreferences);
       })
       .catch(console.error);
 

@@ -86,13 +86,10 @@ interface AppState {
   showTotalCount: boolean;
   setShowTotalCount: (show: boolean) => void;
 
-  hydrateEditorAndGridPrefs: (
-    tabSize: EditorTabSize,
-    wordWrap: boolean,
-    rowDensity: RowDensity,
-    pageSize: GridPageSize,
-    showTotalCount: boolean,
-  ) => void;
+  // Full prefs — hydrated from Tauri on startup; kept in sync by setters
+  uiPreferences: UiPreferences;
+
+  hydrateEditorAndGridPrefs: (prefs: UiPreferences) => void;
 
   // UI — ephemeral
   commandPaletteOpen: boolean;
@@ -147,106 +144,76 @@ export const useAppStore = create<AppState>()(
       theme: defaultUiPreferences.ui.theme,
       setTheme: (theme) => {
         const nextTheme = normalizeTheme(theme);
-        set({ theme: nextTheme });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const nextPreferences = normalizeUiPreferences({
-              ...preferences,
-              ui: { ...preferences.ui, theme: nextTheme },
-            });
-            applyUiPreferencesToDocument(nextPreferences);
-            cacheUiPreferencesForBootstrap(nextPreferences);
-            return invoke("set_ui_preferences", {
-              preferences: nextPreferences,
-            });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, ui: { ...state.uiPreferences.ui, theme: nextTheme } });
+          applyUiPreferencesToDocument(next);
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { theme: nextTheme, uiPreferences: next };
+        });
       },
       hydrateTheme: (theme) => set({ theme: normalizeTheme(theme) }),
 
       editorTabSize: defaultUiPreferences.editor.tabSize,
       setEditorTabSize: (tabSize) => {
-        set({ editorTabSize: tabSize });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const next = normalizeUiPreferences({
-              ...preferences,
-              editor: { ...preferences.editor, tabSize },
-            });
-            cacheUiPreferencesForBootstrap(next);
-            return invoke("set_ui_preferences", { preferences: next });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, editor: { ...state.uiPreferences.editor, tabSize } });
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { editorTabSize: tabSize, uiPreferences: next };
+        });
       },
 
       editorWordWrap: defaultUiPreferences.editor.wordWrap,
       setEditorWordWrap: (wordWrap) => {
-        set({ editorWordWrap: wordWrap });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const next = normalizeUiPreferences({
-              ...preferences,
-              editor: { ...preferences.editor, wordWrap },
-            });
-            cacheUiPreferencesForBootstrap(next);
-            return invoke("set_ui_preferences", { preferences: next });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, editor: { ...state.uiPreferences.editor, wordWrap } });
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { editorWordWrap: wordWrap, uiPreferences: next };
+        });
       },
 
       gridRowDensity: defaultUiPreferences.grid.rowDensity,
       setGridRowDensity: (rowDensity) => {
-        set({ gridRowDensity: rowDensity });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const next = normalizeUiPreferences({
-              ...preferences,
-              grid: { ...preferences.grid, rowDensity },
-            });
-            cacheUiPreferencesForBootstrap(next);
-            return invoke("set_ui_preferences", { preferences: next });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, rowDensity } });
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { gridRowDensity: rowDensity, uiPreferences: next };
+        });
       },
 
       gridPageSize: defaultUiPreferences.grid.pageSize,
       setGridPageSize: (pageSize) => {
-        set({ gridPageSize: pageSize });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const next = normalizeUiPreferences({
-              ...preferences,
-              grid: { ...preferences.grid, pageSize },
-            });
-            cacheUiPreferencesForBootstrap(next);
-            return invoke("set_ui_preferences", { preferences: next });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, pageSize } });
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { gridPageSize: pageSize, uiPreferences: next };
+        });
       },
 
       showTotalCount: defaultUiPreferences.grid.showTotalCount,
       setShowTotalCount: (showTotalCount) => {
-        set({ showTotalCount });
-        invoke<UiPreferences>("get_ui_preferences")
-          .catch(() => defaultUiPreferences)
-          .then((preferences) => {
-            const next = normalizeUiPreferences({
-              ...preferences,
-              grid: { ...preferences.grid, showTotalCount },
-            });
-            cacheUiPreferencesForBootstrap(next);
-            return invoke("set_ui_preferences", { preferences: next });
-          })
-          .catch(console.error);
+        set((state) => {
+          const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, showTotalCount } });
+          cacheUiPreferencesForBootstrap(next);
+          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          return { showTotalCount, uiPreferences: next };
+        });
       },
 
-      hydrateEditorAndGridPrefs: (tabSize, wordWrap, rowDensity, pageSize, showTotalCount) =>
-        set({ editorTabSize: tabSize, editorWordWrap: wordWrap, gridRowDensity: rowDensity, gridPageSize: pageSize, showTotalCount }),
+      uiPreferences: defaultUiPreferences,
+      hydrateEditorAndGridPrefs: (prefs) =>
+        set({
+          uiPreferences: prefs,
+          editorTabSize: prefs.editor.tabSize,
+          editorWordWrap: prefs.editor.wordWrap,
+          gridRowDensity: prefs.grid.rowDensity,
+          gridPageSize: prefs.grid.pageSize,
+          showTotalCount: prefs.grid.showTotalCount,
+        }),
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),

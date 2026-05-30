@@ -1922,3 +1922,22 @@
   - Same removals; removed getEnumBadgeClass from ../table-viewer/types import.
   - Added imports from ../data-grid/CellRenderer and ../data-grid/constants.
 - tsc --noEmit: clean.
+
+## PRD P1 — Store preference setters: remove round-trip IPC [DONE]
+- src/store/index.ts:
+  - Added `uiPreferences: UiPreferences` slice to the Zustand store (initialized
+    to `defaultUiPreferences`, hydrated from Tauri on startup via `hydrateEditorAndGridPrefs`).
+  - Changed signature of `hydrateEditorAndGridPrefs` from 5 individual arguments
+    to a single `prefs: UiPreferences` parameter; the setter now populates both
+    the flat convenience fields (editorTabSize, gridRowDensity, etc.) and the
+    `uiPreferences` slice in one `set()` call.
+  - All 6 preference setters (setTheme, setEditorTabSize, setEditorWordWrap,
+    setGridRowDensity, setGridPageSize, setShowTotalCount) now read `state.uiPreferences`
+    directly via `set((state) => ...)` instead of first calling
+    `invoke("get_ui_preferences")`. Zero IPC round-trips before saving.
+- src/components/AppShell.tsx:
+  - Updated `hydrateEditorAndGridPrefs` call to pass the full `UiPreferences`
+    object instead of 5 individual arguments.
+- src/features/settings/AdvancedSettings.tsx:
+  - Same call-site fix for the "Reset all preferences" flow.
+- All tsc --noEmit checks pass.
