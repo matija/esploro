@@ -1853,3 +1853,13 @@
     `if (!colWidthsKey) return {}` + `localStorage.getItem(colWidthsKey)`.
     Single source of truth for the key format.
 - tsc --noEmit and eslint both pass clean.
+
+## PRD P0 — count_table_pg: skip info_schema on no-filter fast path [DONE]
+- src-tauri/src/commands/data.rs — count_table_pg:
+  - Moved reltuples early-return check to before the information_schema.columns
+    query. Now checks `request.filters.is_empty()` upfront; if true and reltuples
+    is valid, returns immediately without hitting information_schema at all.
+  - When filters are empty and reltuples < 0 (unanalyzed table), falls through
+    to the full COUNT(*) path as before (where_clauses.is_empty() handles it).
+  - Removes 1 DB round-trip per page navigation in the common no-filter case.
+- cargo check: clean compile.

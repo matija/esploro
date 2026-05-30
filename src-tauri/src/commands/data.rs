@@ -486,6 +486,23 @@ async fn count_table_pg(
 ) -> Result<TableCountResult, String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
+    // Fast path: no filters → use reltuples estimate without querying information_schema.
+    if request.filters.is_empty() {
+        let estimate_row = client
+            .query_opt(
+                "SELECT reltuples::bigint FROM pg_class \
+                 WHERE relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1) \
+                   AND relname = $2 AND reltuples >= 0",
+                &[&request.schema, &request.table],
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        if let Some(row) = estimate_row {
+            let count: i64 = row.get(0);
+            return Ok(TableCountResult { count, is_estimate: true });
+        }
+    }
+
     // Build WHERE from filters (same logic as query_table_pg)
     let col_type_map: HashMap<String, String> = client
         .query(
@@ -506,23 +523,6 @@ async fn count_table_pg(
         .iter()
         .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
         .collect();
-
-    // When there are no filters, use reltuples as an instant estimate.
-    if where_clauses.is_empty() {
-        let estimate_row = client
-            .query_opt(
-                "SELECT reltuples::bigint FROM pg_class \
-                 WHERE relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1) \
-                   AND relname = $2 AND reltuples >= 0",
-                &[&request.schema, &request.table],
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-        if let Some(row) = estimate_row {
-            let count: i64 = row.get(0);
-            return Ok(TableCountResult { count, is_estimate: true });
-        }
-    }
 
     let where_sql = if where_clauses.is_empty() {
         String::new()
