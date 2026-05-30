@@ -1903,3 +1903,22 @@
     `query_table_mysql` and `count_table_mysql` with a single
     `build_mysql_where_clause(&request.filters)?` call in each.
   - cargo check: clean. cargo test --lib: 18/18 pass.
+
+## PRD P3 — Extract CellRenderer and grid constants to data-grid module [DONE]
+- src/features/data-grid/constants.ts (new):
+  - Exports COL_WIDTH (180), HEADER_HEIGHT (36), ROW_HEIGHT_BY_DENSITY
+    ({compact:33, comfortable:44, spacious:56}).
+- src/features/data-grid/CellRenderer.tsx (new):
+  - Single CellRenderer component covering all cell types: null, bool,
+    int/float, json, empty string, enum (colored pill), plain text.
+  - Uses TableViewerTab's version as canonical; enum badge gains `font-mono`
+    (was missing in QueryEditorTab), plain text gains `font-mono` (same).
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed local CellRenderer function (~75 lines) and const declarations
+    for COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY.
+  - Removed getEnumBadgeClass import (now only needed inside CellRenderer).
+  - Added imports from ../data-grid/CellRenderer and ../data-grid/constants.
+- src/features/query-editor/QueryEditorTab.tsx:
+  - Same removals; removed getEnumBadgeClass from ../table-viewer/types import.
+  - Added imports from ../data-grid/CellRenderer and ../data-grid/constants.
+- tsc --noEmit: clean.
