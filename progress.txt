@@ -1891,3 +1891,15 @@
   - `apiFilters` useMemo already depended on `activeFilters` so no change
     there.
   - tsc --noEmit: clean.
+
+## PRD P2 — MySQL WHERE clause helper extracted [DONE]
+- src-tauri/src/commands/data.rs:
+  - Added `build_mysql_where_clause(filters: &[ColumnFilter]) -> Result<(Vec<String>, Vec<mysql_async::Value>), String>`
+    helper directly after `build_pg_where_clause`, mirroring its signature.
+    Handles all 8 operators: IsNull, IsNotNull, Like/ILike (CAST AS CHAR), and
+    the 6 comparison ops (Eq, Neq, Gt, Lt, Gte, Lte). Uses backtick-quoted
+    column names and `?` placeholders (MySQL style).
+  - Replaced ~30 lines of duplicated WHERE clause building in both
+    `query_table_mysql` and `count_table_mysql` with a single
+    `build_mysql_where_clause(&request.filters)?` call in each.
+  - cargo check: clean. cargo test --lib: 18/18 pass.

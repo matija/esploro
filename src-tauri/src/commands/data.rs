@@ -265,6 +265,47 @@ fn build_pg_where_clause(
     Ok((where_clauses, param_values))
 }
 
+fn build_mysql_where_clause(
+    filters: &[ColumnFilter],
+) -> Result<(Vec<String>, Vec<mysql_async::Value>), String> {
+    let mut param_values: Vec<mysql_async::Value> = vec![];
+    let mut where_clauses: Vec<String> = vec![];
+
+    for filter in filters {
+        validate_column_identifier(&filter.column)?;
+        let col_q = format!("`{}`", filter.column);
+
+        let clause = match filter.operator {
+            FilterOperator::IsNull => format!("{col_q} IS NULL"),
+            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
+            // MySQL LIKE is case-insensitive by default (UTF-8); treat ILike as Like
+            FilterOperator::Like | FilterOperator::ILike => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                format!("CAST({col_q} AS CHAR) LIKE ?")
+            }
+            _ => {
+                param_values.push(mysql_async::Value::Bytes(
+                    filter.value.clone().unwrap_or_default().into_bytes(),
+                ));
+                match filter.operator {
+                    FilterOperator::Eq => format!("{col_q} = ?"),
+                    FilterOperator::Neq => format!("{col_q} != ?"),
+                    FilterOperator::Gt => format!("{col_q} > ?"),
+                    FilterOperator::Lt => format!("{col_q} < ?"),
+                    FilterOperator::Gte => format!("{col_q} >= ?"),
+                    FilterOperator::Lte => format!("{col_q} <= ?"),
+                    _ => unreachable!(),
+                }
+            }
+        };
+        where_clauses.push(clause);
+    }
+
+    Ok((where_clauses, param_values))
+}
+
 // ─── query_table_data / query_table_count ────────────────────────────────────
 
 enum PoolHandle {
@@ -592,42 +633,7 @@ async fn query_table_mysql(
         })
         .collect();
 
-    // Build WHERE clause using ? placeholders
-    let mut param_values: Vec<mysql_async::Value> = vec![];
-    let mut where_clauses: Vec<String> = vec![];
-
-    for filter in &request.filters {
-        validate_column_identifier(&filter.column)?;
-        let col_q = format!("`{}`", filter.column);
-
-        let clause = match filter.operator {
-            FilterOperator::IsNull => format!("{col_q} IS NULL"),
-            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
-            // MySQL LIKE is case-insensitive by default (UTF-8); treat ILike as Like
-            FilterOperator::Like | FilterOperator::ILike => {
-                param_values.push(mysql_async::Value::Bytes(
-                    filter.value.clone().unwrap_or_default().into_bytes(),
-                ));
-                format!("CAST({col_q} AS CHAR) LIKE ?")
-            }
-            _ => {
-                param_values.push(mysql_async::Value::Bytes(
-                    filter.value.clone().unwrap_or_default().into_bytes(),
-                ));
-                match filter.operator {
-                    FilterOperator::Eq => format!("{col_q} = ?"),
-                    FilterOperator::Neq => format!("{col_q} != ?"),
-                    FilterOperator::Gt => format!("{col_q} > ?"),
-                    FilterOperator::Lt => format!("{col_q} < ?"),
-                    FilterOperator::Gte => format!("{col_q} >= ?"),
-                    FilterOperator::Lte => format!("{col_q} <= ?"),
-                    _ => unreachable!(),
-                }
-            }
-        };
-        where_clauses.push(clause);
-    }
-
+    let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
     let where_sql = if where_clauses.is_empty() {
         String::new()
     } else {
@@ -692,38 +698,7 @@ async fn count_table_mysql(
 ) -> Result<TableCountResult, String> {
     let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
 
-    let mut param_values: Vec<mysql_async::Value> = vec![];
-    let mut where_clauses: Vec<String> = vec![];
-    for filter in &request.filters {
-        validate_column_identifier(&filter.column)?;
-        let col_q = format!("`{}`", filter.column);
-        let clause = match filter.operator {
-            FilterOperator::IsNull => format!("{col_q} IS NULL"),
-            FilterOperator::IsNotNull => format!("{col_q} IS NOT NULL"),
-            FilterOperator::Like | FilterOperator::ILike => {
-                param_values.push(mysql_async::Value::Bytes(
-                    filter.value.clone().unwrap_or_default().into_bytes(),
-                ));
-                format!("CAST({col_q} AS CHAR) LIKE ?")
-            }
-            _ => {
-                param_values.push(mysql_async::Value::Bytes(
-                    filter.value.clone().unwrap_or_default().into_bytes(),
-                ));
-                match filter.operator {
-                    FilterOperator::Eq => format!("{col_q} = ?"),
-                    FilterOperator::Neq => format!("{col_q} != ?"),
-                    FilterOperator::Gt => format!("{col_q} > ?"),
-                    FilterOperator::Lt => format!("{col_q} < ?"),
-                    FilterOperator::Gte => format!("{col_q} >= ?"),
-                    FilterOperator::Lte => format!("{col_q} <= ?"),
-                    _ => unreachable!(),
-                }
-            }
-        };
-        where_clauses.push(clause);
-    }
-
+    let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
     let where_sql = if where_clauses.is_empty() {
         String::new()
     } else {
