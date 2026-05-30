@@ -650,7 +650,7 @@ function CellContextMenu({
 // ─── TableViewerTab ───────────────────────────────────────────────────────────
 
 export function TableViewerTab({ tab }: { tab: Tab }) {
-  const { sessionId } = tab;
+  const tabSessionId = tab.sessionId;
   const ctx = tab.tableContext;
   const {
     setTabLoading,
@@ -681,6 +681,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const confirm = useConfirm();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
   const isView = ctx?.isView ?? false;
+  const connectionId = ctx?.connectionId ?? null;
+  const liveSessionId = connectionId ? activeSessions[connectionId] : undefined;
+  const querySessionKey = connectionId ?? tabSessionId ?? "no-connection";
 
   // ── Inline editing state ───────────────────────────────────────────────────
 
@@ -758,10 +761,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   );
 
   const connectionLabel = useMemo(() => {
-    if (!sessionId) return null;
-    const connId = Object.entries(activeSessions).find(([, s]) => s === sessionId)?.[0];
-    return profiles.find((p) => p.id === connId)?.displayName ?? null;
-  }, [sessionId, activeSessions, profiles]);
+    if (!connectionId) return null;
+    return profiles.find((p) => p.id === connectionId)?.displayName ?? null;
+  }, [connectionId, profiles]);
 
   const driver = useMemo(() => {
     return profiles.find((p) => p.id === ctx?.connectionId)?.driver ?? "postgres";
@@ -793,12 +795,12 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       }));
   }, [activeFilters]);
 
-  const enabled = !!sessionId && !!ctx;
+  const enabled = !!ctx && !!connectionId;
 
   const { data, isLoading, isFetching, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: [
       "table-viewer",
-      sessionId,
+      querySessionKey,
       ctx?.database,
       ctx?.schema,
       ctx?.table,
@@ -837,7 +839,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const { data: countData } = useQuery({
     queryKey: [
       "table-viewer-count",
-      sessionId,
+      querySessionKey,
       ctx?.database,
       ctx?.schema,
       ctx?.table,
@@ -1107,14 +1109,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       addTab({
         type: "query",
         title: `Edit ${ctx.schema}.${ctx.table}`,
-        sessionId,
+        sessionId: useAppStore.getState().activeSessions[ctx.connectionId] ?? tabSessionId,
         queryContext: { sql, connectionId: ctx.connectionId },
         isDirty: true,
       });
     } catch (e) {
       toast(`Open as SQL failed: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
-  }, [data, ctx, pendingEdits, buildRowChanges, sessionId, toast, addTab]);
+  }, [data, ctx, pendingEdits, buildRowChanges, tabSessionId, toast, addTab]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -1340,7 +1342,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   // ── Guard ──────────────────────────────────────────────────────────────────
 
-  if (!ctx || !sessionId) {
+  if (!ctx) {
     return (
       <div className="flex items-center justify-center h-full text-secondary text-sm">
         No table context
@@ -1383,7 +1385,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 backgroundColor:
                   error instanceof Error && error.message.includes("Could not reconnect")
                     ? 'var(--ds-warning)'
-                    : sessionId ? 'var(--ds-success)' : 'var(--border-default)',
+                    : liveSessionId ? 'var(--ds-success)' : 'var(--border-default)',
               }}
             />
             <span className="truncate">{connectionLabel}</span>

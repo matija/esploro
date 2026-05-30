@@ -29,8 +29,10 @@ function RecentRow({ item }: { item: RecentObject }) {
 
   function handleClick() {
     if (item.type === "table" || item.type === "view") {
-      const sessionId = item.sessionId ?? Object.values(activeSessions)[0];
-      if (!sessionId || !item.connectionId || !item.schema || !item.table || !item.database) return;
+      const sessionId = item.connectionId
+        ? (activeSessions[item.connectionId] ?? item.sessionId)
+        : (item.sessionId ?? Object.values(activeSessions)[0]);
+      if (!item.connectionId || !item.schema || !item.table || !item.database) return;
       addTab({
         type: "table",
         title: item.title,

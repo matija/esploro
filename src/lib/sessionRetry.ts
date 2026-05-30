@@ -29,7 +29,7 @@ export async function withSessionRetry<T>(
 ): Promise<T> {
   let sessionId = useAppStore.getState().activeSessions[connectionId];
   if (!sessionId) {
-    sessionId = await connectionsApi.connect(connectionId);
+    sessionId = await reconnectOnce(connectionId);
     useAppStore.getState().connectSession(connectionId, sessionId);
   }
 

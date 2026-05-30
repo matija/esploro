@@ -474,7 +474,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   // Level 1 — databases
   const dbsQuery = useQuery({
     queryKey: ["databases", sessionId],
-    queryFn: () => schemaApi.listDatabases(sessionId),
+    queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listDatabases(sid), toast),
     staleTime: SCHEMA_STALE_MS,
   });
   const databases = useMemo(() => dbsQuery.data ?? [], [dbsQuery.data]);
@@ -491,7 +491,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const schemaQueries = useQueries({
     queries: (isMysql ? [] : expandedDbs).map((db) => ({
       queryKey: ["schemas", sessionId, db],
-      queryFn: () => schemaApi.listSchemas(sessionId, db),
+      queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listSchemas(sid, db), toast),
       staleTime: SCHEMA_STALE_MS,
     })),
   });

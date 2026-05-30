@@ -45,16 +45,18 @@ function StatusBar() {
   );
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
+  const tabConnectionId =
+    activeTab?.tableContext?.connectionId ??
+    activeTab?.queryContext?.connectionId;
   const sessionId =
+    (tabConnectionId ? activeSessions[tabConnectionId] : undefined) ??
     activeTab?.sessionId ??
-    (activeTab?.tableContext
-      ? Object.values(activeSessions)[0]
-      : Object.values(activeSessions)[0]);
+    Object.values(activeSessions)[0];
 
   const connEntry = sessionId
     ? Object.entries(activeSessions).find(([, s]) => s === sessionId)
     : null;
-  const connId = connEntry?.[0];
+  const connId = tabConnectionId ?? connEntry?.[0];
   const profile = connId ? profiles.find((p) => p.id === connId) : null;
   const database = activeTab?.tableContext?.database;
 
