@@ -17,6 +17,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { useToast } from "../../components/Toast";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { tableApi } from "./api";
 import { withSessionRetry } from "../../lib/sessionRetry";
 import {
@@ -677,6 +678,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     })),
   );
   const { toast } = useToast();
+  const confirm = useConfirm();
   const rowHeight = ROW_HEIGHT_BY_DENSITY[gridRowDensity];
   const isView = ctx?.isView ?? false;
 
@@ -705,10 +707,16 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   }, [hasPendingEdits, tab.id, setTabDirty]);
 
   // Guard helper — returns true if safe to proceed, false if user cancelled
-  const guardNavigation = useCallback((): boolean => {
+  const guardNavigation = useCallback(async (): Promise<boolean> => {
     if (!hasPendingEdits) return true;
-    return window.confirm("You have unsaved changes. Discard and continue?");
-  }, [hasPendingEdits]);
+    return confirm({
+      title: "Discard unsaved changes?",
+      description: "You have unsaved changes. They will be lost if you continue.",
+      confirmLabel: "Discard",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+  }, [hasPendingEdits, confirm]);
 
   const discardEdits = useCallback(() => {
     setPendingEdits(new Map());
@@ -870,8 +878,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // ── Sorting ────────────────────────────────────────────────────────────────
 
   const handleSort = useCallback(
-    (colName: string) => {
-      if (!guardNavigation()) return;
+    async (colName: string) => {
+      if (!await guardNavigation()) return;
       discardEdits();
       if (sortColumn === colName) {
         if (sortDirection === "Asc") {
@@ -1255,8 +1263,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [apiFilters],
   );
 
-  const removeFilter = (col: string) => {
-    if (!guardNavigation()) return;
+  const removeFilter = async (col: string) => {
+    if (!await guardNavigation()) return;
     discardEdits();
     setActiveFilters((prev) => {
       const next = { ...prev };
@@ -1266,8 +1274,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setPage(0);
   };
 
-  const clearAllFilters = () => {
-    if (!guardNavigation()) return;
+  const clearAllFilters = async () => {
+    if (!await guardNavigation()) return;
     discardEdits();
     setActiveFilters({});
     setPage(0);
@@ -1279,8 +1287,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const filterAnchorEl = useRef<Element | null>(null);
 
   const applyFilterEntry = useCallback(
-    (colName: string, entry: FilterEntry | null) => {
-      if (!guardNavigation()) return;
+    async (colName: string, entry: FilterEntry | null) => {
+      if (!await guardNavigation()) return;
       discardEdits();
       setActiveFilters((prev) => {
         const next = { ...prev };
@@ -1297,8 +1305,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   );
 
   const handleFilterByValue = useCallback(
-    (colName: string, value: string | null) => {
-      if (!guardNavigation()) return;
+    async (colName: string, value: string | null) => {
+      if (!await guardNavigation()) return;
       discardEdits();
       setActiveFilters((prev) => ({
         ...prev,
@@ -1389,8 +1397,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           dataUpdatedAt={dataUpdatedAt}
           isFetching={isFetching}
           isLoading={isLoading}
-          onRefresh={() => {
-            if (!guardNavigation()) return;
+          onRefresh={async () => {
+            if (!await guardNavigation()) return;
             discardEdits();
             void refetch();
           }}
@@ -1754,8 +1762,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => {
-              if (!guardNavigation()) return;
+            onClick={async () => {
+              if (!await guardNavigation()) return;
               discardEdits();
               setPage((p) => Math.max(0, p - 1));
             }}
@@ -1765,8 +1773,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             ← Prev
           </button>
           <button
-            onClick={() => {
-              if (!guardNavigation()) return;
+            onClick={async () => {
+              if (!await guardNavigation()) return;
               discardEdits();
               setPage((p) => p + 1);
             }}

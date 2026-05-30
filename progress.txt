@@ -1941,3 +1941,23 @@
 - src/features/settings/AdvancedSettings.tsx:
   - Same call-site fix for the "Reset all preferences" flow.
 - All tsc --noEmit checks pass.
+
+## PRD P5 — `guardNavigation` uses `window.confirm` [DONE]
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added `useConfirm` import from `../../components/ConfirmDialog`.
+  - Added `const confirm = useConfirm()` hook call in component body.
+  - Converted `guardNavigation` from a synchronous `() => boolean` to
+    `async (): Promise<boolean>`, replacing `window.confirm(...)` with
+    `confirm({ title, description, confirmLabel, cancelLabel, destructive })`.
+    (Note: `window.confirm` is disabled/always-false in Tauri 2 webviews, so
+    this was a correctness fix, not just UX polish.)
+  - Updated all 8 callers to async + `await guardNavigation()`:
+    - `handleSort` (useCallback)
+    - `removeFilter`
+    - `clearAllFilters`
+    - `applyFilterEntry` (useCallback)
+    - `handleFilterByValue` (useCallback)
+    - `onRefresh` inline handler (RefreshButton)
+    - Prev-page button onClick
+    - Next-page button onClick
+- `tsc --noEmit`: clean.
