@@ -26,6 +26,18 @@ fn validate_identifier(s: &str) -> Result<(), String> {
     Ok(())
 }
 
+// Relaxed validation for column names that are always emitted with quoting
+// (PG: "col", MySQL: `col`). Only rejects chars that break the quoting itself.
+fn validate_column_identifier(s: &str) -> Result<(), String> {
+    if s.is_empty() {
+        return Err("Identifier cannot be empty".into());
+    }
+    if s.contains('\0') || s.contains('"') || s.contains('`') {
+        return Err(format!("Invalid identifier: '{s}'"));
+    }
+    Ok(())
+}
+
 fn pg_cast_for_udt(udt: &str) -> &'static str {
     match udt {
         "int2" | "int4" | "int8" => "bigint",
@@ -212,7 +224,7 @@ fn build_pg_where_clause(
     let mut where_clauses: Vec<String> = vec![];
 
     for filter in filters {
-        validate_identifier(&filter.column)?;
+        validate_column_identifier(&filter.column)?;
         let col_q = format!("\"{}\"", filter.column);
         let udt = col_type_map
             .get(&filter.column)
@@ -407,7 +419,7 @@ async fn query_table_pg(
 
     let order_sql = match (&request.sort_column, &request.sort_direction) {
         (Some(col), Some(dir)) => {
-            validate_identifier(col)?;
+            validate_column_identifier(col)?;
             let d = match dir {
                 SortDirection::Asc => "ASC",
                 SortDirection::Desc => "DESC",
@@ -585,7 +597,7 @@ async fn query_table_mysql(
     let mut where_clauses: Vec<String> = vec![];
 
     for filter in &request.filters {
-        validate_identifier(&filter.column)?;
+        validate_column_identifier(&filter.column)?;
         let col_q = format!("`{}`", filter.column);
 
         let clause = match filter.operator {
@@ -624,7 +636,7 @@ async fn query_table_mysql(
 
     let order_sql = match (&request.sort_column, &request.sort_direction) {
         (Some(col), Some(dir)) => {
-            validate_identifier(col)?;
+            validate_column_identifier(col)?;
             let d = match dir {
                 SortDirection::Asc => "ASC",
                 SortDirection::Desc => "DESC",
@@ -683,7 +695,7 @@ async fn count_table_mysql(
     let mut param_values: Vec<mysql_async::Value> = vec![];
     let mut where_clauses: Vec<String> = vec![];
     for filter in &request.filters {
-        validate_identifier(&filter.column)?;
+        validate_column_identifier(&filter.column)?;
         let col_q = format!("`{}`", filter.column);
         let clause = match filter.operator {
             FilterOperator::IsNull => format!("{col_q} IS NULL"),
@@ -786,10 +798,10 @@ async fn update_rows_pg(
         }
 
         for cc in &change.column_changes {
-            validate_identifier(&cc.column)?;
+            validate_column_identifier(&cc.column)?;
         }
         for pk in &change.pk_conditions {
-            validate_identifier(&pk.column)?;
+            validate_column_identifier(&pk.column)?;
         }
 
         let mut params: Vec<String> = vec![];
@@ -895,10 +907,10 @@ async fn update_rows_mysql(
                 continue;
             }
             for cc in &change.column_changes {
-                validate_identifier(&cc.column)?;
+                validate_column_identifier(&cc.column)?;
             }
             for pk in &change.pk_conditions {
-                validate_identifier(&pk.column)?;
+                validate_column_identifier(&pk.column)?;
             }
 
             let mut set_params: Vec<mysql_async::Value> = vec![];
@@ -1003,10 +1015,10 @@ async fn preview_update_rows_sql_pg(
             continue;
         }
         for cc in &change.column_changes {
-            validate_identifier(&cc.column)?;
+            validate_column_identifier(&cc.column)?;
         }
         for pk in &change.pk_conditions {
-            validate_identifier(&pk.column)?;
+            validate_column_identifier(&pk.column)?;
         }
 
         let mut set_parts: Vec<String> = vec![];
@@ -1099,10 +1111,10 @@ async fn preview_update_rows_sql_mysql(
             continue;
         }
         for cc in &change.column_changes {
-            validate_identifier(&cc.column)?;
+            validate_column_identifier(&cc.column)?;
         }
         for pk in &change.pk_conditions {
-            validate_identifier(&pk.column)?;
+            validate_column_identifier(&pk.column)?;
         }
 
         let set_parts: Vec<String> = change.column_changes.iter().map(|cc| {

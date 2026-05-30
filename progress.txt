@@ -1863,3 +1863,15 @@
     to the full COUNT(*) path as before (where_clauses.is_empty() handles it).
   - Removes 1 DB round-trip per page navigation in the common no-filter case.
 - cargo check: clean compile.
+
+## PRD P7 — validate_identifier: allow quoted-safe column names [DONE]
+- src-tauri/src/commands/data.rs:
+  - Added `validate_column_identifier` alongside `validate_identifier`.
+    New function rejects only empty, NUL bytes, `"`, and `` ` `` — the chars
+    that would break SQL quoting — instead of requiring alphanumeric/underscore.
+    This unblocks real-world column names with hyphens, spaces, dots, or
+    leading digits (e.g. `created-at`, `first name`, `2nd_value`).
+  - All filter.column, sort_column, cc.column, pk.column paths now call
+    `validate_column_identifier` (13 call sites updated across PG and MySQL).
+  - schema and table names keep the strict `validate_identifier` rule.
+  - `cargo check` passes cleanly.
