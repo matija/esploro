@@ -1875,3 +1875,19 @@
     `validate_column_identifier` (13 call sites updated across PG and MySQL).
   - schema and table names keep the strict `validate_identifier` rule.
   - `cargo check` passes cleanly.
+
+## PRD P6 — Remove unnecessary filter debounce [DONE]
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed `filterDraft` state and the 300ms debounce `useEffect` that
+    propagated draft → activeFilters. The debounce served no purpose because
+    the filter popover manages its own local draft state; `setFilterDraft` was
+    only ever called from explicit user actions (Apply, Remove, Clear, Filter
+    by Value), never from a text input path.
+  - All four callers (`removeFilter`, `clearAllFilters`, `applyFilterEntry`,
+    `handleFilterByValue`) now call `setActiveFilters` directly and call
+    `setPage(0)` inline — same semantics, zero delay.
+  - JSX line that read `filterDraft[openFilterCol]` updated to
+    `activeFilters[openFilterCol]`.
+  - `apiFilters` useMemo already depended on `activeFilters` so no change
+    there.
+  - tsc --noEmit: clean.

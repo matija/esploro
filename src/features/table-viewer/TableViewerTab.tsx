@@ -848,21 +848,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("Asc");
 
-  // Filter state: draft (immediate) → active (debounced, sent to API)
-  const [filterDraft, setFilterDraft] = useState<Record<string, FilterEntry>>(
-    {},
-  );
   const [activeFilters, setActiveFilters] = useState<
     Record<string, FilterEntry>
   >({});
-
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setActiveFilters(filterDraft);
-      setPage(0);
-    }, 300);
-    return () => clearTimeout(id);
-  }, [filterDraft]);
 
   const apiFilters = useMemo((): ColumnFilter[] => {
     return Object.entries(activeFilters)
@@ -1355,17 +1343,19 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const removeFilter = (col: string) => {
     if (!guardNavigation()) return;
     discardEdits();
-    setFilterDraft((prev) => {
+    setActiveFilters((prev) => {
       const next = { ...prev };
       delete next[col];
       return next;
     });
+    setPage(0);
   };
 
   const clearAllFilters = () => {
     if (!guardNavigation()) return;
     discardEdits();
-    setFilterDraft({});
+    setActiveFilters({});
+    setPage(0);
   };
 
   // ── Filter popover state ───────────────────────────────────────────────────
@@ -1377,7 +1367,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     (colName: string, entry: FilterEntry | null) => {
       if (!guardNavigation()) return;
       discardEdits();
-      setFilterDraft((prev) => {
+      setActiveFilters((prev) => {
         const next = { ...prev };
         if (entry === null) {
           delete next[colName];
@@ -1386,6 +1376,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         }
         return next;
       });
+      setPage(0);
     },
     [guardNavigation, discardEdits],
   );
@@ -1394,13 +1385,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     (colName: string, value: string | null) => {
       if (!guardNavigation()) return;
       discardEdits();
-      setFilterDraft((prev) => ({
+      setActiveFilters((prev) => ({
         ...prev,
         [colName]: {
           operator: value === null ? "IsNull" : "Eq",
           value: value ?? "",
         },
       }));
+      setPage(0);
     },
     [guardNavigation, discardEdits],
   );
@@ -1881,7 +1873,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             anchorEl={filterAnchorEl.current}
             open={true}
             onOpenChange={(o) => { if (!o) setOpenFilterCol(null); }}
-            entry={filterDraft[openFilterCol]}
+            entry={activeFilters[openFilterCol]}
             onApply={(entry) => applyFilterEntry(openFilterCol, entry)}
           />
         );
