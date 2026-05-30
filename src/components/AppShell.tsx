@@ -498,10 +498,10 @@ export function AppShell() {
               </div>
             )}
             {activeTab?.type === "query" && (
-              <QueryEditorTab tab={activeTab} />
+              <QueryEditorTab key={activeTab.id} tab={activeTab} />
             )}
             {activeTab?.type === "table" && (
-              <TableViewerTab tab={activeTab} />
+              <TableViewerTab key={activeTab.id} tab={activeTab} />
             )}
             {activeTab?.type === "settings" && (
               <SettingsView

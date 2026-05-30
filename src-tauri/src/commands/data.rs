@@ -53,6 +53,47 @@ fn pg_cast_for_udt(udt: &str) -> &'static str {
     }
 }
 
+// Map SQL-standard data_type names (from information_schema.columns.data_type) to
+// PostgreSQL cast target types.  This is a fallback when udt_name doesn't match
+// pg_cast_for_udt (e.g. for domain types where udt_name is the domain name while
+// data_type is the underlying base type).
+fn pg_cast_for_data_type(dt: &str) -> &'static str {
+    match dt {
+        "smallint" | "integer" | "bigint" => "bigint",
+        "real" | "double precision" | "numeric" | "money" => "numeric",
+        "date" => "date",
+        "timestamp without time zone" | "timestamp with time zone" => "timestamptz",
+        "time without time zone" | "time with time zone" => "time",
+        "boolean" => "boolean",
+        "uuid" => "uuid",
+        "json" | "jsonb" => "jsonb",
+        "character varying" | "character" | "text" => "text",
+        _ => "text",
+    }
+}
+
+// Resolve the cast target type for a filter comparison on a PostgreSQL column.
+// Tries udt_name (internal PG type name) first, then falls back to data_type
+// (SQL-standard name) so that domain and custom types still produce valid casts
+// (e.g. a domain-over-uuid resolves to "uuid" via data_type).
+// For USER-DEFINED types (enums, composites) the udt_name itself is used as the
+// cast target so that "type" = $1::text::alert_action_type works instead of
+// the broken "type" = $1::text::text.
+fn resolve_pg_cast(udt_name: &str, data_type: &str) -> String {
+    let cast = pg_cast_for_udt(udt_name);
+    if cast != "text" {
+        return cast.to_string();
+    }
+    // User-defined type (enum, composite, etc.) — use the udt_name itself as the
+    // cast target so PostgreSQL can find the operator (e.g. alert_action_type = text).
+    if data_type == "USER-DEFINED" {
+        return udt_name.to_string();
+    }
+    // Try data_type as a SQL-standard type name fallback
+    let dt_cast = pg_cast_for_data_type(data_type);
+    dt_cast.to_string()
+}
+
 // Convert a JSON-array string (e.g. `[1, 2, 3]`) to a PostgreSQL array literal
 // (e.g. `{1,2,3}`).  Each element is double-quoted to let Postgres do the type
 // coercion from text.  NULL JSON elements become SQL NULL elements.
@@ -216,9 +257,13 @@ pub struct ResultColumn {
 // Returns (where_clauses, param_values).
 // All typed casts use $p::text::{cast} so PostgreSQL infers $p as text during
 // the extended query describe phase, which &String serialises cleanly.
+//
+// `col_cast_map` maps column_name → resolved cast target type (e.g. "uuid",
+// "bigint", "numeric").  Map must be built by callers using resolve_pg_cast so
+// that domain/custom UDTs resolve correctly via data_type fallback.
 fn build_pg_where_clause(
     filters: &[ColumnFilter],
-    col_type_map: &HashMap<String, String>,
+    col_cast_map: &HashMap<String, String>,
 ) -> Result<(Vec<String>, Vec<String>), String> {
     let mut param_values: Vec<String> = vec![];
     let mut where_clauses: Vec<String> = vec![];
@@ -226,7 +271,9 @@ fn build_pg_where_clause(
     for filter in filters {
         validate_column_identifier(&filter.column)?;
         let col_q = format!("\"{}\"", filter.column);
-        let udt = col_type_map
+        // Use the pre-resolved cast type from the map, or fall back to "text"
+        // for columns that somehow aren't in the schema (shouldn't happen).
+        let cast = col_cast_map
             .get(&filter.column)
             .map(|s| s.as_str())
             .unwrap_or("text");
@@ -247,7 +294,6 @@ fn build_pg_where_clause(
             _ => {
                 param_values.push(filter.value.clone().unwrap_or_default());
                 let p = param_values.len();
-                let cast = pg_cast_for_udt(udt);
                 match filter.operator {
                     FilterOperator::Eq => format!("{col_q} = ${p}::text::{cast}"),
                     FilterOperator::Neq => format!("{col_q} != ${p}::text::{cast}"),
@@ -384,7 +430,7 @@ async fn query_table_pg(
 
     let col_rows = client
         .query(
-            "SELECT c.column_name, c.udt_name, c.is_nullable \
+            "SELECT c.column_name, c.udt_name, c.is_nullable, c.data_type \
              FROM information_schema.columns c \
              WHERE c.table_schema = $1 AND c.table_name = $2 \
              ORDER BY c.ordinal_position",
@@ -444,13 +490,26 @@ async fn query_table_pg(
         })
         .collect();
 
+    // Map: column_name → udt_name (used for native-type detection and cell reading)
     let col_type_map: HashMap<String, String> = col_rows
         .iter()
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
         .collect();
 
+    // Map: column_name → resolved cast type (used for filter WHERE clauses).
+    // Uses resolve_pg_cast so domain and custom UDTs resolve correctly via data_type fallback.
+    let col_cast_map: HashMap<String, String> = col_rows
+        .iter()
+        .map(|r| {
+            let name: String = r.get(0);
+            let udt_name: String = r.get(1);
+            let data_type: String = r.get(3);
+            (name, resolve_pg_cast(&udt_name, &data_type))
+        })
+        .collect();
+
     let (where_clauses, param_values) =
-        build_pg_where_clause(&request.filters, &col_type_map)?;
+        build_pg_where_clause(&request.filters, &col_cast_map)?;
 
     let where_sql = if where_clauses.is_empty() {
         String::new()
@@ -504,7 +563,12 @@ async fn query_table_pg(
     let data_rows = client
         .query(data_sql.as_str(), params.as_slice())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let param_str = param_values.join(", ");
+            format!(
+                "Filter query failed — SQL: {data_sql}  Params: [{param_str}]  Error(Display): {e}  Error(Debug): {e:?}"
+            )
+        })?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
     let mut rows: Vec<Vec<CellValue>> = Vec::with_capacity(data_rows.len());
@@ -556,21 +620,28 @@ async fn count_table_pg(
         }
     }
 
-    // Build WHERE from filters (same logic as query_table_pg)
-    let col_type_map: HashMap<String, String> = client
+    // Build WHERE from filters (same logic as query_table_pg).
+    // Query both udt_name and data_type so resolve_pg_cast can fall back
+    // to the base type when udt_name is a domain/custom UDT name.
+    let col_cast_map: HashMap<String, String> = client
         .query(
-            "SELECT column_name, udt_name FROM information_schema.columns \
+            "SELECT column_name, udt_name, data_type FROM information_schema.columns \
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
         .await
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
+        .map(|r| {
+            let name: String = r.get(0);
+            let udt_name: String = r.get(1);
+            let data_type: String = r.get(2);
+            (name, resolve_pg_cast(&udt_name, &data_type))
+        })
         .collect();
 
     let (where_clauses, param_values) =
-        build_pg_where_clause(&request.filters, &col_type_map)?;
+        build_pg_where_clause(&request.filters, &col_cast_map)?;
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
         .iter()
@@ -589,7 +660,9 @@ async fn count_table_pg(
     let row = client
         .query_one(count_sql.as_str(), params.as_slice())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            format!("Count query failed — SQL: {count_sql}  Error: {e}")
+        })?;
     Ok(TableCountResult { count: row.get(0), is_estimate: false })
 }
 
@@ -753,16 +826,30 @@ async fn update_rows_pg(
 ) -> Result<(), String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    let col_type_map: HashMap<String, String> = client
+    let col_rows: Vec<tokio_postgres::Row> = client
         .query(
-            "SELECT column_name, udt_name FROM information_schema.columns \
+            "SELECT column_name, udt_name, data_type FROM information_schema.columns \
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
         .await
-        .map_err(|e| e.to_string())?
-        .into_iter()
+        .map_err(|e| e.to_string())?;
+
+    // Keep raw udt_name for array detection (starts with '_').
+    let col_type_map: HashMap<String, String> = col_rows
+        .iter()
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
+        .collect();
+
+    // Resolved cast type for UPDATE SET/WHERE casts.
+    let col_cast_map: HashMap<String, String> = col_rows
+        .iter()
+        .map(|r| {
+            let name: String = r.get(0);
+            let udt_name: String = r.get(1);
+            let data_type: String = r.get(2);
+            (name, resolve_pg_cast(&udt_name, &data_type))
+        })
         .collect();
 
     client.batch_execute("BEGIN").await.map_err(|e| e.to_string())?;
@@ -801,7 +888,10 @@ async fn update_rows_pg(
                 } else {
                     params.push(val.clone());
                     let p = params.len();
-                    let cast = pg_cast_for_udt(udt);
+                    let cast = col_cast_map
+                        .get(&cc.column)
+                        .map(|s| s.as_str())
+                        .unwrap_or("text");
                     set_parts.push(format!("\"{}\" = ${}::text::{}", cc.column, p, cast));
                 }
             } else {
@@ -814,8 +904,10 @@ async fn update_rows_pg(
             for pk in &change.pk_conditions {
                 params.push(pk.value.clone());
                 let p = params.len();
-                let udt = col_type_map.get(&pk.column).map(|s| s.as_str()).unwrap_or("text");
-                let cast = pg_cast_for_udt(udt);
+                let cast = col_cast_map
+                    .get(&pk.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 parts.push(format!("\"{}\" = ${}::text::{}", pk.column, p, cast));
             }
             parts.join(" AND ")
@@ -971,16 +1063,32 @@ async fn preview_update_rows_sql_pg(
 ) -> Result<String, String> {
     let client = pool.get().await.map_err(|e| e.to_string())?;
 
-    let col_type_map: HashMap<String, String> = client
+    let col_rows: Vec<tokio_postgres::Row> = client
         .query(
-            "SELECT column_name, udt_name FROM information_schema.columns \
+            "SELECT column_name, udt_name, data_type FROM information_schema.columns \
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
         .await
         .map_err(|e| e.to_string())?
         .into_iter()
+        .collect();
+
+    // Raw udt_name needed for array detection (_ prefix).
+    let col_type_map: HashMap<String, String> = col_rows
+        .iter()
         .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1)))
+        .collect();
+
+    // Resolved cast type for UPDATE SET/WHERE casts.
+    let col_cast_map: HashMap<String, String> = col_rows
+        .iter()
+        .map(|r| {
+            let name: String = r.get(0);
+            let udt_name: String = r.get(1);
+            let data_type: String = r.get(2);
+            (name, resolve_pg_cast(&udt_name, &data_type))
+        })
         .collect();
 
     let mut statements: Vec<String> = vec![];
@@ -1007,7 +1115,10 @@ async fn preview_update_rows_sql_pg(
                         let pg_array = json_to_pg_array_literal(val)?;
                         format!("\"{}\" = '{}'::{}[]", cc.column, sql_escape_string(&pg_array), elem_type)
                     } else {
-                        let cast = pg_cast_for_udt(udt);
+                        let cast = col_cast_map
+                            .get(&cc.column)
+                            .map(|s| s.as_str())
+                            .unwrap_or("text");
                         let escaped = sql_escape_string(val);
                         if cast == "text" {
                             format!("\"{}\" = '{}'", cc.column, escaped)
@@ -1022,8 +1133,10 @@ async fn preview_update_rows_sql_pg(
 
         let where_clause = if !change.pk_conditions.is_empty() {
             let parts: Vec<String> = change.pk_conditions.iter().map(|pk| {
-                let udt = col_type_map.get(&pk.column).map(|s| s.as_str()).unwrap_or("text");
-                let cast = pg_cast_for_udt(udt);
+                let cast = col_cast_map
+                    .get(&pk.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 let escaped = sql_escape_string(&pk.value);
                 if cast == "text" {
                     format!("\"{}\" = '{}'", pk.column, escaped)
@@ -1482,7 +1595,7 @@ mod tests {
 
     #[test]
     fn boolean_eq_uses_text_intermediate() {
-        let map = make_map(&[("active", "bool")]);
+        let map = make_map(&[("active", "boolean")]);
         let (clauses, _) = build_pg_where_clause(
             &[f("active", FilterOperator::Eq, Some("true"))],
             &map,
