@@ -15,12 +15,15 @@ import {
   RotateCw,
   ExternalLink,
   Terminal as TerminalIcon,
+  Users,
+  User,
 } from "lucide-react";
 import { useAppStore } from "../../store";
 import { useToast } from "../../components/Toast";
 import { fuzzyScore } from "../../lib/fuzzy";
 import { withSessionRetry } from "../../lib/sessionRetry";
 import { schemaApi } from "./api";
+import { rolesApi } from "../roles/api";
 import type { TreeNode, SchemaObjects, ColumnDef, GroupLabel } from "./types";
 import { cn } from "../../lib/utils";
 
@@ -82,6 +85,8 @@ function ContextMenu({
       { label: "Copy column name", action: "copy-name" },
       { label: "Copy type", action: "copy-type" },
     ];
+  } else if (node.kind === "role") {
+    items = [{ label: "Delete role…", action: "delete-role" }];
   }
 
   if (items.length === 0) return null;
@@ -209,7 +214,8 @@ function TreeRow({
   const expandable =
     node.kind === "schema" ||
     node.kind === "group" ||
-    node.kind === "table";
+    node.kind === "table" ||
+    node.kind === "roles-group";
 
   // Column row — special layout with badges
   if (node.kind === "column") {
@@ -241,21 +247,23 @@ function TreeRow({
   }
 
   const baseDepth =
-    node.kind === "schema"
+    node.kind === "schema" || node.kind === "roles-group"
       ? 1
-      : node.kind === "group"
+      : node.kind === "group" || node.kind === "role"
         ? 2
         : 3; // table, view, sequence, function
   const depth = baseDepth + depthAdj;
 
   const icon = (() => {
     switch (node.kind) {
-      case "schema":    return <Folder size={11} className="text-schema-schema" />;
-      case "table":     return <Table2 size={11} className="text-schema-table" />;
-      case "view":      return <Eye size={11} className="text-schema-view" />;
-      case "sequence":  return <Hash size={11} className="text-schema-sequence" />;
-      case "function":  return <Zap size={11} className="text-schema-function" />;
-      default:          return null;
+      case "schema":      return <Folder size={11} className="text-schema-schema" />;
+      case "table":       return <Table2 size={11} className="text-schema-table" />;
+      case "view":        return <Eye size={11} className="text-schema-view" />;
+      case "sequence":    return <Hash size={11} className="text-schema-sequence" />;
+      case "function":    return <Zap size={11} className="text-schema-function" />;
+      case "roles-group": return <Users size={11} className="text-secondary" />;
+      case "role":        return <User size={11} className="text-secondary" />;
+      default:            return null;
     }
   })();
 
@@ -269,7 +277,10 @@ function TreeRow({
       case "view":
       case "sequence":
       case "function":
+      case "role":
         return node.name;
+      case "roles-group":
+        return "Roles";
       default:
         return "";
     }
@@ -414,8 +425,8 @@ function sortSchemas(schemas: string[]): string[] {
 }
 
 function nodeDepth(node: TreeNode): number {
-  if (node.kind === "schema") return 1;
-  if (node.kind === "group") return 2;
+  if (node.kind === "schema" || node.kind === "roles-group") return 1;
+  if (node.kind === "group" || node.kind === "role") return 2;
   if (node.kind === "table" || node.kind === "view" || node.kind === "sequence" || node.kind === "function") return 3;
   if (node.kind === "column") return 4;
   return 0;
@@ -462,6 +473,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     void queryClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["objects", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["columns", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
   }
 
   // Level 1 — schemas (connection IS the database; MySQL has no schema level)
@@ -475,6 +487,15 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     if (isMysql) return [targetDatabase];
     return sortSchemas(schemasQuery.data ?? []);
   }, [isMysql, schemasQuery.data, targetDatabase]);
+
+  // Roles — Postgres only; fetched when the Roles group is expanded
+  const rolesGroupKey = `${connectionId}:roles`;
+  const rolesQuery = useQuery({
+    queryKey: ["roles", sessionId],
+    queryFn: () => withSessionRetry(connectionId, (sid) => rolesApi.listRoles(sid), toast),
+    staleTime: SCHEMA_STALE_MS,
+    enabled: !isMysql && !!expandedNodes[rolesGroupKey],
+  });
 
   // Level 2 — objects (one query per expanded schema)
   const expandedSchemaEntries = useMemo(() => {
@@ -734,6 +755,33 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         }
       }
     }
+
+    // Roles section — Postgres only, appended below schemas
+    if (!isMysql) {
+      items.push({ key: rolesGroupKey, node: { kind: "roles-group", sessionId, connectionId } });
+      if (isExp(rolesGroupKey)) {
+        if (rolesQuery.isLoading) {
+          items.push({ key: `${rolesGroupKey}:loading`, node: { kind: "loading", depth: 2 } });
+        } else if (rolesQuery.isError) {
+          items.push({
+            key: `${rolesGroupKey}:error`,
+            node: {
+              kind: "error",
+              depth: 2,
+              message: errorMessage(rolesQuery.error, "Could not load roles"),
+              onRetry: () => { void rolesQuery.refetch(); },
+            },
+          });
+        } else {
+          for (const role of rolesQuery.data ?? []) {
+            items.push({
+              key: `${connectionId}:role:${role.name}`,
+              node: { kind: "role", name: role.name, sessionId, connectionId },
+            });
+          }
+        }
+      }
+    }
   }
 
     return items;
@@ -748,6 +796,12 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     isMysql,
     objectQueries,
     objectsMap,
+    rolesGroupKey,
+    rolesQuery.data,
+    rolesQuery.error,
+    rolesQuery.isError,
+    rolesQuery.isLoading,
+    rolesQuery.refetch,
     schemas,
     schemasQuery.error,
     schemasQuery.isError,
@@ -940,6 +994,8 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         return groupKey(connectionId, node.database, node.schema, node.label);
       case "table":
         return tableKey(connectionId, node.database, node.schema, node.name);
+      case "roles-group":
+        return rolesGroupKey;
       default:
         return "";
     }

@@ -1997,3 +1997,52 @@
   - `keyForNode` and local `nodeDepth` cleaned up (removed database cases).
   - `refreshSchema` drops the `["databases", sessionId]` invalidation.
 - cargo check: clean. tsc --noEmit: clean.
+
+## PRD 2a — Backend role commands [DONE]
+- src-tauri/src/commands/roles.rs (new):
+  - `list_roles(session_id)`: queries pg_roles, returns Vec<RoleSummary> with all
+    role attributes (superuser, inherit, create_role, create_db, can_login,
+    replication, bypass_rls, conn_limit, valid_until cast to text).
+    Filters `rolname NOT LIKE 'pg_%'`.
+  - `list_role_members(session_id, role_name)`: returns RoleMembers { member_of, members }
+    via two pg_auth_members JOIN queries.
+  - `get_role_dependents(session_id, role_name)`: UNION query over pg_class,
+    pg_namespace, pg_proc to find objects owned by the role. Returns Vec<RoleDependent>
+    with kind + qualified name. LIMIT 50.
+  - `create_role(session_id, request)`: builds CREATE ROLE "name" WITH … using
+    quote_ident() for the name; password passed as $1 parameter (not inlined).
+  - `alter_role(session_id, role_name, request)`: generates ALTER ROLE "name" WITH …
+    for the subset of attributes present in the request (None = don't change).
+  - `drop_role(session_id, role_name)`: DROP ROLE "name" — no CASCADE.
+  - `manage_role_membership(session_id, ops)`: batch GRANT/REVOKE; runs all,
+    collects per-op errors; returns Vec<MembershipResult>.
+  - `build_role_options()` helper: constructs WITH clause from optional fields;
+    password=$1 param when Some, PASSWORD NULL when Some(""), skipped when None.
+  - All commands return MySQL error: "Roles are not supported for MySQL connections".
+- src-tauri/src/commands/mod.rs: added `pub mod roles;`
+- src-tauri/src/lib.rs: registered all 7 role commands in invoke_handler.
+- cargo check: clean.
+
+## PRD 2b — Roles tree node [DONE]
+- src/features/roles/types.ts (new): TypeScript types mirroring Rust structs
+  (RoleSummary, RoleMembers, RoleDependent, CreateRoleRequest, AlterRoleRequest,
+  MembershipOp, MembershipResult).
+- src/features/roles/api.ts (new): rolesApi wrapper invoking all 7 role commands.
+- src/features/schema/types.ts:
+  - Added `kind: 'roles-group'` and `kind: 'role'` variants to TreeNode union.
+  - `nodeKey`: returns `${connectionId}:roles` for roles-group,
+    `${connectionId}:role:${name}` for role.
+  - `nodeDepth`: roles-group=1 (same as schema), role=2 (same as group).
+- src/features/schema/SchemaTree.tsx:
+  - Imports Users, User icons from lucide-react; rolesApi from roles/api.
+  - `rolesQuery`: useQuery on ["roles", sessionId], enabled when roles-group
+    is expanded and !isMysql. Invalidated by refreshSchema().
+  - Flat item builder: after the schema loop, appends roles-group node +
+    role nodes (or loading/error) when expanded. Postgres only.
+  - `TreeRow`: handles roles-group (expandable, Users icon, "Roles" label,
+    depth 1) and role (User icon, depth 2) in baseDepth, icon, label switches.
+  - `keyForNode`: added roles-group case returning rolesGroupKey.
+  - `nodeDepth` (local): updated for roles-group/role.
+  - Context menu: role nodes show "Delete role…" action.
+  - items useMemo deps: added rolesQuery.* entries.
+- tsc --noEmit: clean.

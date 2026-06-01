@@ -35,6 +35,8 @@ export type TreeNode =
   | { kind: 'sequence'; name: string; schema: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'function'; name: string; resultType: string; schema: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'column'; def: ColumnDef; table: string; schema: string; database: string; sessionId: string; connectionId: string }
+  | { kind: 'roles-group'; sessionId: string; connectionId: string }
+  | { kind: 'role'; name: string; sessionId: string; connectionId: string }
   | { kind: 'loading'; depth: number }
   | { kind: 'error'; message: string; depth: number; onRetry?: () => void };
 
@@ -50,6 +52,10 @@ export function nodeKey(node: TreeNode): string {
       return `${node.connectionId}:db:${node.database}:schema:${node.schema}:view:${node.name}`;
     case 'column':
       return `${node.connectionId}:db:${node.database}:schema:${node.schema}:table:${node.table}:col:${node.def.name}`;
+    case 'roles-group':
+      return `${node.connectionId}:roles`;
+    case 'role':
+      return `${node.connectionId}:role:${node.name}`;
     default:
       return '';
   }
@@ -64,6 +70,8 @@ export function nodeDepth(node: TreeNode): number {
     case 'sequence':
     case 'function': return 3;
     case 'column': return 4;
+    case 'roles-group': return 1;
+    case 'role': return 2;
     case 'loading':
     case 'error': return node.depth;
     default: return 0;
