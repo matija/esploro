@@ -28,7 +28,6 @@ export interface ColumnDef {
 export type GroupLabel = 'Tables' | 'Views' | 'Sequences' | 'Functions';
 
 export type TreeNode =
-  | { kind: 'database'; name: string; sessionId: string; connectionId: string }
   | { kind: 'schema'; name: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'group'; label: GroupLabel; count: number; schema: string; database: string; sessionId: string; connectionId: string }
   | { kind: 'table'; name: string; schema: string; database: string; sessionId: string; connectionId: string; estimatedRows: number | null }
@@ -41,8 +40,6 @@ export type TreeNode =
 
 export function nodeKey(node: TreeNode): string {
   switch (node.kind) {
-    case 'database':
-      return `${node.connectionId}:db:${node.name}`;
     case 'schema':
       return `${node.connectionId}:db:${node.database}:schema:${node.name}`;
     case 'group':
@@ -60,7 +57,6 @@ export function nodeKey(node: TreeNode): string {
 
 export function nodeDepth(node: TreeNode): number {
   switch (node.kind) {
-    case 'database': return 0;
     case 'schema': return 1;
     case 'group': return 2;
     case 'table':

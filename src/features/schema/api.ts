@@ -2,9 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ColumnDef, SchemaObjects } from './types';
 
 export const schemaApi = {
-  listDatabases: (sessionId: string) =>
-    invoke<string[]>('list_databases', { sessionId }),
-
   listSchemas: (sessionId: string, database: string) =>
     invoke<string[]>('list_schemas', { sessionId, database }),
 

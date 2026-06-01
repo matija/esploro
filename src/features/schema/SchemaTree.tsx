@@ -4,7 +4,6 @@ import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import {
   ChevronRight,
-  Database,
   Folder,
   Table2,
   Eye,
@@ -32,7 +31,6 @@ interface Props {
 
 // ─── Key helpers ──────────────────────────────────────────────────────────────
 
-const dbKey = (cid: string, db: string) => `${cid}:db:${db}`;
 const schemaKey = (cid: string, db: string, s: string) =>
   `${cid}:db:${db}:schema:${s}`;
 const groupKey = (cid: string, db: string, s: string, label: GroupLabel) =>
@@ -158,8 +156,8 @@ function TreeRow({
   onActivate,
   onAction,
 }: RowProps) {
-  // MySQL tree is one level shallower (no schema node between database and groups)
-  const depthAdj = isMysql ? -1 : 0;
+  // No database level in the tree; MySQL is also one level shallower (no schema node)
+  const depthAdj = isMysql ? -2 : -1;
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     onContextMenu(e.clientX, e.clientY);
@@ -209,7 +207,6 @@ function TreeRow({
   }
 
   const expandable =
-    node.kind === "database" ||
     node.kind === "schema" ||
     node.kind === "group" ||
     node.kind === "table";
@@ -244,18 +241,15 @@ function TreeRow({
   }
 
   const baseDepth =
-    node.kind === "database"
-      ? 0
-      : node.kind === "schema"
-        ? 1
-        : node.kind === "group"
-          ? 2
-          : 3; // table, view, sequence, function
-  const depth = node.kind === "database" ? baseDepth : baseDepth + depthAdj;
+    node.kind === "schema"
+      ? 1
+      : node.kind === "group"
+        ? 2
+        : 3; // table, view, sequence, function
+  const depth = baseDepth + depthAdj;
 
   const icon = (() => {
     switch (node.kind) {
-      case "database":  return <Database size={11} className="text-schema-database" />;
       case "schema":    return <Folder size={11} className="text-schema-schema" />;
       case "table":     return <Table2 size={11} className="text-schema-table" />;
       case "view":      return <Eye size={11} className="text-schema-view" />;
@@ -267,7 +261,6 @@ function TreeRow({
 
   const label = (() => {
     switch (node.kind) {
-      case "database":
       case "schema":
         return node.name;
       case "group":
@@ -421,7 +414,6 @@ function sortSchemas(schemas: string[]): string[] {
 }
 
 function nodeDepth(node: TreeNode): number {
-  if (node.kind === "database") return 0;
   if (node.kind === "schema") return 1;
   if (node.kind === "group") return 2;
   if (node.kind === "table" || node.kind === "view" || node.kind === "sequence" || node.kind === "function") return 3;
@@ -452,8 +444,10 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   );
   const isExp = (key: string) => !!expandedNodes[key];
 
-  const driver = profiles.find((p) => p.id === connectionId)?.driver ?? "postgres";
+  const profile = profiles.find((p) => p.id === connectionId);
+  const driver = profile?.driver ?? "postgres";
   const isMysql = driver === "mysql";
+  const targetDatabase = profile?.database ?? "";
 
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -465,62 +459,33 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const SCHEMA_STALE_MS = 5 * 60 * 1000;
 
   function refreshSchema() {
-    void queryClient.invalidateQueries({ queryKey: ["databases", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["objects", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["columns", sessionId] });
   }
 
-  // Level 1 — databases
-  const dbsQuery = useQuery({
-    queryKey: ["databases", sessionId],
-    queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listDatabases(sid), toast),
+  // Level 1 — schemas (connection IS the database; MySQL has no schema level)
+  const schemasQuery = useQuery({
+    queryKey: ["schemas", sessionId, targetDatabase],
+    queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listSchemas(sid, targetDatabase), toast),
     staleTime: SCHEMA_STALE_MS,
+    enabled: !isMysql,
   });
-  const databases = useMemo(() => dbsQuery.data ?? [], [dbsQuery.data]);
-  const dbsIsLoading = dbsQuery.isLoading;
-  const dbsIsError = dbsQuery.isError;
-  const dbsError = dbsQuery.error;
-  const refetchDbs = dbsQuery.refetch;
+  const schemas = useMemo(() => {
+    if (isMysql) return [targetDatabase];
+    return sortSchemas(schemasQuery.data ?? []);
+  }, [isMysql, schemasQuery.data, targetDatabase]);
 
-  // Level 2 — schemas (one query per expanded database; skipped for MySQL)
-  const expandedDbs = useMemo(
-    () => databases.filter((db) => !!expandedNodes[dbKey(connectionId, db)]),
-    [connectionId, databases, expandedNodes],
-  );
-  const schemaQueries = useQueries({
-    queries: (isMysql ? [] : expandedDbs).map((db) => ({
-      queryKey: ["schemas", sessionId, db],
-      queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listSchemas(sid, db), toast),
-      staleTime: SCHEMA_STALE_MS,
-    })),
-  });
-  const schemasMap = useMemo(() => {
-    const next: Record<string, string[]> = {};
-    if (isMysql) {
-      // For MySQL there is no schema level; use the database name as the pseudo-schema
-      expandedDbs.forEach((db) => { next[db] = [db]; });
-    } else {
-      expandedDbs.forEach((db, i) => {
-        next[db] = sortSchemas(schemaQueries[i]?.data ?? []);
-      });
-    }
-    return next;
-  }, [expandedDbs, isMysql, schemaQueries]);
-
-  // Level 3 — objects (one query per expanded schema)
+  // Level 2 — objects (one query per expanded schema)
   const expandedSchemaEntries = useMemo(() => {
     const entries: { db: string; schema: string }[] = [];
-    for (const db of expandedDbs) {
-      for (const s of schemasMap[db] ?? []) {
-        // MySQL: the db is always "expanded" (no schema node to click)
-        if (isMysql || !!expandedNodes[schemaKey(connectionId, db, s)]) {
-          entries.push({ db, schema: s });
-        }
+    for (const s of schemas) {
+      if (isMysql || !!expandedNodes[schemaKey(connectionId, targetDatabase, s)]) {
+        entries.push({ db: targetDatabase, schema: s });
       }
     }
     return entries;
-  }, [connectionId, expandedDbs, expandedNodes, isMysql, schemasMap]);
+  }, [connectionId, expandedNodes, isMysql, schemas, targetDatabase]);
   const objectQueries = useQueries({
     queries: expandedSchemaEntries.map(({ db, schema }) => ({
       queryKey: ["objects", sessionId, db, schema],
@@ -537,21 +502,21 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     return next;
   }, [expandedSchemaEntries, objectQueries]);
 
-  // Level 4 — columns (one query per expanded table)
+  // Level 3 — columns (one query per expanded table)
   const expandedTableEntries = useMemo(() => {
     const entries: { db: string; schema: string; table: string }[] = [];
-    for (const { db, schema } of expandedSchemaEntries) {
-      const objs = objectsMap[`${db}:${schema}`];
+    for (const schema of schemas) {
+      const objs = objectsMap[`${targetDatabase}:${schema}`];
       if (!objs) continue;
-      if (!expandedNodes[groupKey(connectionId, db, schema, "Tables")]) continue;
+      if (!expandedNodes[groupKey(connectionId, targetDatabase, schema, "Tables")]) continue;
       for (const t of objs.tables) {
-        if (expandedNodes[tableKey(connectionId, db, schema, t.name)]) {
-          entries.push({ db, schema, table: t.name });
+        if (expandedNodes[tableKey(connectionId, targetDatabase, schema, t.name)]) {
+          entries.push({ db: targetDatabase, schema, table: t.name });
         }
       }
     }
     return entries;
-  }, [connectionId, expandedNodes, expandedSchemaEntries, objectsMap]);
+  }, [connectionId, expandedNodes, objectsMap, schemas, targetDatabase]);
   const columnQueries = useQueries({
     queries: expandedTableEntries.map(({ db, schema, table }) => ({
       queryKey: ["columns", sessionId, db, schema, table],
@@ -601,18 +566,10 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
     leaves.sort((a, b) => b.score - a.score);
 
-    const seenDbs = new Set<string>();
     const seenSchemas = new Set<string>();
 
     for (const leaf of leaves) {
       const { db, schema, oKey } = leaf;
-      if (!seenDbs.has(db)) {
-        seenDbs.add(db);
-        items.push({
-          key: dbKey(connectionId, db),
-          node: { kind: "database", name: db, sessionId, connectionId },
-        });
-      }
       if (!seenSchemas.has(oKey) && !isMysql) {
         seenSchemas.add(oKey);
         items.push({
@@ -633,175 +590,145 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       }
     }
   } else {
-    // Normal tree mode
-    if (dbsIsLoading) {
-      items.push({ key: "loading-dbs", node: { kind: "loading", depth: 0 } });
-    } else if (dbsIsError) {
-      items.push({
-        key: "error-dbs",
-        node: {
-          kind: "error",
-          depth: 0,
-          message: errorMessage(dbsError, "Could not load databases"),
-          onRetry: () => { void refetchDbs(); },
-        },
-      });
-    } else {
-      for (const db of databases) {
-        const dk = dbKey(connectionId, db);
-        const dbExpanded = !!expandedNodes[dk];
+    // Normal tree mode — schemas are the root level
+    if (!isMysql) {
+      if (schemasQuery.isLoading) {
+        items.push({ key: "loading-schemas", node: { kind: "loading", depth: 0 } });
+      } else if (schemasQuery.isError) {
         items.push({
-          key: dk,
-          node: { kind: "database", name: db, sessionId, connectionId },
+          key: "error-schemas",
+          node: {
+            kind: "error",
+            depth: 0,
+            message: errorMessage(schemasQuery.error, "Could not load schemas"),
+            onRetry: () => { void schemasQuery.refetch(); },
+          },
         });
-        if (!dbExpanded) continue;
+      }
+    }
 
+    if (!schemasQuery.isLoading && !schemasQuery.isError) {
+      for (const schema of schemas) {
+        const sk = schemaKey(connectionId, targetDatabase, schema);
+        // MySQL: skip rendering the schema node (database IS the connection)
         if (!isMysql) {
-          const sqi = expandedDbs.indexOf(db);
-          const sq = schemaQueries[sqi];
-          if (!sq || sq.isLoading) {
-            items.push({
-              key: `${dk}:loading`,
-              node: { kind: "loading", depth: 1 },
-            });
-            continue;
-          }
-          if (sq.isError) {
-            items.push({
-              key: `${dk}:error`,
-              node: {
-                kind: "error",
-                depth: 1,
-                message: errorMessage(sq.error, "Could not load schemas"),
-                onRetry: () => { void sq.refetch(); },
-              },
-            });
-            continue;
-          }
+          const sExpanded = !!expandedNodes[sk];
+          items.push({
+            key: sk,
+            node: { kind: "schema", name: schema, database: targetDatabase, sessionId, connectionId },
+          });
+          if (!sExpanded) continue;
         }
 
-        for (const schema of schemasMap[db] ?? []) {
-          const sk = schemaKey(connectionId, db, schema);
-          // MySQL: skip rendering the schema node (it's the database itself)
-          if (!isMysql) {
-            const sExpanded = !!expandedNodes[sk];
-            items.push({
-              key: sk,
-              node: { kind: "schema", name: schema, database: db, sessionId, connectionId },
-            });
-            if (!sExpanded) continue;
-          }
+        const oki = expandedSchemaEntries.findIndex(
+          (e) => e.db === targetDatabase && e.schema === schema,
+        );
+        const oq = objectQueries[oki];
+        const objLoadingDepth = isMysql ? 0 : 1;
+        if (!oq || oq.isLoading) {
+          items.push({
+            key: `${sk}:loading`,
+            node: { kind: "loading", depth: objLoadingDepth },
+          });
+          continue;
+        }
+        if (oq.isError) {
+          items.push({
+            key: `${sk}:error`,
+            node: {
+              kind: "error",
+              depth: objLoadingDepth,
+              message: errorMessage(oq.error, "Could not load schema objects"),
+              onRetry: () => { void oq.refetch(); },
+            },
+          });
+          continue;
+        }
 
-          const oki = expandedSchemaEntries.findIndex(
-            (e) => e.db === db && e.schema === schema,
-          );
-          const oq = objectQueries[oki];
-          const objLoadingDepth = isMysql ? 1 : 2;
-          if (!oq || oq.isLoading) {
-            items.push({
-              key: `${sk}:loading`,
-              node: { kind: "loading", depth: objLoadingDepth },
-            });
-            continue;
-          }
-          if (oq.isError) {
-            items.push({
-              key: `${sk}:error`,
-              node: {
-                kind: "error",
-                depth: objLoadingDepth,
-                message: errorMessage(oq.error, "Could not load schema objects"),
-                onRetry: () => { void oq.refetch(); },
-              },
-            });
-            continue;
-          }
+        const objs = objectsMap[`${targetDatabase}:${schema}`];
+        if (!objs) continue;
 
-          const objs = objectsMap[`${db}:${schema}`];
-          if (!objs) continue;
+        const allGroups: { label: GroupLabel; count: number }[] = [
+          { label: "Tables", count: objs.tables.length },
+          { label: "Views", count: objs.views.length },
+          { label: "Sequences", count: objs.sequences.length },
+          { label: "Functions", count: objs.functions.length },
+        ];
 
-          const allGroups: { label: GroupLabel; count: number }[] = [
-            { label: "Tables", count: objs.tables.length },
-            { label: "Views", count: objs.views.length },
-            { label: "Sequences", count: objs.sequences.length },
-            { label: "Functions", count: objs.functions.length },
-          ];
+        for (const grp of allGroups) {
+          if (grp.count === 0) continue;
+          const gk = groupKey(connectionId, targetDatabase, schema, grp.label);
+          const gExpanded = !!expandedNodes[gk];
+          items.push({
+            key: gk,
+            node: { kind: "group", label: grp.label, count: grp.count, schema, database: targetDatabase, sessionId, connectionId },
+          });
+          if (!gExpanded) continue;
 
-          for (const grp of allGroups) {
-            if (grp.count === 0) continue;
-            const gk = groupKey(connectionId, db, schema, grp.label);
-            const gExpanded = !!expandedNodes[gk];
-            items.push({
-              key: gk,
-              node: { kind: "group", label: grp.label, count: grp.count, schema, database: db, sessionId, connectionId },
-            });
-            if (!gExpanded) continue;
+          if (grp.label === "Tables") {
+            for (const t of objs.tables) {
+              const tk = tableKey(connectionId, targetDatabase, schema, t.name);
+              const tExpanded = !!expandedNodes[tk];
+              items.push({
+                key: tk,
+                node: { kind: "table", name: t.name, schema, database: targetDatabase, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
+              });
+              if (!tExpanded) continue;
 
-            if (grp.label === "Tables") {
-              for (const t of objs.tables) {
-                const tk = tableKey(connectionId, db, schema, t.name);
-                const tExpanded = !!expandedNodes[tk];
+              const ci = expandedTableEntries.findIndex(
+                (e) =>
+                  e.db === targetDatabase &&
+                  e.schema === schema &&
+                  e.table === t.name,
+              );
+              const cq = columnQueries[ci];
+              const colLoadingDepth = isMysql ? 2 : 3;
+              if (!cq || cq.isLoading) {
                 items.push({
-                  key: tk,
-                  node: { kind: "table", name: t.name, schema, database: db, sessionId, connectionId, estimatedRows: t.estimatedRowCount },
+                  key: `${tk}:loading`,
+                  node: { kind: "loading", depth: colLoadingDepth },
                 });
-                if (!tExpanded) continue;
-
-                const ci = expandedTableEntries.findIndex(
-                  (e) =>
-                    e.db === db &&
-                    e.schema === schema &&
-                    e.table === t.name,
-                );
-                const cq = columnQueries[ci];
-                const colLoadingDepth = isMysql ? 3 : 4;
-                if (!cq || cq.isLoading) {
-                  items.push({
-                    key: `${tk}:loading`,
-                    node: { kind: "loading", depth: colLoadingDepth },
-                  });
-                  continue;
-                }
-                if (cq.isError) {
-                  items.push({
-                    key: `${tk}:error`,
-                    node: {
-                      kind: "error",
-                      depth: colLoadingDepth,
-                      message: errorMessage(cq.error, "Could not load columns"),
-                      onRetry: () => { void cq.refetch(); },
-                    },
-                  });
-                  continue;
-                }
-                for (const col of columnsMap[`${db}:${schema}:${t.name}`] ?? []) {
-                  items.push({
-                    key: `${tk}:col:${col.name}`,
-                    node: { kind: "column", def: col, table: t.name, schema, database: db, sessionId, connectionId },
-                  });
-                }
+                continue;
               }
-            } else if (grp.label === "Views") {
-              for (const v of objs.views) {
+              if (cq.isError) {
                 items.push({
-                  key: `${connectionId}:db:${db}:schema:${schema}:view:${v}`,
-                  node: { kind: "view", name: v, schema, database: db, sessionId, connectionId },
+                  key: `${tk}:error`,
+                  node: {
+                    kind: "error",
+                    depth: colLoadingDepth,
+                    message: errorMessage(cq.error, "Could not load columns"),
+                    onRetry: () => { void cq.refetch(); },
+                  },
+                });
+                continue;
+              }
+              for (const col of columnsMap[`${targetDatabase}:${schema}:${t.name}`] ?? []) {
+                items.push({
+                  key: `${tk}:col:${col.name}`,
+                  node: { kind: "column", def: col, table: t.name, schema, database: targetDatabase, sessionId, connectionId },
                 });
               }
-            } else if (grp.label === "Sequences") {
-              for (const seq of objs.sequences) {
-                items.push({
-                  key: `${connectionId}:db:${db}:schema:${schema}:seq:${seq}`,
-                  node: { kind: "sequence", name: seq, schema, database: db, sessionId, connectionId },
-                });
-              }
-            } else if (grp.label === "Functions") {
-              for (const fn of objs.functions) {
-                items.push({
-                  key: `${connectionId}:db:${db}:schema:${schema}:fn:${fn.name}`,
-                  node: { kind: "function", name: fn.name, resultType: fn.resultType, schema, database: db, sessionId, connectionId },
-                });
-              }
+            }
+          } else if (grp.label === "Views") {
+            for (const v of objs.views) {
+              items.push({
+                key: `${connectionId}:db:${targetDatabase}:schema:${schema}:view:${v}`,
+                node: { kind: "view", name: v, schema, database: targetDatabase, sessionId, connectionId },
+              });
+            }
+          } else if (grp.label === "Sequences") {
+            for (const seq of objs.sequences) {
+              items.push({
+                key: `${connectionId}:db:${targetDatabase}:schema:${schema}:seq:${seq}`,
+                node: { kind: "sequence", name: seq, schema, database: targetDatabase, sessionId, connectionId },
+              });
+            }
+          } else if (grp.label === "Functions") {
+            for (const fn of objs.functions) {
+              items.push({
+                key: `${connectionId}:db:${targetDatabase}:schema:${schema}:fn:${fn.name}`,
+                node: { kind: "function", name: fn.name, resultType: fn.resultType, schema, database: targetDatabase, sessionId, connectionId },
+              });
             }
           }
         }
@@ -814,22 +741,20 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     columnQueries,
     columnsMap,
     connectionId,
-    databases,
-    dbsError,
-    dbsIsError,
-    dbsIsLoading,
     deferredSearchQuery,
-    expandedDbs,
     expandedSchemaEntries,
     expandedTableEntries,
     expandedNodes,
     isMysql,
     objectQueries,
     objectsMap,
-    schemaQueries,
-    schemasMap,
-    refetchDbs,
+    schemas,
+    schemasQuery.error,
+    schemasQuery.isError,
+    schemasQuery.isLoading,
+    schemasQuery.refetch,
     sessionId,
+    targetDatabase,
   ]);
 
   // ── Keyboard navigation ───────────────────────────────────────────────────────
@@ -1009,8 +934,6 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
   function keyForNode(node: TreeNode): string {
     switch (node.kind) {
-      case "database":
-        return dbKey(connectionId, node.name);
       case "schema":
         return schemaKey(connectionId, node.database, node.name);
       case "group":

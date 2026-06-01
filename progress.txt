@@ -1970,3 +1970,30 @@
   - Prevents ephemeral per-backend-session namespaces from appearing in the
     sidebar tree for any Postgres connection.
 - cargo check: clean compile. tsc --noEmit: clean.
+
+## PRD 1b — Database-first tree [DONE]
+- src-tauri/src/commands/schema.rs:
+  - Deleted `list_databases` command (the Postgres branch queried `pg_database`, the MySQL
+    branch queried `information_schema.schemata`). No callers remain.
+- src-tauri/src/lib.rs:
+  - Removed `commands::schema::list_databases` from the Tauri invoke handler.
+- src/features/schema/api.ts:
+  - Removed `listDatabases` entry from `schemaApi`.
+- src/features/schema/types.ts:
+  - Removed `kind: 'database'` variant from the `TreeNode` union.
+  - Removed corresponding `case 'database':` from `nodeKey` and `nodeDepth`.
+- src/features/schema/SchemaTree.tsx:
+  - Removed `Database` icon import and `dbKey` key helper.
+  - Replaced `dbsQuery` + `expandedDbs` + `schemaQueries` + `schemasMap` (multi-DB
+    indirection) with a single `schemasQuery` fetching `listSchemas(targetDatabase)`,
+    where `targetDatabase = profile.database`. MySQL path returns `[targetDatabase]`
+    without firing a query (`enabled: !isMysql`).
+  - `expandedSchemaEntries` now iterates `schemas` directly (no outer DB loop).
+  - Flat item builder restructured: no database-level nodes; schemas are the root;
+    schema loading/error shown at depth 0.
+  - `depthAdj` changed from `isMysql ? -1 : 0` to `isMysql ? -2 : -1` so
+    rendering depths shift by -1 across the board (schemas at 0, groups at 1, etc.).
+  - Loading/error depths updated: object loading PG=1/MySQL=0; column loading PG=3/MySQL=2.
+  - `keyForNode` and local `nodeDepth` cleaned up (removed database cases).
+  - `refreshSchema` drops the `["databases", sessionId]` invalidation.
+- cargo check: clean. tsc --noEmit: clean.

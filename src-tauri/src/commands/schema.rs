@@ -40,48 +40,6 @@ pub struct ColumnDef {
     pub is_enum: bool,
 }
 
-// ─── list_databases ──────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn list_databases(
-    session_id: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<String>, String> {
-    let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
-
-    match &info.driver {
-        DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
-            let rows = client
-                .query(
-                    "SELECT datname FROM pg_database \
-                     WHERE datistemplate = false \
-                     ORDER BY datname",
-                    &[],
-                )
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(rows.iter().map(|r| r.get::<_, String>(0)).collect())
-        }
-        DriverSession::Mysql(pool) => {
-            let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-            let rows: Vec<mysql_async::Row> = conn
-                .query(
-                    "SELECT schema_name FROM information_schema.schemata \
-                     WHERE schema_name NOT IN \
-                       ('information_schema','performance_schema','mysql','sys') \
-                     ORDER BY schema_name",
-                )
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(rows.iter().filter_map(|r| mysql_str(r, 0)).collect())
-        }
-    }
-}
-
 // ─── list_schemas ────────────────────────────────────────────────────────────
 
 #[tauri::command]
