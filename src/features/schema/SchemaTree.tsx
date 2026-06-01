@@ -926,12 +926,12 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               });
             }
           } else if (grp.label === "Functions") {
-            for (const fn of objs.functions) {
+            objs.functions.forEach((fn, i) => {
               items.push({
-                key: `${connectionId}:db:${targetDatabase}:schema:${schema}:fn:${fn.name}`,
+                key: `${connectionId}:db:${targetDatabase}:schema:${schema}:fn:${i}:${fn.name}`,
                 node: { kind: "function", name: fn.name, resultType: fn.resultType, schema, database: targetDatabase, sessionId, connectionId },
               });
-            }
+            });
           }
         }
       }
