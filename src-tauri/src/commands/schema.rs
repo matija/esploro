@@ -105,6 +105,8 @@ pub async fn list_schemas(
                      WHERE catalog_name = current_database() \
                        AND schema_name NOT IN \
                          ('pg_catalog','information_schema','pg_toast') \
+                       AND schema_name NOT LIKE 'pg_temp_%' \
+                       AND schema_name NOT LIKE 'pg_toast_temp_%' \
                      ORDER BY schema_name",
                     &[],
                 )

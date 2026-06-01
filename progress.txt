@@ -1961,3 +1961,12 @@
     - Prev-page button onClick
     - Next-page button onClick
 - `tsc --noEmit`: clean.
+
+## PRD 1a — Filter pg_temp schemas [DONE]
+- src-tauri/src/commands/schema.rs — list_schemas Postgres branch:
+  - Added two NOT LIKE predicates to the WHERE clause:
+      AND schema_name NOT LIKE 'pg_temp_%'
+      AND schema_name NOT LIKE 'pg_toast_temp_%'
+  - Prevents ephemeral per-backend-session namespaces from appearing in the
+    sidebar tree for any Postgres connection.
+- cargo check: clean compile. tsc --noEmit: clean.
