@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Database, Terminal, Settings, AlertCircle } from "lucide-react";
+import { X, Loader2, Database, Terminal, Settings, AlertCircle, User } from "lucide-react";
 import { useAppStore, type Tab } from "../store";
 import { cn, truncateSmart } from "../lib/utils";
 
@@ -99,6 +99,8 @@ function tabIcon(tab: Tab, active: boolean) {
       return <Terminal size={11} className="shrink-0 text-tertiary" />;
     case "settings":
       return <Settings size={11} className="shrink-0 text-tertiary" />;
+    case "role":
+      return <User size={11} className="shrink-0 text-tertiary" />;
     default:
       return null;
   }

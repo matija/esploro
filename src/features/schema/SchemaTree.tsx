@@ -17,9 +17,13 @@ import {
   Terminal as TerminalIcon,
   Users,
   User,
+  Plus,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { useAppStore } from "../../store";
 import { useToast } from "../../components/Toast";
+import { useConfirm } from "../../components/ConfirmDialog";
 import { fuzzyScore } from "../../lib/fuzzy";
 import { withSessionRetry } from "../../lib/sessionRetry";
 import { schemaApi } from "./api";
@@ -295,9 +299,9 @@ function TreeRow({
     return null;
   })();
 
-  const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view");
+  const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view" || node.kind === "roles-group");
 
-  const isDataNode = node.kind === "table" || node.kind === "view";
+  const isDataNode = node.kind === "table" || node.kind === "view" || node.kind === "role";
 
   return (
     <div
@@ -359,7 +363,7 @@ function TreeRow({
         {label}
       </span>
 
-      {/* Inline hover actions for tables/views */}
+      {/* Inline hover actions for tables/views/roles-group */}
       {hasInlineActions && (
         <span
           className={cn(
@@ -368,22 +372,35 @@ function TreeRow({
             isFocused && "opacity-100",
           )}
         >
-          <button
-            type="button"
-            title="Open in table viewer"
-            onClick={(e) => { e.stopPropagation(); onAction("open-table"); }}
-            className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
-          >
-            <ExternalLink size={10} />
-          </button>
-          <button
-            type="button"
-            title="Open in query editor"
-            onClick={(e) => { e.stopPropagation(); onAction("open-query"); }}
-            className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
-          >
-            <TerminalIcon size={10} />
-          </button>
+          {node.kind === "roles-group" ? (
+            <button
+              type="button"
+              title="Create role"
+              onClick={(e) => { e.stopPropagation(); onAction?.("create-role"); }}
+              className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
+            >
+              <Plus size={10} />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                title="Open in table viewer"
+                onClick={(e) => { e.stopPropagation(); onAction?.("open-table"); }}
+                className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
+              >
+                <ExternalLink size={10} />
+              </button>
+              <button
+                type="button"
+                title="Open in query editor"
+                onClick={(e) => { e.stopPropagation(); onAction?.("open-query"); }}
+                className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)]"
+              >
+                <TerminalIcon size={10} />
+              </button>
+            </>
+          )}
         </span>
       )}
 
@@ -397,6 +414,168 @@ function TreeRow({
         </span>
       )}
     </div>
+  );
+}
+
+// ─── Create Role Modal ────────────────────────────────────────────────────────
+
+function CreateRoleModal({
+  sessionId,
+  onClose,
+  onCreated,
+}: {
+  sessionId: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [canLogin, setCanLogin] = useState(false);
+  const [isSuperuser, setIsSuperuser] = useState(false);
+  const [createDb, setCreateDb] = useState(false);
+  const [createRole, setCreateRole] = useState(false);
+  const [replication, setReplication] = useState(false);
+  const [bypassRls, setBypassRls] = useState(false);
+  const [inherit, setInherit] = useState(true);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  async function handleSubmit(e: { preventDefault(): void }) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) { setError("Role name is required"); return; }
+    if (password && password !== confirmPassword) { setError("Passwords do not match"); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await rolesApi.createRole(sessionId, {
+        name: trimmedName,
+        canLogin,
+        isSuperuser,
+        createDb,
+        createRole,
+        replication,
+        bypassRls,
+        inherit,
+        password: password || undefined,
+      });
+      toast(`Role "${trimmedName}" created`, "success");
+      onCreated();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const ATTRS: { label: string; value: boolean; set: React.Dispatch<React.SetStateAction<boolean>> }[] = [
+    { label: "Login",        value: canLogin,     set: setCanLogin },
+    { label: "Superuser",    value: isSuperuser,  set: setIsSuperuser },
+    { label: "Create DB",    value: createDb,     set: setCreateDb },
+    { label: "Create Role",  value: createRole,   set: setCreateRole },
+    { label: "Replication",  value: replication,  set: setReplication },
+    { label: "Bypass RLS",   value: bypassRls,    set: setBypassRls },
+    { label: "Inherit",      value: inherit,      set: setInherit },
+  ];
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <form
+        onSubmit={handleSubmit}
+        className="relative z-10 bg-raised rounded-[var(--radius-popover)] border border-separator shadow-[var(--shadow-popover)] p-5 w-[380px] flex flex-col gap-4"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[14px] font-semibold text-label">Create Role</span>
+          <button type="button" onClick={onClose} className="text-tertiary hover:text-label transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12px] text-secondary">Name</label>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="role_name"
+            className="px-2 py-1.5 rounded text-[13px] bg-control border border-separator focus:outline-none focus:ring-1 focus:ring-accent/50 font-mono"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[12px] text-secondary">Attributes</span>
+          <div className="grid grid-cols-2 gap-0.5">
+            {ATTRS.map(({ label, value, set }) => (
+              <label key={label} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-hover cursor-default select-none">
+                <button
+                  type="button"
+                  onClick={() => set((v) => !v)}
+                  className={cn("shrink-0 transition-colors", value ? "text-accent" : "text-tertiary")}
+                >
+                  {value ? <CheckSquare size={13} /> : <Square size={13} />}
+                </button>
+                <span className="text-[13px] text-label">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12px] text-secondary">Password (optional)</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Leave blank for no password"
+            className="px-2 py-1.5 rounded text-[13px] bg-control border border-separator focus:outline-none focus:ring-1 focus:ring-accent/50"
+          />
+          {password && (
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm password"
+              className={cn(
+                "px-2 py-1.5 rounded text-[13px] bg-control border border-separator focus:outline-none focus:ring-1 focus:ring-accent/50",
+                confirmPassword && confirmPassword !== password && "border-query-failed ring-1 ring-query-failed/50",
+              )}
+            />
+          )}
+        </div>
+
+        {error && (
+          <div className="text-[12px] text-query-failed bg-query-failed/10 rounded px-2 py-1.5">{error}</div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded text-[13px] text-secondary hover:bg-hover hover:text-label transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || !name.trim()}
+            className="px-3 py-1.5 rounded text-[13px] bg-accent text-inverse hover:bg-accent/90 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? "Creating…" : "Create Role"}
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
   );
 }
 
@@ -434,6 +613,7 @@ function nodeDepth(node: TreeNode): number {
 
 export function SchemaTree({ sessionId, connectionId }: Props) {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const {
     expandedNodes,
     toggleNode,
@@ -464,6 +644,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [showCreateRole, setShowCreateRole] = useState(false);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
 
@@ -888,6 +1069,8 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         const { node } = items[focusedIndex];
         if (node.kind === "table" || node.kind === "view") {
           openTable(node);
+        } else if (node.kind === "role") {
+          openRole(node);
         } else {
           const nkey = keyForNode(node);
           if (nkey) toggleNode(nkey);
@@ -937,6 +1120,39 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           sessionId,
         });
       }
+    } else if (node.kind === "role") {
+      if (action === "delete-role") {
+        setContextMenu(null);
+        void (async () => {
+          const dependents = await rolesApi.getRoleDependents(sessionId, node.name).catch(() => []);
+          let description = `This will permanently delete the role "${node.name}".`;
+          if (dependents.length > 0) {
+            const list = dependents.slice(0, 5).map((d) => `${d.kind}: ${d.name}`).join(", ");
+            const more = dependents.length > 5 ? ` and ${dependents.length - 5} more` : "";
+            description += ` Owned objects: ${list}${more}. You must reassign or drop them first.`;
+          }
+          const ok = await confirm({
+            title: `Delete role "${node.name}"?`,
+            description,
+            confirmLabel: "Delete",
+            destructive: true,
+          });
+          if (!ok) return;
+          try {
+            await rolesApi.dropRole(sessionId, node.name);
+            toast(`Role "${node.name}" deleted`, "success");
+            void queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+          } catch (e) {
+            toast(e instanceof Error ? e.message : String(e), "error");
+          }
+        })();
+        return;
+      }
+    } else if (node.kind === "roles-group") {
+      if (action === "create-role") {
+        setShowCreateRole(true);
+        return;
+      }
     } else if (node.kind === "column") {
       if (action === "copy-name") navigator.clipboard.writeText(node.def.name);
       else if (action === "copy-type")
@@ -984,6 +1200,18 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
       connectionId,
       sessionId,
     });
+  }
+
+  function openRole(node: TreeNode) {
+    if (node.kind !== "role") return;
+    const existing = tabs.find(
+      (t) => t.type === "role" && t.roleContext?.connectionId === connectionId && t.roleContext?.roleName === node.name,
+    );
+    if (existing) {
+      setActiveTab(existing.id);
+    } else {
+      addTab({ type: "role", title: node.name, sessionId, roleContext: { roleName: node.name, connectionId } });
+    }
   }
 
   function keyForNode(node: TreeNode): string {
@@ -1062,7 +1290,10 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               onToggle={() => nkey && toggleNode(nkey)}
               onFocus={() => setFocusedKey(key)}
               onContextMenu={(x, y) => setContextMenu({ node, x, y })}
-              onActivate={() => openTable(node)}
+              onActivate={() => {
+                if (node.kind === "table" || node.kind === "view") openTable(node);
+                else if (node.kind === "role") openRole(node);
+              }}
               onAction={(action) => handleAction(node, action)}
             />
           );
@@ -1075,6 +1306,17 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           menu={contextMenu}
           onClose={() => setContextMenu(null)}
           onAction={(action) => handleAction(contextMenu.node, action)}
+        />
+      )}
+
+      {/* Create Role modal */}
+      {showCreateRole && (
+        <CreateRoleModal
+          sessionId={sessionId}
+          onClose={() => setShowCreateRole(false)}
+          onCreated={() => {
+            void queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+          }}
         />
       )}
     </div>

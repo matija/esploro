@@ -62,3 +62,32 @@ export interface MembershipResult {
   member: string;
   error: string | null;
 }
+
+export interface RoleTableGrant {
+  schema: string;
+  table: string;
+  privileges: string[];
+}
+
+export interface RoleSchemaGrant {
+  schema: string;
+  privileges: string[];
+}
+
+export interface RolePrivileges {
+  tableGrants: RoleTableGrant[];
+  schemaGrants: RoleSchemaGrant[];
+}
+
+export interface PrivilegeOp {
+  op: 'grant' | 'revoke';
+  objectType: 'table' | 'schema';
+  schema: string;
+  name: string;
+  privilege: string;
+}
+
+export interface PrivilegeResult {
+  sql: string;
+  error: string | null;
+}

@@ -2046,3 +2046,23 @@
   - Context menu: role nodes show "Delete role…" action.
   - items useMemo deps: added rolesQuery.* entries.
 - tsc --noEmit: clean.
+
+## Create Role modal [DONE]
+- src/features/schema/SchemaTree.tsx:
+  - Added `CreateRoleModal` component (portal, ~120 lines):
+    - Role name input (required, monospace, autoFocus)
+    - 7 attribute checkboxes in a 2-column grid: Login, Superuser, Create DB,
+      Create Role, Replication, Bypass RLS, Inherit (defaulting to true)
+    - Masked password + confirm-password fields (confirm only appears when
+      password is typed; border turns red on mismatch)
+    - Inline error display for API failures or name/password validation
+    - Escape key closes via useEffect; backdrop click also closes
+    - On success: toast("…created", "success") + invalidates ["roles", sessionId]
+  - Added `Plus`, `CheckSquare`, `Square` to lucide-react imports
+  - Added `showCreateRole` state to SchemaTree
+  - `handleAction` now handles `roles-group` + `"create-role"` → sets showCreateRole
+  - `hasInlineActions` extended to include `roles-group` kind
+  - Inline actions block now renders a `+` (Plus, size=10) button for roles-group
+    and the existing open-table/open-query buttons for table/view nodes
+  - CreateRoleModal rendered at bottom of SchemaTree JSX when showCreateRole
+- tsc --noEmit: 0 errors

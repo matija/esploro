@@ -4,8 +4,11 @@ import type {
   CreateRoleRequest,
   MembershipOp,
   MembershipResult,
+  PrivilegeOp,
+  PrivilegeResult,
   RoleDependent,
   RoleMembers,
+  RolePrivileges,
   RoleSummary,
 } from './types';
 
@@ -30,4 +33,10 @@ export const rolesApi = {
 
   manageRoleMembership: (sessionId: string, ops: MembershipOp[]) =>
     invoke<MembershipResult[]>('manage_role_membership', { sessionId, ops }),
+
+  listRolePrivileges: (sessionId: string, roleName: string) =>
+    invoke<RolePrivileges>('list_role_privileges', { sessionId, roleName }),
+
+  manageRolePrivileges: (sessionId: string, roleName: string, ops: PrivilegeOp[]) =>
+    invoke<PrivilegeResult[]>('manage_role_privileges', { sessionId, roleName, ops }),
 };

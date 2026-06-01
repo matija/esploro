@@ -19,6 +19,7 @@ import {
 } from "../features/license";
 import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
 import { WelcomeView } from "../features/welcome/WelcomeView";
+import { RoleDetailPanel } from "../features/roles/RoleDetailPanel";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -510,6 +511,9 @@ export function AppShell() {
                   updateTabTitle(activeTab.id, NAV_ITEMS.find((n) => n.id === s)!.label)
                 }
               />
+            )}
+            {activeTab?.type === "role" && (
+              <RoleDetailPanel key={activeTab.id} tab={activeTab} />
             )}
           </main>
 

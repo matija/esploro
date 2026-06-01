@@ -86,8 +86,48 @@ pub struct MembershipResult {
     pub error: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleTableGrant {
+    pub schema: String,
+    pub table: String,
+    pub privileges: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSchemaGrant {
+    pub schema: String,
+    pub privileges: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RolePrivileges {
+    pub table_grants: Vec<RoleTableGrant>,
+    pub schema_grants: Vec<RoleSchemaGrant>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivilegeOp {
+    pub op: String,          // "grant" or "revoke"
+    pub object_type: String, // "table" or "schema"
+    pub schema: String,
+    pub name: String,        // table name for tables; same as schema for schema grants
+    pub privilege: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivilegeResult {
+    pub sql: String,
+    pub error: Option<String>,
+}
+
 /// Build the WITH clause options for CREATE/ALTER ROLE.
 /// Returns (options_string, password_param) where password_param is Some(pw) for PASSWORD $1.
+#[allow(clippy::too_many_arguments)]
 fn build_role_options(
     is_superuser: Option<bool>,
     inherit: Option<bool>,
@@ -431,6 +471,158 @@ pub async fn drop_role(
             let sql = format!("DROP ROLE {}", quote_ident(&role_name));
             client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
             Ok(())
+        }
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+    }
+}
+
+// ─── list_role_privileges ─────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_role_privileges(
+    session_id: String,
+    role_name: String,
+    state: State<'_, AppState>,
+) -> Result<RolePrivileges, String> {
+    use std::collections::BTreeMap;
+
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+
+            // Table grants via information_schema
+            let table_rows = client
+                .query(
+                    "SELECT table_schema, table_name, privilege_type \
+                     FROM information_schema.role_table_grants \
+                     WHERE grantee = $1 \
+                       AND table_schema NOT IN ('pg_catalog', 'information_schema') \
+                     ORDER BY table_schema, table_name, privilege_type",
+                    &[&role_name],
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let mut table_map: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+            for row in &table_rows {
+                let schema: String = row.get(0);
+                let table: String = row.get(1);
+                let priv_type: String = row.get(2);
+                table_map.entry((schema, table)).or_default().push(priv_type);
+            }
+            let table_grants = table_map
+                .into_iter()
+                .map(|((schema, table), privileges)| RoleTableGrant {
+                    schema,
+                    table,
+                    privileges,
+                })
+                .collect();
+
+            // Schema grants via pg_namespace ACL
+            let schema_rows = client
+                .query(
+                    "SELECT n.nspname, a.privilege_type \
+                     FROM pg_namespace n \
+                     JOIN LATERAL aclexplode(COALESCE(n.nspacl, '{}')) a ON true \
+                     WHERE a.grantee = (SELECT oid FROM pg_roles WHERE rolname = $1) \
+                       AND a.privilege_type IN ('USAGE', 'CREATE') \
+                       AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast') \
+                       AND n.nspname NOT LIKE 'pg_temp_%' \
+                       AND n.nspname NOT LIKE 'pg_toast_temp_%' \
+                     ORDER BY n.nspname, a.privilege_type",
+                    &[&role_name],
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let mut schema_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for row in &schema_rows {
+                let schema: String = row.get(0);
+                let priv_type: String = row.get(1);
+                schema_map.entry(schema).or_default().push(priv_type);
+            }
+            let schema_grants = schema_map
+                .into_iter()
+                .map(|(schema, privileges)| RoleSchemaGrant { schema, privileges })
+                .collect();
+
+            Ok(RolePrivileges {
+                table_grants,
+                schema_grants,
+            })
+        }
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+    }
+}
+
+// ─── manage_role_privileges ───────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn manage_role_privileges(
+    session_id: String,
+    role_name: String,
+    ops: Vec<PrivilegeOp>,
+    state: State<'_, AppState>,
+) -> Result<Vec<PrivilegeResult>, String> {
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let role_ident = quote_ident(&role_name);
+            let mut results = Vec::with_capacity(ops.len());
+
+            for op in ops {
+                let sql = match (op.op.as_str(), op.object_type.as_str()) {
+                    ("grant", "table") => format!(
+                        "GRANT {} ON {}.{} TO {}",
+                        op.privilege,
+                        quote_ident(&op.schema),
+                        quote_ident(&op.name),
+                        role_ident
+                    ),
+                    ("revoke", "table") => format!(
+                        "REVOKE {} ON {}.{} FROM {}",
+                        op.privilege,
+                        quote_ident(&op.schema),
+                        quote_ident(&op.name),
+                        role_ident
+                    ),
+                    ("grant", "schema") => format!(
+                        "GRANT {} ON SCHEMA {} TO {}",
+                        op.privilege,
+                        quote_ident(&op.schema),
+                        role_ident
+                    ),
+                    ("revoke", "schema") => format!(
+                        "REVOKE {} ON SCHEMA {} FROM {}",
+                        op.privilege,
+                        quote_ident(&op.schema),
+                        role_ident
+                    ),
+                    _ => {
+                        results.push(PrivilegeResult {
+                            sql: format!("{} {} on {}.{}", op.op, op.privilege, op.schema, op.name),
+                            error: Some(format!("Unknown op/object_type: {} / {}", op.op, op.object_type)),
+                        });
+                        continue;
+                    }
+                };
+
+                let error = client.execute(&sql, &[]).await.err().map(|e| e.to_string());
+                results.push(PrivilegeResult { sql, error });
+            }
+
+            Ok(results)
         }
         DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
     }
