@@ -10,6 +10,8 @@ import type {
   RoleMembers,
   RolePrivileges,
   RoleSummary,
+  TableGrantee,
+  TablePrivilegeOp,
 } from './types';
 
 export const rolesApi = {
@@ -39,4 +41,10 @@ export const rolesApi = {
 
   manageRolePrivileges: (sessionId: string, roleName: string, ops: PrivilegeOp[]) =>
     invoke<PrivilegeResult[]>('manage_role_privileges', { sessionId, roleName, ops }),
+
+  listTablePrivileges: (sessionId: string, schema: string, table: string) =>
+    invoke<TableGrantee[]>('list_table_privileges', { sessionId, schema, table }),
+
+  manageTablePrivileges: (sessionId: string, schema: string, table: string, ops: TablePrivilegeOp[]) =>
+    invoke<PrivilegeResult[]>('manage_table_privileges', { sessionId, schema, table, ops }),
 };

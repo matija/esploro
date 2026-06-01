@@ -91,3 +91,14 @@ export interface PrivilegeResult {
   sql: string;
   error: string | null;
 }
+
+export interface TableGrantee {
+  grantee: string;
+  privileges: string[];
+}
+
+export interface TablePrivilegeOp {
+  op: 'grant' | 'revoke';
+  grantee: string;
+  privilege: string;
+}

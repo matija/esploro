@@ -2066,3 +2066,44 @@
     and the existing open-table/open-query buttons for table/view nodes
   - CreateRoleModal rendered at bottom of SchemaTree JSX when showCreateRole
 - tsc --noEmit: 0 errors
+
+## PRD 3a — Table Detail Panel Privileges tab [DONE]
+- src-tauri/src/commands/roles.rs:
+  - Added `TableGrantee` struct (grantee: String, privileges: Vec<String>).
+  - Added `TablePrivilegeOp` struct (op, grantee, privilege).
+  - Added `list_table_privileges(session_id, schema, table)`: queries
+    information_schema.role_table_grants for a specific table, returns
+    Vec<TableGrantee> grouped by grantee. Excludes PUBLIC. Postgres only.
+  - Added `manage_table_privileges(session_id, schema, table, ops)`: executes
+    GRANT/REVOKE privilege ON schema.table TO/FROM grantee for each op,
+    collects per-op results. Postgres only.
+- src-tauri/src/lib.rs:
+  - Registered `list_table_privileges` and `manage_table_privileges` in
+    invoke_handler.
+- src/features/roles/types.ts:
+  - Added `TableGrantee` and `TablePrivilegeOp` interfaces.
+- src/features/roles/api.ts:
+  - Added `listTablePrivileges(sessionId, schema, table)` and
+    `manageTablePrivileges(sessionId, schema, table, ops)` to rolesApi.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Added imports: useQueryClient, Plus, CheckSquare, Square, User (lucide),
+    rolesApi, TablePrivilegeOp.
+  - Added `TABLE_GRANT_PRIVILEGES` constant.
+  - Added `PrivApplyResultSummary` component (inline apply result dialog).
+  - Added `TablePrivilegesTab` component:
+    - Fetches table grantees via listTablePrivileges.
+    - Fetches all roles via listRoles (for the "Add grantee" picker).
+    - Checkbox grid: one row per grantee × one column per privilege.
+    - Pending ops tracked as Map<"grantee:priv", TablePrivilegeOp>; changed
+      cells highlighted with ring-warning.
+    - "Add grantee" button: opens a searchable role picker; newly added
+      grantees appear as empty rows before any privileges are granted.
+    - Apply bar: disabled while clean; runs manageTablePrivileges, shows
+      PrivApplyResultSummary; failed ops kept in dirty state.
+    - Discard button: clears pendingOps and addedGrantees.
+  - Added `viewMode` state ("data" | "privileges") to TableViewerTab.
+  - Added "Data | Privileges" tab bar (Postgres only, appears below toolbar).
+  - When viewMode === "privileges": shows TablePrivilegesTab, hides filter
+    chips, grid area, edit bar, and footer.
+  - When viewMode === "data": existing data grid behavior unchanged.
+- cargo check: clean. tsc --noEmit: clean.

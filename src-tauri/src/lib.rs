@@ -124,6 +124,8 @@ pub fn run() {
             commands::roles::manage_role_membership,
             commands::roles::list_role_privileges,
             commands::roles::manage_role_privileges,
+            commands::roles::list_table_privileges,
+            commands::roles::manage_table_privileges,
             commands::data::query_table_data,
             commands::data::query_table_count,
             commands::data::update_rows,

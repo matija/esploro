@@ -125,6 +125,21 @@ pub struct PrivilegeResult {
     pub error: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableGrantee {
+    pub grantee: String,
+    pub privileges: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TablePrivilegeOp {
+    pub op: String,        // "grant" or "revoke"
+    pub grantee: String,
+    pub privilege: String,
+}
+
 /// Build the WITH clause options for CREATE/ALTER ROLE.
 /// Returns (options_string, password_param) where password_param is Some(pw) for PASSWORD $1.
 #[allow(clippy::too_many_arguments)]
@@ -681,5 +696,97 @@ pub async fn manage_role_membership(
             Ok(results)
         }
         DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+    }
+}
+
+// ─── list_table_privileges ────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_table_privileges(
+    session_id: String,
+    schema: String,
+    table: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<TableGrantee>, String> {
+    use std::collections::BTreeMap;
+
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let rows = client
+                .query(
+                    "SELECT grantee, privilege_type \
+                     FROM information_schema.role_table_grants \
+                     WHERE table_schema = $1 \
+                       AND table_name = $2 \
+                       AND grantee NOT IN ('PUBLIC') \
+                     ORDER BY grantee, privilege_type",
+                    &[&schema, &table],
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for row in &rows {
+                let grantee: String = row.get(0);
+                let priv_type: String = row.get(1);
+                map.entry(grantee).or_default().push(priv_type);
+            }
+
+            Ok(map
+                .into_iter()
+                .map(|(grantee, privileges)| TableGrantee { grantee, privileges })
+                .collect())
+        }
+        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".to_string()),
+    }
+}
+
+// ─── manage_table_privileges ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn manage_table_privileges(
+    session_id: String,
+    schema: String,
+    table: String,
+    ops: Vec<TablePrivilegeOp>,
+    state: State<'_, AppState>,
+) -> Result<Vec<PrivilegeResult>, String> {
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let table_ref = format!("{}.{}", quote_ident(&schema), quote_ident(&table));
+            let mut results = Vec::with_capacity(ops.len());
+
+            for op in ops {
+                let grantee_ident = quote_ident(&op.grantee);
+                let sql = match op.op.as_str() {
+                    "grant" => format!("GRANT {} ON {} TO {}", op.privilege, table_ref, grantee_ident),
+                    "revoke" => format!("REVOKE {} ON {} FROM {}", op.privilege, table_ref, grantee_ident),
+                    other => {
+                        results.push(PrivilegeResult {
+                            sql: format!("{} {} on {} to {}", op.op, op.privilege, table_ref, op.grantee),
+                            error: Some(format!("Unknown op: {}", other)),
+                        });
+                        continue;
+                    }
+                };
+                let error = client.execute(&sql, &[]).await.err().map(|e| e.to_string());
+                results.push(PrivilegeResult { sql, error });
+            }
+
+            Ok(results)
+        }
+        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".to_string()),
     }
 }
