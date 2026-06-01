@@ -301,7 +301,7 @@ function TreeRow({
 
   const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view" || node.kind === "roles-group");
 
-  const isDataNode = node.kind === "table" || node.kind === "view" || node.kind === "role";
+  const isDataNode = node.kind === "table" || node.kind === "view" || node.kind === "role" || node.kind === "schema";
 
   return (
     <div
@@ -1071,6 +1071,8 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           openTable(node);
         } else if (node.kind === "role") {
           openRole(node);
+        } else if (node.kind === "schema") {
+          openSchema(node);
         } else {
           const nkey = keyForNode(node);
           if (nkey) toggleNode(nkey);
@@ -1202,6 +1204,26 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     });
   }
 
+  function openSchema(node: TreeNode) {
+    if (node.kind !== "schema") return;
+    const existing = tabs.find(
+      (t) =>
+        t.type === "schema" &&
+        t.schemaContext?.connectionId === connectionId &&
+        t.schemaContext?.schema === node.name,
+    );
+    if (existing) {
+      setActiveTab(existing.id);
+    } else {
+      addTab({
+        type: "schema",
+        title: node.name,
+        sessionId,
+        schemaContext: { schema: node.name, database: node.database, connectionId },
+      });
+    }
+  }
+
   function openRole(node: TreeNode) {
     if (node.kind !== "role") return;
     const existing = tabs.find(
@@ -1293,6 +1315,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               onActivate={() => {
                 if (node.kind === "table" || node.kind === "view") openTable(node);
                 else if (node.kind === "role") openRole(node);
+                else if (node.kind === "schema") openSchema(node);
               }}
               onAction={(action) => handleAction(node, action)}
             />

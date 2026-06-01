@@ -10,6 +10,8 @@ import type {
   RoleMembers,
   RolePrivileges,
   RoleSummary,
+  SchemaInfo,
+  SchemaPrivilegeOp,
   TableGrantee,
   TablePrivilegeOp,
 } from './types';
@@ -47,4 +49,10 @@ export const rolesApi = {
 
   manageTablePrivileges: (sessionId: string, schema: string, table: string, ops: TablePrivilegeOp[]) =>
     invoke<PrivilegeResult[]>('manage_table_privileges', { sessionId, schema, table, ops }),
+
+  listSchemaPrivileges: (sessionId: string, schema: string) =>
+    invoke<SchemaInfo>('list_schema_privileges', { sessionId, schema }),
+
+  manageSchemaPrivileges: (sessionId: string, schema: string, ops: SchemaPrivilegeOp[]) =>
+    invoke<PrivilegeResult[]>('manage_schema_privileges', { sessionId, schema, ops }),
 };

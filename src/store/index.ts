@@ -15,7 +15,7 @@ import {
   type GridPageSize,
 } from "../features/settings/preferences";
 
-export type TabType = "welcome" | "table" | "query" | "settings" | "role";
+export type TabType = "welcome" | "table" | "query" | "settings" | "role" | "schema";
 
 export interface RecentObject {
   type: "table" | "view" | "query";
@@ -59,6 +59,11 @@ export interface Tab {
   };
   roleContext?: {
     roleName: string;
+    connectionId: string;
+  };
+  schemaContext?: {
+    schema: string;
+    database: string;
     connectionId: string;
   };
   isDirty?: boolean;

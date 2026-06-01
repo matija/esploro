@@ -20,6 +20,7 @@ import {
 import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
 import { WelcomeView } from "../features/welcome/WelcomeView";
 import { RoleDetailPanel } from "../features/roles/RoleDetailPanel";
+import { SchemaDetailPanel } from "../features/schema/SchemaDetailPanel";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -514,6 +515,9 @@ export function AppShell() {
             )}
             {activeTab?.type === "role" && (
               <RoleDetailPanel key={activeTab.id} tab={activeTab} />
+            )}
+            {activeTab?.type === "schema" && (
+              <SchemaDetailPanel key={activeTab.id} tab={activeTab} />
             )}
           </main>
 

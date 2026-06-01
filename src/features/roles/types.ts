@@ -102,3 +102,19 @@ export interface TablePrivilegeOp {
   grantee: string;
   privilege: string;
 }
+
+export interface SchemaGrantee {
+  grantee: string;
+  privileges: string[];
+}
+
+export interface SchemaInfo {
+  owner: string;
+  grantees: SchemaGrantee[];
+}
+
+export interface SchemaPrivilegeOp {
+  op: 'grant' | 'revoke';
+  grantee: string;
+  privilege: string;
+}

@@ -790,3 +790,132 @@ pub async fn manage_table_privileges(
         DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".to_string()),
     }
 }
+
+// ─── list_schema_privileges ───────────────────────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaGrantee {
+    pub grantee: String,
+    pub privileges: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaInfo {
+    pub owner: String,
+    pub grantees: Vec<SchemaGrantee>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaPrivilegeOp {
+    pub op: String,      // "grant" or "revoke"
+    pub grantee: String,
+    pub privilege: String,
+}
+
+#[tauri::command]
+pub async fn list_schema_privileges(
+    session_id: String,
+    schema: String,
+    state: State<'_, AppState>,
+) -> Result<SchemaInfo, String> {
+    use std::collections::BTreeMap;
+
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+
+            let owner_row = client
+                .query_one(
+                    "SELECT r.rolname \
+                     FROM pg_namespace n \
+                     JOIN pg_roles r ON r.oid = n.nspowner \
+                     WHERE n.nspname = $1",
+                    &[&schema],
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+            let owner: String = owner_row.get(0);
+
+            let rows = client
+                .query(
+                    "SELECT r.rolname, ae.privilege_type \
+                     FROM pg_namespace n, \
+                          LATERAL aclexplode(COALESCE(n.nspacl, acldefault('n', n.nspowner))) AS ae \
+                     JOIN pg_roles r ON r.oid = ae.grantee \
+                     WHERE n.nspname = $1 \
+                       AND ae.privilege_type IN ('USAGE', 'CREATE') \
+                       AND r.rolname NOT LIKE 'pg_%' \
+                     ORDER BY r.rolname, ae.privilege_type",
+                    &[&schema],
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+
+            let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for row in &rows {
+                let grantee: String = row.get(0);
+                let priv_type: String = row.get(1);
+                map.entry(grantee).or_default().push(priv_type);
+            }
+
+            let grantees = map
+                .into_iter()
+                .map(|(grantee, privileges)| SchemaGrantee { grantee, privileges })
+                .collect();
+
+            Ok(SchemaInfo { owner, grantees })
+        }
+        DriverSession::Mysql(_) => Err("Schema privileges are not supported for MySQL connections".to_string()),
+    }
+}
+
+// ─── manage_schema_privileges ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn manage_schema_privileges(
+    session_id: String,
+    schema: String,
+    ops: Vec<SchemaPrivilegeOp>,
+    state: State<'_, AppState>,
+) -> Result<Vec<PrivilegeResult>, String> {
+    let sessions = state.sessions.lock().await;
+    let info = sessions
+        .get(&session_id)
+        .ok_or_else(|| "Session not found".to_string())?;
+
+    match &info.driver {
+        DriverSession::Postgres(pool) => {
+            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let schema_ident = quote_ident(&schema);
+            let mut results = Vec::with_capacity(ops.len());
+
+            for op in ops {
+                let grantee_ident = quote_ident(&op.grantee);
+                let sql = match op.op.as_str() {
+                    "grant" => format!("GRANT {} ON SCHEMA {} TO {}", op.privilege, schema_ident, grantee_ident),
+                    "revoke" => format!("REVOKE {} ON SCHEMA {} FROM {}", op.privilege, schema_ident, grantee_ident),
+                    other => {
+                        results.push(PrivilegeResult {
+                            sql: format!("{} {} on schema {} to {}", op.op, op.privilege, schema, op.grantee),
+                            error: Some(format!("Unknown op: {}", other)),
+                        });
+                        continue;
+                    }
+                };
+                let error = client.execute(&sql, &[]).await.err().map(|e| e.to_string());
+                results.push(PrivilegeResult { sql, error });
+            }
+
+            Ok(results)
+        }
+        DriverSession::Mysql(_) => Err("Schema privileges are not supported for MySQL connections".to_string()),
+    }
+}

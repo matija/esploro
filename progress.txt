@@ -2107,3 +2107,47 @@
     chips, grid area, edit bar, and footer.
   - When viewMode === "data": existing data grid behavior unchanged.
 - cargo check: clean. tsc --noEmit: clean.
+
+## PRD 3b — Schema Detail Panel [DONE]
+- src-tauri/src/commands/roles.rs:
+  - Added `SchemaGrantee` struct (grantee: String, privileges: Vec<String>).
+  - Added `SchemaInfo` struct (owner: String, grantees: Vec<SchemaGrantee>).
+  - Added `SchemaPrivilegeOp` struct (op, grantee, privilege).
+  - Added `list_schema_privileges(session_id, schema)`: queries pg_namespace for owner
+    (pg_roles join on nspowner), then queries schema ACL via aclexplode on nspacl
+    filtered to USAGE/CREATE and non-pg_ grantees. Returns SchemaInfo. Postgres only.
+  - Added `manage_schema_privileges(session_id, schema, ops)`: executes GRANT/REVOKE
+    privilege ON SCHEMA "schema" TO/FROM "grantee" for each op, collects per-op results.
+    Postgres only.
+- src-tauri/src/lib.rs:
+  - Registered `list_schema_privileges` and `manage_schema_privileges` in invoke_handler.
+- src/features/roles/types.ts:
+  - Added `SchemaGrantee`, `SchemaInfo`, `SchemaPrivilegeOp` interfaces.
+- src/features/roles/api.ts:
+  - Added `listSchemaPrivileges(sessionId, schema)` and
+    `manageSchemaPrivileges(sessionId, schema, ops)` to rolesApi.
+- src/store/index.ts:
+  - Added `"schema"` to TabType union.
+  - Added `schemaContext?: { schema, database, connectionId }` field to Tab interface.
+- src/features/schema/SchemaDetailPanel.tsx (new):
+  - `SchemaDetailPanel` component (props: { tab: Tab }).
+  - Header: Layers icon in accent circle, schema name (bold), owner (from infoQuery.data).
+  - `SchemaPrivilegesTab`: fetches SchemaInfo + all roles; USAGE/CREATE checkbox grid
+    (one row per grantee); pending ops tracked as Map<"grantee:priv", SchemaPrivilegeOp>;
+    changed cells highlighted with ring-warning; "Add grantee" role picker (search
+    dropdown); Apply bar with Discard + Apply; partial failure keeps dirty state.
+  - `ApplyResultSummary`: same pattern as RoleDetailPanel (reused inline).
+- src/features/schema/SchemaTree.tsx:
+  - Added `"schema"` to the `isDataNode` condition in TreeRow so clicking a schema
+    name opens the panel instead of toggling expansion (chevron still expands).
+  - Added `openSchema(node)` function: finds existing schema tab by connectionId +
+    schema name, or calls addTab({ type: "schema", schemaContext: { schema, database,
+    connectionId } }).
+  - Updated Enter key handler and onActivate callback to call openSchema for schema nodes.
+- src/components/AppShell.tsx:
+  - Imported SchemaDetailPanel.
+  - Added `{activeTab?.type === "schema" && <SchemaDetailPanel key={activeTab.id} tab={activeTab} />}`.
+- src/components/TabBar.tsx:
+  - Imported Layers from lucide-react.
+  - Added `case "schema": return <Layers size={11} className="shrink-0 text-tertiary" />`.
+- cargo check: clean. tsc --noEmit: clean.
