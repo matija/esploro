@@ -4,12 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import appIconUrl from "../../assets/app-icon.png";
 import { licenseApi, LICENSE_STATUS_KEY } from "../license/api";
-import { UpdateSheet } from "../updates/UpdateSheet";
-
-interface UpdateInfo {
-  version: string;
-  notes: string | null;
-}
+import { useUpdateChecker } from "../updates/useUpdateChecker";
+import { useAppStore } from "../../store";
 
 async function openUrl(url: string) {
   await invoke("open_url", { url });
@@ -19,7 +15,7 @@ interface Props {
   onNavigateToLicense: () => void;
 }
 
-type CheckState = "idle" | "checking" | "up-to-date" | "update-found" | "error";
+type CheckState = "idle" | "checking" | "up-to-date" | "error";
 
 export function AboutSettings({ onNavigateToLicense }: Props) {
   const { data: status } = useQuery({
@@ -35,10 +31,11 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         ? "Personal"
         : "Unlicensed";
 
+  const { updateInfo, checkNow } = useUpdateChecker();
+  const setUpdateSheetOpen = useAppStore((s) => s.setUpdateSheetOpen);
+
   const [checkState, setCheckState] = useState<CheckState>("idle");
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (resetTimerRef.current) clearTimeout(resetTimerRef.current); }, []);
@@ -48,11 +45,10 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
     setCheckState("checking");
     setCheckError(null);
     try {
-      const info = await invoke<UpdateInfo | null>("check_for_update");
+      const info = await checkNow();
       if (info) {
-        setUpdateInfo(info);
-        setCheckState("update-found");
-        setSheetOpen(true);
+        setCheckState("idle");
+        setUpdateSheetOpen(true);
       } else {
         setCheckState("up-to-date");
         resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
@@ -67,8 +63,8 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
   const checkButtonLabel =
     checkState === "checking" ? "Checking…"
     : checkState === "up-to-date" ? `Up to date — ${__APP_VERSION__}`
-    : checkState === "update-found" ? "Update available"
     : checkState === "error" ? "Check failed"
+    : updateInfo ? "Update available"
     : "Check for Updates";
 
   return (
@@ -148,8 +144,8 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         <button
           type="button"
           onClick={() => {
-            if (checkState === "update-found") {
-              setSheetOpen(true);
+            if (updateInfo) {
+              setUpdateSheetOpen(true);
             } else {
               void handleCheckForUpdates();
             }
@@ -163,16 +159,6 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
       </div>
       {checkState === "error" && checkError && (
         <p className="text-[12px] text-destructive leading-relaxed">{checkError}</p>
-      )}
-
-      {updateInfo && (
-        <UpdateSheet
-          open={sheetOpen}
-          currentVersion={__APP_VERSION__}
-          updateVersion={updateInfo.version}
-          notes={updateInfo.notes}
-          onClose={() => setSheetOpen(false)}
-        />
       )}
     </section>
   );

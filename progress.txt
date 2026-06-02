@@ -1,3 +1,40 @@
+## Auto-Update PRD — Automatic update checks & new-version indicator [DONE]
+- Lifted update state out of AboutSettings into a shared, app-wide hook so the
+  toolbar indicator and the About panel read from one source of truth.
+- src/features/updates/useUpdateChecker.ts (new):
+  - React Query wrapping invoke<UpdateInfo|null>("check_for_update").
+  - refetchInterval = 6h, refetchOnWindowFocus + staleTime = 6h (focus only
+    re-checks when stale), retry: false (Decision 8 — silent background failures).
+  - updateInfo derives from query data, guarding the equal-version edge case
+    (data.version !== __APP_VERSION__).
+  - checkNow() awaits refetch, throws on error and returns the filtered result,
+    so the manual About button can surface a visible error while background
+    checks stay silent. Also exposes checking + lastCheckedAt.
+- src/store/index.ts:
+  - Added ephemeral updateSheetOpen / setUpdateSheetOpen (not persisted) so the
+    toolbar dot and the About button can both open one shared sheet.
+- src/components/AppShell.tsx:
+  - Added UpdateIndicator component: a w-2 h-2 bg-success animate-pulse dot in a
+    22px round hover button, rendered immediately left of <LicenseBadge /> in the
+    Toolbar, shown only when updateInfo != null. Click sets updateSheetOpen=true.
+  - AppShell now renders ONE <UpdateSheet> instance, driven by the hook's
+    updateInfo + the store flag (Option A from the PRD). The sheet is no longer
+    owned by AboutSettings.
+- src/features/settings/AboutSettings.tsx:
+  - Removed local updateInfo/sheetOpen state, the UpdateInfo interface, the direct
+    invoke("check_for_update") call, and the local <UpdateSheet> render.
+  - Now consumes useUpdateChecker() (updateInfo, checkNow) and the shared
+    updateSheetOpen flag from the store.
+  - CheckState lost its "update-found" member; the "Update available" label now
+    derives from the hook's updateInfo. Manual check labels/errors/auto-reset
+    timers unchanged (no behavioural regression).
+- Decision 7 honoured: startup check sets the dot only; it never auto-opens the
+  sheet. Dot is passive, so the no-nag persistence (Decision 6) is inherent.
+- Backend unchanged — JS-side React Query interval is sufficient (PRD §5).
+- PRD.md flipped Draft → Complete; all 7 acceptance criteria checked off.
+- Checks passed: npm run type-check, npm run lint (only a pre-existing
+  SchemaTree.tsx exhaustive-deps warning, untouched by this work).
+
 ## PRD P1 — Connection state visibility [DONE]
 - src/features/connections/ConnectionList.tsx:
   - Status dot: bumped from 8px (w-2 h-2) to 10px (w-2.5 h-2.5).

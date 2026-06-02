@@ -18,6 +18,8 @@ import {
   LICENSE_STATUS_KEY,
 } from "../features/license";
 import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
+import { UpdateSheet } from "../features/updates/UpdateSheet";
+import { useUpdateChecker } from "../features/updates/useUpdateChecker";
 import { WelcomeView } from "../features/welcome/WelcomeView";
 import { RoleDetailPanel } from "../features/roles/RoleDetailPanel";
 import { SchemaDetailPanel } from "../features/schema/SchemaDetailPanel";
@@ -217,6 +219,24 @@ function LicenseBadge() {
   );
 }
 
+function UpdateIndicator() {
+  const { updateInfo } = useUpdateChecker();
+  const setUpdateSheetOpen = useAppStore((s) => s.setUpdateSheetOpen);
+
+  if (!updateInfo) return null;
+
+  return (
+    <button
+      type="button"
+      title={`Update available — ${updateInfo.version}`}
+      onClick={() => setUpdateSheetOpen(true)}
+      className="flex items-center justify-center h-[22px] w-[22px] rounded-full hover:bg-hover transition-colors duration-[var(--motion-fast)]"
+    >
+      <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+    </button>
+  );
+}
+
 function Toolbar() {
   const { addTab, tabs, setActiveTab, updateTabTitle, activeSessions, setCommandPaletteOpen } = useAppStore(
     useShallow((state) => ({
@@ -266,6 +286,7 @@ function Toolbar() {
       >
         <Settings size={13} />
       </button>
+      <UpdateIndicator />
       <LicenseBadge />
     </div>
   );
@@ -309,6 +330,14 @@ export function AppShell() {
   );
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const queryClient = useQueryClient();
+
+  const { updateInfo } = useUpdateChecker();
+  const { updateSheetOpen, setUpdateSheetOpen } = useAppStore(
+    useShallow((state) => ({
+      updateSheetOpen: state.updateSheetOpen,
+      setUpdateSheetOpen: state.setUpdateSheetOpen,
+    })),
+  );
 
   useEffect(() => {
     const normalizedTheme = normalizeTheme(theme);
@@ -528,6 +557,15 @@ export function AppShell() {
 
       <CommandPalette />
       <UsageTypeDialog />
+      {updateInfo && (
+        <UpdateSheet
+          open={updateSheetOpen}
+          currentVersion={__APP_VERSION__}
+          updateVersion={updateInfo.version}
+          notes={updateInfo.notes}
+          onClose={() => setUpdateSheetOpen(false)}
+        />
+      )}
     </div>
     </ConfirmProvider>
     </ToastProvider>

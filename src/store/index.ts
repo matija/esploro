@@ -108,6 +108,9 @@ interface AppState {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
 
+  updateSheetOpen: boolean;
+  setUpdateSheetOpen: (open: boolean) => void;
+
   lastAction: LastAction | null;
   setLastAction: (action: LastAction) => void;
 
@@ -231,6 +234,9 @@ export const useAppStore = create<AppState>()(
 
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+
+      updateSheetOpen: false,
+      setUpdateSheetOpen: (open) => set({ updateSheetOpen: open }),
 
       lastAction: null,
       setLastAction: (action) => set({ lastAction: action }),
