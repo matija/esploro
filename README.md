@@ -1,30 +1,44 @@
 # Esploro
 
-A Postgres and MySQL client for macOS.
+Modern, sleek, fast SQL client for Mac.
 
-<p align="center">
-  <img src="src-tauri/icons/icon.png" alt="Esploro icon" width="128" height="128" />
-</p>
+Esploro is an open source database client for PostgreSQL, MySQL, and MariaDB. It is built to feel local, quick, and focused, without the cruft of heavier database tools.
 
-![Esploro](screenshots/esploro.png)
+[Website](https://esploro.app) · [Download](https://github.com/matija/esploro/releases)
 
-DBeaver works, but it's slow and feels like enterprise software. Most alternatives are either Electron apps or minimalist tools that sacrifice too much. I wanted something like [Yaak](https://yaak.app/) — fast, native-feeling, with the craft of a real desktop app.
+## Features
 
-Esploro is that attempt.
-
-## What it does
-
-- Connect to Postgres and MySQL databases
-- Browse schemas and tables
-- Inspect table data in a grid
+- Browse connections, schemas, tables, views, sequences, and roles
+- Inspect table data in a fast grid
 - Write and run SQL
-- Save queries
+- Filter tables and copy the generated SQL
+- Save queries for repeated work
+- Review roles and permissions
 
-## Stack
+## Download
 
-- [Tauri](https://tauri.app/) — Rust backend, React frontend
-- React + TypeScript
+Esploro supports macOS 13 or later. Apple Silicon and Intel builds are available on [GitHub Releases](https://github.com/matija/esploro/releases).
 
-## Status
+Linux and Windows builds are planned.
 
-Heavily WIP atm.
+## Development
+
+Esploro uses [Tauri 2](https://tauri.app/), Rust, React, and TypeScript.
+
+```sh
+npm install
+npm run tauri dev
+```
+
+Useful commands:
+
+```sh
+npm run type-check
+npm run lint
+npm run build
+npm run tauri build
+```
+
+## License
+
+The source code is MIT licensed. The app is free for personal use; commercial use requires a license.
