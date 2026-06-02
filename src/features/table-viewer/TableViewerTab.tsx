@@ -41,6 +41,7 @@ import {
 } from "./types";
 import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
+import { MiniSqlEditor } from "../query-editor/MiniSqlEditor";
 import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 
 // ─── SkeletonGrid ─────────────────────────────────────────────────────────────
@@ -1108,6 +1109,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     Record<string, FilterEntry>
   >({});
 
+  const [rawWhereInput, setRawWhereInput] = useState("");      // live editor content
+  const [appliedRawWhere, setAppliedRawWhere] = useState("");  // sent to the query
+
   const apiFilters = useMemo((): ColumnFilter[] => {
     return Object.entries(activeFilters)
       .filter(
@@ -1136,6 +1140,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       ctx?.schema,
       ctx?.table,
       apiFilters,
+      appliedRawWhere,
       sortColumn,
       sortDirection,
       page,
@@ -1147,6 +1152,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           schema: ctx!.schema,
           table: ctx!.table,
           filters: apiFilters,
+          rawWhere: appliedRawWhere || undefined,
           sortColumn: sortColumn ?? undefined,
           sortDirection: sortColumn ? sortDirection : undefined,
           page,
@@ -1163,9 +1169,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     schema: ctx?.schema ?? "",
     table: ctx?.table ?? "",
     filters: apiFilters,
+    rawWhere: appliedRawWhere || undefined,
     page: 0,
     pageSize: gridPageSize,
-  }), [ctx?.database, ctx?.schema, ctx?.table, apiFilters, gridPageSize]);
+  }), [ctx?.database, ctx?.schema, ctx?.table, apiFilters, appliedRawWhere, gridPageSize]);
 
   const { data: countData } = useQuery({
     queryKey: [
@@ -1175,6 +1182,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       ctx?.schema,
       ctx?.table,
       apiFilters,
+      appliedRawWhere,
     ],
     queryFn: () => withSessionRetry(ctx!.connectionId, (sid) => tableApi.queryTableCount(sid, countRequest), toast),
     enabled: enabled && showTotalCount,
@@ -1785,7 +1793,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 h-9 bg-sidebar border-b border-separator shrink-0">
         {/* Object icon + schema-qualified name */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0 shrink">
           <span className="shrink-0 text-schema-table">
             <Table2 size={13} />
           </span>
@@ -1795,11 +1803,32 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             )}
             <span className="text-label font-medium">{ctx.table}</span>
           </span>
-          {ctx.database && (
-            <span className="text-[12px] text-tertiary shrink-0 pl-1 border-l border-separator">
-              {ctx.database}
-            </span>
-          )}
+        </div>
+
+        {/* Raw WHERE query bar (replaces the database badge) */}
+        <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
+          <MiniSqlEditor
+            value={rawWhereInput}
+            onChange={setRawWhereInput}
+            onApply={async (v) => {
+              if (!await guardNavigation()) return;
+              discardEdits();
+              setRawWhereInput(v);
+              setAppliedRawWhere(v.trim());
+              setPage(0);
+            }}
+            onClear={async () => {
+              if (!await guardNavigation()) return;
+              discardEdits();
+              setRawWhereInput("");
+              setAppliedRawWhere("");
+              setPage(0);
+            }}
+            schemaCompletions={
+              data?.columns ? { [ctx.table]: data.columns.map((c) => c.name) } : undefined
+            }
+            placeholder="WHERE …"
+          />
         </div>
 
         {/* Connection badge */}
@@ -1866,8 +1895,27 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       )}
 
       {/* Active filter chips */}
-      {viewMode === "data" && activeChips.length > 0 && (
+      {viewMode === "data" && (activeChips.length > 0 || appliedRawWhere) && (
         <div className="shrink-0 flex flex-wrap items-center gap-1 px-2 py-1 border-b border-separator bg-accent/5">
+          {appliedRawWhere && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs">
+              <span className="font-medium">WHERE</span>
+              <span className="font-mono truncate max-w-[280px]">{appliedRawWhere}</span>
+              <span
+                role="button"
+                onClick={async () => {
+                  if (!await guardNavigation()) return;
+                  discardEdits();
+                  setRawWhereInput("");
+                  setAppliedRawWhere("");
+                  setPage(0);
+                }}
+                className="hover:text-destructive transition-colors ml-0.5 cursor-default"
+              >
+                ×
+              </span>
+            </span>
+          )}
           {activeChips.map((f) => (
             <button
               key={f.column}
@@ -1891,12 +1939,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               </span>
             </button>
           ))}
-          <button
-            onClick={clearAllFilters}
-            className="text-xs text-secondary hover:text-destructive transition-colors ml-1"
-          >
-            Clear all
-          </button>
+          {activeChips.length > 0 && (
+            <button
+              onClick={clearAllFilters}
+              className="text-xs text-secondary hover:text-destructive transition-colors ml-1"
+            >
+              Clear all
+            </button>
+          )}
         </div>
       )}
 

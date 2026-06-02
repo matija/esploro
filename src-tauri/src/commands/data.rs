@@ -136,6 +136,8 @@ pub struct TableQueryRequest {
     pub sort_direction: Option<SortDirection>,
     pub page: u32,
     pub page_size: u32,
+    #[serde(default)]
+    pub raw_where: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -374,6 +376,25 @@ fn build_mysql_where_clause(
     Ok((where_clauses, param_values))
 }
 
+// Combines the column-filter WHERE clauses with an optional raw WHERE fragment
+// (appended as `AND (<raw>)`) into the final `WHERE …` SQL, or an empty string
+// when there is nothing to filter on. The raw fragment is user-supplied SQL —
+// acceptable for a desktop client querying the user's own database.
+fn build_where_sql(where_clauses: &[String], raw_where: &Option<String>) -> String {
+    let mut parts: Vec<String> = where_clauses.to_vec();
+    if let Some(raw) = raw_where {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            parts.push(format!("({trimmed})"));
+        }
+    }
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", parts.join(" AND "))
+    }
+}
+
 // ─── query_table_data / query_table_count ────────────────────────────────────
 
 enum PoolHandle {
@@ -533,11 +554,7 @@ async fn query_table_pg(
     let (where_clauses, param_values) =
         build_pg_where_clause(&request.filters, &col_cast_map)?;
 
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", where_clauses.join(" AND "))
-    };
+    let where_sql = build_where_sql(&where_clauses, &request.raw_where);
 
     let order_sql = match (&request.sort_column, &request.sort_direction) {
         (Some(col), Some(dir)) => {
@@ -670,11 +687,7 @@ async fn count_table_pg(
         .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
         .collect();
 
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", where_clauses.join(" AND "))
-    };
+    let where_sql = build_where_sql(&where_clauses, &request.raw_where);
     let count_sql = format!(
         "SELECT COUNT(*) FROM \"{}\".\"{}\" {where_sql}",
         request.schema, request.table
@@ -729,11 +742,7 @@ async fn query_table_mysql(
         .collect();
 
     let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", where_clauses.join(" AND "))
-    };
+    let where_sql = build_where_sql(&where_clauses, &request.raw_where);
 
     let order_sql = match (&request.sort_column, &request.sort_direction) {
         (Some(col), Some(dir)) => {
@@ -794,11 +803,7 @@ async fn count_table_mysql(
     let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
 
     let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", where_clauses.join(" AND "))
-    };
+    let where_sql = build_where_sql(&where_clauses, &request.raw_where);
     let count_sql = format!(
         "SELECT COUNT(*) FROM `{}`.`{}` {where_sql}",
         request.schema, request.table
@@ -1935,5 +1940,30 @@ mod tests {
         assert_eq!(clauses[0], r#""id" = $1::text::uuid"#);
         assert_eq!(clauses[1], r#""name"::text LIKE $2"#);
         assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn raw_where_only_is_wrapped_in_parens() {
+        let sql = build_where_sql(&[], &Some("created_at > now()".to_string()));
+        assert_eq!(sql, "WHERE (created_at > now())");
+    }
+
+    #[test]
+    fn raw_where_appended_to_column_filters_with_and() {
+        let sql = build_where_sql(
+            &[r#""id" = $1"#.to_string()],
+            &Some("lower(email) LIKE '%@x.com'".to_string()),
+        );
+        assert_eq!(sql, r#"WHERE "id" = $1 AND (lower(email) LIKE '%@x.com')"#);
+    }
+
+    #[test]
+    fn empty_raw_where_is_ignored() {
+        assert_eq!(build_where_sql(&[], &None), "");
+        assert_eq!(build_where_sql(&[], &Some("   ".to_string())), "");
+        assert_eq!(
+            build_where_sql(&[r#""id" = $1"#.to_string()], &Some("".to_string())),
+            r#"WHERE "id" = $1"#,
+        );
     }
 }

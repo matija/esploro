@@ -2195,3 +2195,43 @@
     rendered the deleteResults summary alongside the cell menu.
 - Checks passed: cargo check, cargo clippy --workspace --all-targets -- -D warnings,
   npm run type-check, npm run lint (1 pre-existing SchemaTree warning, unrelated).
+
+## PRD Phase 5 — Inline WHERE filter bar [DONE]
+- Replaced the table viewer toolbar's database-name badge with a compact
+  single-line CodeMirror "WHERE …" input; the raw fragment is appended as
+  AND (<raw>) on top of any column filters.
+- src-tauri/src/commands/data.rs:
+  - Added raw_where: Option<String> (#[serde(default)]) to TableQueryRequest.
+  - New build_where_sql(where_clauses, raw_where) helper: joins column-filter
+    clauses with the optional raw fragment wrapped in parens, or "" when empty.
+    Replaced the 4 duplicated where_sql construction sites (PG data/count,
+    MySQL data/count) with it. Desktop app on the user's own DB → raw SQL is an
+    accepted trade-off (same as DBeaver/TablePlus).
+  - Tests: raw_where_only_is_wrapped_in_parens,
+    raw_where_appended_to_column_filters_with_and, empty_raw_where_is_ignored.
+- src/features/table-viewer/types.ts: added rawWhere?: string to TableQueryRequest.
+- src/features/query-editor/MiniSqlEditor.tsx (new): stripped-down single-line
+  editor — no line numbers/fold gutter/lint. EditorState.transactionFilter strips
+  newlines so Enter never inserts one; Enter keymap → onApply, Escape → onClear,
+  and emptying a previously non-empty doc also fires onClear. closeBrackets()
+  default already covers ( [ { ' " (auto-close quotes per PRD). sql({ schema })
+  drives column-name autocomplete. placeholder() shows "WHERE …".
+- src/styles/index.css: .cm-mini-host rules — transparent bg, no focus outline,
+  3px vertical content padding, horizontal scroll, no active-line highlight.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - State rawWhereInput (live) + appliedRawWhere (sent). appliedRawWhere included
+    in both the data and count useQuery keys + passed as rawWhere (|| undefined)
+    to queryTableData/queryTableCount.
+  - Toolbar: dropped the {ctx.database} badge; name container flex-1 → shrink so
+    the MiniSqlEditor (flex-1) takes the toolbar's free width. onApply/onClear
+    both run guardNavigation() + discardEdits() then setPage(0), same as
+    sort/filter navigation.
+  - schemaCompletions = { [ctx.table]: data.columns.map(c => c.name) } from the
+    already-loaded columns.
+  - Filter-chip bar now renders when activeChips.length > 0 || appliedRawWhere; a
+    dismissible "WHERE <fragment>" chip leads the row (× clears both states +
+    guards/discards). "Clear all" guarded to only show with column filters.
+- Marks the PRD complete: criteria 14 + 15 ✓, Phase 5 header ✓ DONE.
+- Checks passed: cargo clippy --workspace --all-targets -- -D warnings,
+  cargo test --lib (21 pass), npm run type-check, npm run lint (1 pre-existing
+  SchemaTree warning, unrelated).

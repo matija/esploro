@@ -115,3 +115,24 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Compact single-line CodeMirror for the table viewer WHERE bar */
+.cm-mini-host .cm-editor {
+  background-color: transparent;
+}
+.cm-mini-host .cm-editor.cm-focused {
+  outline: none;
+}
+.cm-mini-host .cm-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.cm-mini-host .cm-content {
+  padding: 3px 0;
+}
+.cm-mini-host .cm-line {
+  padding: 0 4px;
+}
+.cm-mini-host .cm-activeLine {
+  background-color: transparent;
+}

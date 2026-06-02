@@ -27,6 +27,7 @@ export interface TableQueryRequest {
   sortDirection?: SortDirection;
   page: number;
   pageSize: number;
+  rawWhere?: string;
 }
 
 export interface ResultColumn {
