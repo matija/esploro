@@ -2151,3 +2151,47 @@
   - Imported Layers from lucide-react.
   - Added `case "schema": return <Layers size={11} className="shrink-0 text-tertiary" />`.
 - cargo check: clean. tsc --noEmit: clean.
+
+## PRD Phase 4 — Delete row [DONE]
+- Backend lives in src-tauri/src/commands/data.rs (PRD said table.rs; data.rs is
+  where update_rows/preview_update_rows_sql already live — kept it consistent).
+- src-tauri/src/commands/data.rs:
+  - Added DeleteRowRequest { pk_conditions, ctid }, DeleteRowsRequest
+    { schema, table, rows }, DeleteRowResult { sql, error }.
+  - delete_rows command: PG path retries once on connection error (mirrors
+    update_rows); runs one DELETE per row, collects per-row results (does NOT
+    abort on first failure — "run all, collect errors" like manage_table_privileges).
+  - delete_rows_pg: fetches col cast map from information_schema.columns;
+    PK path builds parameterized WHERE ("col" = $N::text::<cast>), ctid path uses
+    ctid = $N::tid; executes parameterized (injection-safe). The DeleteRowResult.sql
+    holds an inlined, escaped display version (via delete_where_inline helper) for the
+    result summary; rows with neither PK nor ctid yield a per-row error result.
+  - delete_rows_mysql: PK required (no ctid); parameterized `col` = ? WHERE;
+    rows without PK yield per-row error.
+  - delete_where_inline helper: builds the value-substituted WHERE used for
+    both the display sql and preview (shared by PG delete + preview).
+  - preview_delete_rows_sql command (+ _pg path): returns inlined DELETE
+    statements joined by newlines, used to populate the confirm dialog. MySQL
+    preview inlined directly in the command match arm.
+- src-tauri/src/lib.rs: registered delete_rows, preview_delete_rows_sql.
+- src/features/table-viewer/types.ts: added DeleteRowRequest, DeleteRowsRequest,
+  DeleteRowResult interfaces.
+- src/features/table-viewer/api.ts: added deleteRows() and previewDeleteRowsSql()
+  to tableApi.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - CellContextMenu: added divider + "Delete row…" item (text-query-failed,
+    Trash2 icon). Receives canDelete; renders disabled with tooltip
+    "Cannot delete: no primary key or ctid" when false.
+  - cellMenu state gained rowIdx (set from vr.index on right-click) so the
+    handler knows which row.
+  - buildDeleteRequest(rowIdx): same PK-or-ctid strategy as buildRowChanges —
+    PK conditions from original cell values, else ctids[rowIdx], else null.
+  - handleDeleteRow(rowIdx): previews SQL → useConfirm (destructive, "Delete",
+    SQL in description, appends note when the row has pending edits) → deleteRows
+    → toast on success, refetch. Partial failure surfaces PrivApplyResultSummary
+    (reused) via new deleteResults state; pending edits for the deleted row are
+    discarded only on full success.
+  - Wired onDeleteRow + canDelete (PK exists || ctid present) into CellContextMenu;
+    rendered the deleteResults summary alongside the cell menu.
+- Checks passed: cargo check, cargo clippy --workspace --all-targets -- -D warnings,
+  npm run type-check, npm run lint (1 pre-existing SchemaTree warning, unrelated).

@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User, Trash2 } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -29,6 +29,7 @@ import {
   type ResultColumn,
   type CellValue,
   type RowChange,
+  type DeleteRowRequest,
   type EditableKind,
   OP_LABELS,
   getTypeFamily,
@@ -519,6 +520,8 @@ function CellContextMenu({
   y,
   onClose,
   onFilterByValue,
+  onDeleteRow,
+  canDelete,
 }: {
   rowData: CellValue[];
   columns: ResultColumn[];
@@ -527,6 +530,8 @@ function CellContextMenu({
   y: number;
   onClose: () => void;
   onFilterByValue: (colName: string, value: string | null) => void;
+  onDeleteRow: () => void;
+  canDelete: boolean;
 }) {
   useEffect(() => {
     const onDown = () => onClose();
@@ -581,6 +586,12 @@ function CellContextMenu({
 
   const filterByValue = () => {
     onFilterByValue(colName, cellValue);
+    onClose();
+  };
+
+  const deleteRow = () => {
+    if (!canDelete) return;
+    onDeleteRow();
     onClose();
   };
 
@@ -644,6 +655,16 @@ function CellContextMenu({
           Filter: IS NULL
         </button>
       )}
+      <div className="my-1 border-t border-separator" />
+      <button
+        onClick={deleteRow}
+        disabled={!canDelete}
+        title={canDelete ? undefined : "Cannot delete: no primary key or ctid"}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-query-failed hover:bg-hover transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        <Trash2 size={10} className="shrink-0" />
+        <span>Delete row…</span>
+      </button>
     </div>,
     document.body,
   );
@@ -1428,6 +1449,102 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     }
   }, [data, ctx, pendingEdits, buildRowChanges, tabSessionId, toast, addTab]);
 
+  // ── Delete row handler ──────────────────────────────────────────────────────
+  const [deleteResults, setDeleteResults] = useState<
+    { sql: string; error: string | null }[] | null
+  >(null);
+
+  const buildDeleteRequest = useCallback(
+    (rowIdx: number): DeleteRowRequest | null => {
+      if (!data) return null;
+      const row = data.rows[rowIdx];
+      if (!row) return null;
+      const pkCols = columns.filter((c) => c.isPrimaryKey).map((c) => c.name);
+      const colIndexByName = new Map(columns.map((c, i) => [c.name, i]));
+      if (pkCols.length > 0) {
+        const pkConditions = pkCols.map((pkName) => {
+          const idx = colIndexByName.get(pkName)!;
+          const cellStr = cellToString(row[idx] ?? { t: "null" });
+          return { column: pkName, value: cellStr ?? "" };
+        });
+        return { pkConditions };
+      }
+      const ctid = ctids[rowIdx];
+      if (ctid) return { pkConditions: [], ctid };
+      return null;
+    },
+    [data, columns, ctids],
+  );
+
+  const handleDeleteRow = useCallback(
+    async (rowIdx: number) => {
+      if (!data || !ctx) return;
+      const req = buildDeleteRequest(rowIdx);
+      if (!req) {
+        toast("Cannot delete: no primary key or ctid", "error");
+        return;
+      }
+
+      let sql: string;
+      try {
+        sql = await withSessionRetry(
+          ctx.connectionId,
+          (sid) =>
+            tableApi.previewDeleteRowsSql(sid, {
+              schema: ctx.schema,
+              table: ctx.table,
+              rows: [req],
+            }),
+          toast,
+        );
+      } catch (e) {
+        toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+        return;
+      }
+
+      const hasPending = pendingEdits.has(rowIdx);
+      const ok = await confirm({
+        title: "Delete this row?",
+        description:
+          sql +
+          (hasPending ? " — unsaved edits on this row will be discarded." : ""),
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!ok) return;
+
+      try {
+        const results = await withSessionRetry(
+          ctx.connectionId,
+          (sid) =>
+            tableApi.deleteRows(sid, {
+              schema: ctx.schema,
+              table: ctx.table,
+              rows: [req],
+            }),
+          toast,
+        );
+        const failed = results.filter((r) => r.error);
+        if (failed.length > 0) {
+          setDeleteResults(results);
+        } else {
+          toast("Row deleted", "success");
+          if (hasPending) {
+            setPendingEdits((prev) => {
+              const next = new Map(prev);
+              next.delete(rowIdx);
+              return next;
+            });
+          }
+        }
+        await refetch();
+      } catch (e) {
+        toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+      }
+    },
+    [data, ctx, buildDeleteRequest, pendingEdits, confirm, toast, refetch],
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => bodyRef.current,
@@ -1481,6 +1598,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const [cellMenu, setCellMenu] = useState<{
     rowData: CellValue[];
+    rowIdx: number;
     colIdx: number;
     x: number;
     y: number;
@@ -1978,6 +2096,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 setSelectedCell({ row: vr.index, col: ci });
                                 setCellMenu({
                                   rowData,
+                                  rowIdx: vr.index,
                                   colIdx: ci,
                                   x: e.clientX,
                                   y: e.clientY,
@@ -2181,7 +2300,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           y={cellMenu.y}
           onClose={() => setCellMenu(null)}
           onFilterByValue={handleFilterByValue}
+          onDeleteRow={() => handleDeleteRow(cellMenu.rowIdx)}
+          canDelete={columns.some((c) => c.isPrimaryKey) || !!ctids[cellMenu.rowIdx]}
         />
+      )}
+
+      {/* Delete row partial-failure summary */}
+      {deleteResults && (
+        <PrivApplyResultSummary results={deleteResults} onClose={() => setDeleteResults(null)} />
       )}
 
       {/* Header context menu */}

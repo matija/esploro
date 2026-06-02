@@ -83,6 +83,22 @@ export interface UpdateRowsRequest {
   changes: RowChange[];
 }
 
+export interface DeleteRowRequest {
+  pkConditions: PkCondition[];
+  ctid?: string;
+}
+
+export interface DeleteRowsRequest {
+  schema: string;
+  table: string;
+  rows: DeleteRowRequest[];
+}
+
+export interface DeleteRowResult {
+  sql: string;
+  error: string | null;
+}
+
 export type EditableKind = "scalar" | "json" | "array" | "none";
 
 export function editableKind(udt: string, driver: "postgres" | "mysql"): EditableKind {
