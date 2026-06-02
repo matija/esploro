@@ -274,6 +274,7 @@ pub struct ResultColumn {
     pub is_nullable: bool,
     pub is_primary_key: bool,
     pub is_foreign_key: bool,
+    pub is_enum: bool,
 }
 
 // ─── PG WHERE clause builder ─────────────────────────────────────────────────
@@ -473,7 +474,15 @@ async fn query_table_pg(
 
     let col_rows = client
         .query(
-            "SELECT c.column_name, c.udt_name, c.is_nullable, c.data_type \
+            "SELECT c.column_name, c.udt_name, c.is_nullable, c.data_type, \
+                    EXISTS ( \
+                        SELECT 1 \
+                        FROM pg_type t \
+                        JOIN pg_namespace n ON n.oid = t.typnamespace \
+                        WHERE n.nspname = c.udt_schema \
+                          AND t.typname = c.udt_name \
+                          AND t.typtype = 'e' \
+                    ) AS is_enum \
              FROM information_schema.columns c \
              WHERE c.table_schema = $1 AND c.table_name = $2 \
              ORDER BY c.ordinal_position",
@@ -528,6 +537,7 @@ async fn query_table_pg(
                 is_primary_key: pk_cols.contains(&name),
                 is_foreign_key: fk_cols.contains(&name),
                 data_type: r.get(1),
+                is_enum: r.get(4),
                 name,
             }
         })
@@ -730,10 +740,12 @@ async fn query_table_mysql(
     let result_columns: Vec<ResultColumn> = col_rows
         .iter()
         .map(|r| {
+            let data_type = mysql_str(r, 1).unwrap_or_default();
             let col_key = mysql_str(r, 3).unwrap_or_default();
             ResultColumn {
                 name: mysql_str(r, 0).unwrap_or_default(),
-                data_type: mysql_str(r, 1).unwrap_or_default(),
+                is_enum: data_type.to_lowercase().starts_with("enum("),
+                data_type,
                 is_nullable: mysql_str(r, 2).as_deref() == Some("YES"),
                 is_primary_key: col_key == "PRI",
                 is_foreign_key: col_key == "MUL",
@@ -1615,6 +1627,7 @@ async fn execute_sql_pg(
                                         is_nullable: false,
                                         is_primary_key: false,
                                         is_foreign_key: false,
+                                        is_enum: false,
                                     })
                                     .collect();
                             }
@@ -1706,6 +1719,7 @@ async fn execute_sql_mysql(
                             is_nullable: false,
                             is_primary_key: false,
                             is_foreign_key: false,
+                            is_enum: false,
                         })
                         .collect()
                 } else {

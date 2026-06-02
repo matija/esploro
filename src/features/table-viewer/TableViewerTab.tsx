@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User, Trash2 } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User, Trash2, Play } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -41,7 +41,7 @@ import {
 } from "./types";
 import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
-import { MiniSqlEditor } from "../query-editor/MiniSqlEditor";
+import { MiniSqlEditor, type MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
 import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 
 // ─── SkeletonGrid ─────────────────────────────────────────────────────────────
@@ -57,6 +57,24 @@ const SKELETON_ROW_WIDTHS = [
   [135, 80, 60, 155, 115],
   [115, 70, 75, 135, 100],
 ];
+
+function quoteTableIdentifier(identifier: string, driver: "postgres" | "mysql"): string {
+  if (driver === "mysql") return `\`${identifier.replace(/`/g, "``")}\``;
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function buildTableRawWhereSql(
+  schema: string,
+  table: string,
+  rawWhere: string,
+  driver: "postgres" | "mysql",
+): string {
+  const tableRef = `${quoteTableIdentifier(schema, driver)}.${quoteTableIdentifier(table, driver)}`;
+  const trimmed = rawWhere.trim();
+  return trimmed
+    ? `SELECT *\nFROM ${tableRef}\nWHERE ${trimmed};`
+    : `SELECT *\nFROM ${tableRef};`;
+}
 
 function SkeletonGrid() {
   return (
@@ -986,6 +1004,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     setTabLoading,
     setTabError,
     setTabDirty,
+    updateTableTabState,
     gridPageSize,
     gridRowDensity,
     showTotalCount,
@@ -998,6 +1017,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       setTabLoading: state.setTabLoading,
       setTabError: state.setTabError,
       setTabDirty: state.setTabDirty,
+      updateTableTabState: state.updateTableTabState,
       gridPageSize: state.gridPageSize,
       gridRowDensity: state.gridRowDensity,
       showTotalCount: state.showTotalCount,
@@ -1109,8 +1129,53 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     Record<string, FilterEntry>
   >({});
 
-  const [rawWhereInput, setRawWhereInput] = useState("");      // live editor content
-  const [appliedRawWhere, setAppliedRawWhere] = useState("");  // sent to the query
+  const [rawWhereInput, setRawWhereInput] = useState(
+    tab.tableState?.rawWhereInput ?? tab.tableState?.appliedRawWhere ?? "",
+  ); // live editor content
+  const [appliedRawWhere, setAppliedRawWhere] = useState(
+    tab.tableState?.appliedRawWhere ?? "",
+  ); // sent to the query
+  const rawWhereEditorRef = useRef<MiniSqlEditorHandle>(null);
+  const [copiedRawSql, setCopiedRawSql] = useState(false);
+  const copiedRawSqlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (copiedRawSqlTimerRef.current) clearTimeout(copiedRawSqlTimerRef.current);
+  }, []);
+
+  const handleRawWhereInputChange = useCallback(
+    (v: string) => {
+      setRawWhereInput(v);
+      updateTableTabState(tab.id, { rawWhereInput: v });
+    },
+    [tab.id, updateTableTabState],
+  );
+
+  const applyRawWhere = useCallback(
+    async (v: string) => {
+      if (!await guardNavigation()) return;
+      discardEdits();
+      const applied = v.trim();
+      setRawWhereInput(v);
+      setAppliedRawWhere(applied);
+      updateTableTabState(tab.id, {
+        rawWhereInput: v,
+        appliedRawWhere: applied,
+      });
+      setPage(0);
+    },
+    [guardNavigation, discardEdits, tab.id, updateTableTabState],
+  );
+
+  const copyRawWhereSql = useCallback(async () => {
+    if (!ctx) return;
+    const normalized = rawWhereEditorRef.current?.getNormalizedValue() ?? rawWhereInput.trim();
+    const sql = buildTableRawWhereSql(ctx.schema, ctx.table, normalized, driver);
+    await navigator.clipboard.writeText(sql);
+    setCopiedRawSql(true);
+    if (copiedRawSqlTimerRef.current) clearTimeout(copiedRawSqlTimerRef.current);
+    copiedRawSqlTimerRef.current = setTimeout(() => setCopiedRawSql(false), 1500);
+  }, [ctx, driver, rawWhereInput]);
 
   const apiFilters = useMemo((): ColumnFilter[] => {
     return Object.entries(activeFilters)
@@ -1246,7 +1311,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const ctids = useMemo(() => data?.ctids ?? [], [data?.ctids]);
-  const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
+  const enumCols = useMemo(() => detectEnumColumns(columns), [columns]);
 
   // MySQL requires a PK to edit any row. If none exists, nothing is editable.
   const hasTablePk = useMemo(() => columns.some((c) => c.isPrimaryKey), [columns]);
@@ -1807,28 +1872,52 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
         {/* Raw WHERE query bar (replaces the database badge) */}
         <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
-          <MiniSqlEditor
-            value={rawWhereInput}
-            onChange={setRawWhereInput}
-            onApply={async (v) => {
-              if (!await guardNavigation()) return;
-              discardEdits();
-              setRawWhereInput(v);
-              setAppliedRawWhere(v.trim());
-              setPage(0);
-            }}
-            onClear={async () => {
-              if (!await guardNavigation()) return;
-              discardEdits();
-              setRawWhereInput("");
-              setAppliedRawWhere("");
-              setPage(0);
-            }}
-            schemaCompletions={
-              data?.columns ? { [ctx.table]: data.columns.map((c) => c.name) } : undefined
-            }
-            placeholder="WHERE …"
-          />
+          <div className="flex-1 min-w-0">
+            <MiniSqlEditor
+              ref={rawWhereEditorRef}
+              value={rawWhereInput}
+              onChange={handleRawWhereInputChange}
+              onApply={applyRawWhere}
+              onClear={async () => {
+                if (!await guardNavigation()) return;
+                discardEdits();
+                setRawWhereInput("");
+                setAppliedRawWhere("");
+                updateTableTabState(tab.id, {
+                  rawWhereInput: "",
+                  appliedRawWhere: "",
+                });
+                setPage(0);
+              }}
+              schemaCompletions={
+                data?.columns ? { [ctx.table]: data.columns.map((c) => c.name) } : undefined
+              }
+              whereColumns={columns}
+              sqlDriver={driver}
+              placeholder="WHERE …"
+            />
+          </div>
+          <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-separator/60 pl-1">
+            <button
+              type="button"
+              title="Copy SQL"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void copyRawWhereSql()}
+              className="inline-flex h-5 w-5 items-center justify-center rounded-[var(--radius-control)] text-secondary hover:bg-hover hover:text-label transition-colors"
+            >
+              {copiedRawSql ? <ClipboardCheck size={12} className="text-accent" /> : <ClipboardCopy size={12} />}
+            </button>
+            <button
+              type="button"
+              title="Run filter"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => rawWhereEditorRef.current?.apply()}
+              className="inline-flex h-5 items-center gap-1 rounded-[var(--radius-control)] bg-accent px-1.5 text-[10px] font-medium text-inverse hover:bg-accent-hover transition-colors"
+            >
+              <Play size={10} fill="currentColor" />
+              Run
+            </button>
+          </div>
         </div>
 
         {/* Connection badge */}
@@ -1908,6 +1997,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                   discardEdits();
                   setRawWhereInput("");
                   setAppliedRawWhere("");
+                  updateTableTabState(tab.id, {
+                    rawWhereInput: "",
+                    appliedRawWhere: "",
+                  });
                   setPage(0);
                 }}
                 className="hover:text-destructive transition-colors ml-0.5 cursor-default"

@@ -170,7 +170,7 @@ function ResultGrid({
     y: number;
   } | null>(null);
   const totalWidth = columns.length * COL_WIDTH;
-  const enumCols = useMemo(() => detectEnumColumns(columns, rows), [columns, rows]);
+  const enumCols = useMemo(() => detectEnumColumns(columns), [columns]);
 
   const virtualizer = useVirtualizer({
     count: rows.length,

@@ -136,3 +136,15 @@ body {
 .cm-mini-host .cm-activeLine {
   background-color: transparent;
 }
+.cm-mini-host .cm-where-operator-badge {
+  display: inline-block;
+  padding: 0 5px;
+  margin: 0 2px;
+  border: 1px solid color-mix(in srgb, var(--ds-syntax-operator) 38%, transparent);
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--ds-syntax-operator) 18%, transparent);
+  color: var(--ds-syntax-operator);
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}

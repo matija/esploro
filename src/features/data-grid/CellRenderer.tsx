@@ -55,7 +55,7 @@ export function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-full leading-none max-w-full font-mono",
+          "inline-flex shrink-0 items-center text-[11px] font-medium px-2 py-0.5 rounded-[var(--radius-control)] leading-none max-w-full font-mono",
           getEnumBadgeClass(raw),
         )}
         title={raw}

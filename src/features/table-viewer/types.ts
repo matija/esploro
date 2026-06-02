@@ -36,6 +36,7 @@ export interface ResultColumn {
   isNullable: boolean;
   isPrimaryKey: boolean;
   isForeignKey: boolean;
+  isEnum: boolean;
 }
 
 export type CellValue =
@@ -230,72 +231,13 @@ export function getEnumBadgeClass(value: string): string {
   return ENUM_BADGE_CLASSES[hashString(value) % ENUM_BADGE_CLASSES.length];
 }
 
-// ─── Enum column detection ───────────────────────────────────────────────────
-
-// Maximum distinct values for a column to be treated as enum-like.
-const ENUM_MAX_DISTINCT = 10;
-// Maximum length per value — prevents long free-text columns from being badged.
-const ENUM_MAX_LENGTH = 30;
-// Minimum non-null rows needed to call the heuristic reliable.
-const ENUM_MIN_ROWS = 3;
-
-// Returns the set of column indices that should render their text/other cells
-// as colored pill badges.
-//
-// Detection order (most reliable first):
-//  1. MySQL: column data_type starts with "enum(" — definitive.
-//  2. Heuristic: column has ≥ENUM_MIN_ROWS non-null cells, all of type
-//     text/other and ≤ENUM_MAX_LENGTH chars, with ≤ENUM_MAX_DISTINCT distinct
-//     values, AND values repeat at least 2× on average (distinct*2 ≤ nonNull).
-//     The repetition guard prevents short-unique-string columns (e.g. names in
-//     a tiny result set) from being treated as enums.
-export function detectEnumColumns(
-  columns: ResultColumn[],
-  rows: CellValue[][],
-): Set<number> {
+// Returns the set of database-declared enum columns that should render their
+// text/other cells as colored value badges.
+export function detectEnumColumns(columns: ResultColumn[]): Set<number> {
   const enumCols = new Set<number>();
-  if (columns.length === 0) return enumCols;
 
   for (let ci = 0; ci < columns.length; ci++) {
-    const dt = columns[ci]?.dataType?.toLowerCase() ?? "";
-    if (dt.startsWith("enum(")) {
-      enumCols.add(ci);
-      continue;
-    }
-
-    if (rows.length < ENUM_MIN_ROWS) continue;
-
-    const distinct = new Set<string>();
-    let nonNullCount = 0;
-    let qualifies = true;
-
-    for (const row of rows) {
-      const cell = row[ci];
-      if (!cell || cell.t === "null") continue;
-      if (cell.t !== "text" && cell.t !== "other") {
-        qualifies = false;
-        break;
-      }
-      const v = cell.v;
-      if (v.length === 0 || v.length > ENUM_MAX_LENGTH) {
-        qualifies = false;
-        break;
-      }
-      nonNullCount += 1;
-      distinct.add(v);
-      if (distinct.size > ENUM_MAX_DISTINCT) {
-        qualifies = false;
-        break;
-      }
-    }
-
-    if (
-      qualifies &&
-      nonNullCount >= ENUM_MIN_ROWS &&
-      distinct.size >= 1 &&
-      distinct.size <= ENUM_MAX_DISTINCT &&
-      distinct.size * 2 <= nonNullCount
-    ) {
+    if (columns[ci]?.isEnum) {
       enumCols.add(ci);
     }
   }

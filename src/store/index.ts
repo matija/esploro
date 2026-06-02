@@ -52,6 +52,10 @@ export interface Tab {
     estimatedRows?: number | null;
     isView?: boolean;
   };
+  tableState?: {
+    rawWhereInput?: string;
+    appliedRawWhere?: string;
+  };
   queryContext?: {
     sql: string;
     savedQueryId?: string;
@@ -116,6 +120,7 @@ interface AppState {
   setTabDirty: (id: string, isDirty: boolean) => void;
   setTabLoading: (id: string, isLoading: boolean) => void;
   setTabError: (id: string, isError: boolean) => void;
+  updateTableTabState: (id: string, tableState: NonNullable<Tab["tableState"]>) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
   updateTabTitle: (id: string, title: string) => void;
@@ -268,6 +273,15 @@ export const useAppStore = create<AppState>()(
       setTabError: (id, isError) =>
         set((s) => ({
           tabs: s.tabs.map((t) => (t.id === id ? { ...t, isError } : t)),
+        })),
+
+      updateTableTabState: (id, tableState) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === id
+              ? { ...t, tableState: { ...t.tableState, ...tableState } }
+              : t,
+          ),
         })),
 
       closeOtherTabs: (id) =>

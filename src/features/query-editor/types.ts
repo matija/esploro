@@ -4,6 +4,7 @@ export interface ResultColumn {
   isNullable: boolean;
   isPrimaryKey: boolean;
   isForeignKey: boolean;
+  isEnum: boolean;
 }
 
 export interface QueryError {
