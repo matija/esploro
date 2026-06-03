@@ -1,3 +1,32 @@
+## Dependency Hygiene PRD — Workstream 1: CI enforcement of cooldown + lockfile sync [DONE]
+- Implemented PRD Workstream 1, item 3 ("Add CI enforcement") — covers user stories 25
+  (cooldown on every PR), 26 (lockfile-sync), and 31 (fast/network-resilient checks).
+- .github/workflows/ci.yml — added two steps to the `check` job after "Cargo test":
+  - "Cargo lockfile sync": `cargo metadata --locked --format-version 1 --manifest-path
+    Cargo.toml > /dev/null`. Blocking immediately. `--locked` validates lock freshness
+    BEFORE any download, so a stale/drifted Cargo.lock fails CI here. Runs against the
+    workspace-root Cargo.toml (covers both members: src-tauri + tools/keygen), the same
+    lock deps:check reads.
+  - "Dependency cooldown (npm + cargo)": `npm run deps:check`, with
+    `continue-on-error: true` (non-blocking report) per the PRD's "blocking only after
+    one green run". Flip to blocking by removing that line once CI is confirmed green.
+- npm lockfile-sync deliberately NOT given a new step: the existing `npm ci` step already
+  aborts when package.json and package-lock.json disagree — that IS the clean-install sync
+  check. Avoided `npm install --package-lock-only` to dodge cross-npm-version lockfile
+  reformatting flakiness.
+- Note: the npm cooldown is already enforced as BLOCKING in CI today via the `preinstall`
+  hook (`check-dep-cooldown.mjs --npm`) that fires during `npm ci`. The new deps:check step
+  adds the cargo half plus a unified both-ecosystem report.
+- Verified: `npm run deps:check` exits 0 ("All packages pass the 14-day cooldown") across
+  npm+cargo. `cargo metadata --locked` proceeds past lock validation (lock is in sync) —
+  it only failed on a local ~/.cargo registry-write permission quirk, which does not occur
+  on a fresh CI runner. ci.yml has no tabs / clean indentation.
+- Observation (out of scope, not touched): repo has TWO Cargo.lock files — workspace-root
+  Cargo.lock and an orphaned src-tauri/Cargo.lock. Since src-tauri is a workspace member,
+  cargo uses the root lock; the src-tauri one appears stale/unused. Worth a future cleanup.
+- NOT done here (separate Workstream-1 items): allowlist lifecycle review (entries expire
+  2026-06-05), bot policy decision, "Updating dependencies" docs.
+
 ## Dependency Hygiene PRD — Workstream 1: cooldown gate for cargo + npm via deps:check [DONE]
 - Implemented PRD Workstream 1, item 2 ("Run the cooldown gate for cargo as well as
   npm") — covers user stories 24 and the cooldown portion of 32.

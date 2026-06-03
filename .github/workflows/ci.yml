@@ -44,6 +44,22 @@ jobs:
       - name: Cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      # ── Dependency safety (PRD Workstream 1: bump safety) ─────────────────
+      # npm lockfile sync is already enforced by `npm ci` above: it aborts if
+      # package.json and package-lock.json disagree. This asserts the same for
+      # Cargo — `--locked` fails before any download if Cargo.lock would need
+      # to change, so an out-of-band lockfile drift cannot land.
+      - name: Cargo lockfile sync
+        run: cargo metadata --locked --format-version 1 --manifest-path Cargo.toml > /dev/null
+
+      # Cooldown gate across both ecosystems (npm + cargo). Non-blocking until
+      # one green run confirms it is stable on CI; then drop continue-on-error
+      # to enforce. The npm half is already blocking via the `preinstall` hook
+      # that runs during `npm ci`; this adds the cargo half and a unified report.
+      - name: Dependency cooldown (npm + cargo)
+        continue-on-error: true
+        run: npm run deps:check
+
   build:
     name: Build (macOS)
     runs-on: macos-latest
