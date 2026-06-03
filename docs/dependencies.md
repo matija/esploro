@@ -96,3 +96,28 @@ does on the maintainer's laptop: a version younger than 14 days **fails loudly**
 and demands a manual allowlist entry. The tool only auto-bootstraps an allowlist
 when the file is entirely absent; because it is present (header only), there is
 no silent bootstrap path and no machine-to-machine difference.
+
+## Auditing for unused dependencies
+
+### Cargo (direct crates)
+
+There are only a handful of direct crates per workspace member, so the cargo
+audit is a manual cross-check: every crate declared in a `Cargo.toml`
+`[dependencies]` (or `[build-dependencies]`) block must appear in that member's
+source, referenced by its underscore name (e.g. `tokio-postgres` →
+`tokio_postgres`). The proof a crate is live is a source reference plus a green
+`cargo check --workspace --locked`.
+
+Audit as of 2026-06-03 — every direct crate is referenced; nothing is unused:
+
+- **`src-tauri`** (`lib.rs` + `commands/*` + `build.rs`): `tauri`, `serde`,
+  `serde_json`, `uuid`, `tokio`, `tokio-postgres`, `deadpool-postgres`,
+  `mysql_async`, `keyring`, `chrono`, `tauri-plugin-updater` (`commands/updater.rs`,
+  `lib.rs`), `tauri-plugin-process` (`lib.rs`), `tauri-build` (build-dep,
+  `build.rs`).
+- **`tools/keygen`** (`src/main.rs`): `hmac`, `sha2`, `base64`, `serde`,
+  `serde_json`, `uuid`, `clap`, `chrono`.
+
+No crate is "looks unused but is load-bearing" — every one is plainly referenced,
+so there is no exceptions list to keep for cargo. Re-run the cross-check after any
+crate removal and confirm `cargo check --workspace --locked` stays green.

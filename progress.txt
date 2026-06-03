@@ -1,3 +1,31 @@
+## Dependency Hygiene PRD — Workstream 2: Cargo direct-crate audit [DONE]
+- Implemented the PRD Workstream-2 "Cargo direct-crate audit" item — covers user
+  story 8 (know each declared crate is actually referenced in the Rust source).
+- Chose the documented-manual-pass option over `cargo +nightly udeps`: the check is
+  only 21 direct crates across two workspace members, not worth pulling in a nightly
+  toolchain. The gate is a source reference per crate + a green
+  `cargo check --workspace --locked`.
+- Method: grepped src-tauri/src and tools/keygen/src for each crate's underscore name
+  (e.g. tokio-postgres → tokio_postgres). Every direct crate is referenced:
+  - src-tauri (13 direct: 10 runtime + 2 plugins + 1 build-dep): tauri, serde,
+    serde_json, uuid, tokio, tokio-postgres, deadpool-postgres, mysql_async, keyring,
+    chrono all used across lib.rs + commands/*; tauri-plugin-updater in
+    commands/updater.rs:5 + lib.rs:41; tauri-plugin-process in lib.rs:40; tauri-build
+    (build-dep) in build.rs:2.
+  - tools/keygen (8 direct): hmac, sha2, base64, serde, serde_json, uuid, clap, chrono
+    — all in src/main.rs.
+- Result: nothing unused → no removals. No "looks unused but load-bearing" crate
+  exists, so there is no cargo exceptions list to keep (the npm-side exceptions config
+  is a separate, still-pending item).
+- Verification: `cargo check --workspace --locked` finished clean (no manifest change —
+  the audit is read-only; this just confirms the tree is green and the lock is in sync).
+- docs/dependencies.md: added an "Auditing for unused dependencies" section (after
+  "Behavior on a fresh clone") recording the cargo cross-check method + the dated
+  2026-06-03 result, so the next audit reproduces it rather than re-investigates.
+- PRD.md: added a "Cargo direct-crate audit [DONE]" bullet and marked the cargo half of
+  "Detection tooling" done. Remaining Workstream-2 items: npm detection tooling
+  (knip/depcheck spike) and the npm-side load-bearing-exceptions config.
+
 ## Dependency Hygiene PRD — Workstream 2: Prune confirmed-unused npm deps [DONE]
 - Implemented the PRD Workstream-2 "Removal candidates" item — covers user stories
   3, 4, 5, 6 (remove the named unused packages), 7 (each removal verified by a clean
