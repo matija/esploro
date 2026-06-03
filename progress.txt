@@ -1,3 +1,32 @@
+## Dependency Hygiene PRD — Workstream 2: Prune confirmed-unused npm deps [DONE]
+- Implemented the PRD Workstream-2 "Removal candidates" item — covers user stories
+  3, 4, 5, 6 (remove the named unused packages), 7 (each removal verified by a clean
+  toolchain run), and 11 (measurable footprint reduction).
+- Confirmation before removal (the gate, not a guess): repo-wide grep for each package
+  name + its import identifiers found zero source references. The only hits were in
+  package.json / package-lock.json. Two false-positive traps ruled out:
+  - `plugin-updater` matches in Cargo.toml/Cargo.lock are the RUST crate
+    `tauri-plugin-updater`, which IS used (updater driven via invoke → Rust commands).
+    Only the JS `@tauri-apps/plugin-updater` package was removed.
+  - `Separator` source references are `DropdownMenu.Separator` from
+    `@radix-ui/react-dropdown-menu`, not the standalone `@radix-ui/react-separator`.
+- package.json: removed 5 dependencies — `@tanstack/react-table`,
+  `@codemirror/theme-one-dark`, `@tauri-apps/plugin-updater`,
+  `@radix-ui/react-scroll-area`, `@radix-ui/react-separator`.
+- `npm install` refreshed package-lock.json and pruned 8 packages total (the 5 direct
+  + 3 now-orphaned transitive). The preinstall cooldown gate ran and passed.
+- Verification (story 7): `npm run type-check` clean; `npm run lint` clean except the
+  pre-existing SchemaTree.tsx exhaustive-deps warning (untouched by this work);
+  `npm run build` (tsc -b && vite build) built clean — 1797 modules transformed.
+  `npm run deps:check` still exits 0 across npm + cargo after the lockfile change.
+- Footprint (story 11): node_modules 198M → 194M; package-lock.json 354 → 346 entries.
+- Scope note: a full `tauri build` was NOT run — these removals are JS-only, so the
+  meaningful build gate is the frontend bundle (`vite build`), which passed. Rust deps
+  untouched.
+- PRD.md: flipped the "Removal candidates" bullet to [DONE]. Remaining Workstream-2
+  items (future iterations): detection tooling (knip / cargo-udeps), the cargo
+  direct-crate audit, and a load-bearing-exceptions ignore config.
+
 ## Dependency Hygiene PRD — Workstream 1: Updating-dependencies docs [DONE]
 - Implemented the final Workstream-1 item, "Documentation" — covers user stories
   29 (deliberate-upgrade flow), 30 (predictable fresh-clone behavior), and the
