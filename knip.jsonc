@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  // Load-bearing exceptions: dependencies that are genuinely used but invisible to
+  // static import analysis, so knip would otherwise report them as unused. Each entry
+  // needs a one-line reason. See docs/dependencies.md ("Auditing for unused dependencies").
+  "ignoreDependencies": [
+    // Used via `@import "tailwindcss"` in src/styles/index.css and the @tailwindcss/vite
+    // plugin in vite.config.ts — neither is an `import` knip can trace.
+    "tailwindcss"
+  ]
+}

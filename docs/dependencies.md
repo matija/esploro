@@ -99,6 +99,41 @@ no silent bootstrap path and no machine-to-machine difference.
 
 ## Auditing for unused dependencies
 
+### npm
+
+Run the detector:
+
+```
+npm run deps:unused
+```
+
+This runs [`knip`](https://knip.dev) (pinned, via `npx` — see "Why npx" below)
+scoped to dependencies (`--dependencies`). It reports two things: **unused** —
+packages declared in `package.json` but imported nowhere — and **unlisted** —
+packages imported in source but not declared (relied on only via transitive
+hoisting, which is fragile). A clean run prints nothing and exits 0; that is the
+baseline to keep.
+
+**Load-bearing exceptions** live in `knip.jsonc` under `ignoreDependencies`,
+each with a one-line reason. These are packages that are genuinely used but
+invisible to static import analysis, so knip would otherwise flag them as unused.
+Currently the only entry is `tailwindcss` (pulled in via `@import "tailwindcss"`
+in `src/styles/index.css` and the `@tailwindcss/vite` plugin, neither an
+`import` knip traces). Add to this list — with a reason — only when a flagged
+package is confirmed load-bearing, never to silence a genuinely dead one.
+
+**Why npx, not an installed devDependency.** Installing knip adds ~50 transitive
+packages to `package-lock.json` — the surface this very workstream prunes — and
+every one would fall under the cooldown gate, where a single sub-14-day
+transitive republish on a fresh resolve would break the build. Running it via a
+pinned `npx knip@<version>` keeps the committed lockfile and the cooldown surface
+minimal while staying reproducible (the version is pinned) and CI-runnable.
+
+If knip reports an **unlisted** dependency that is genuinely used, declare it
+directly in `package.json` (pinned exact, per the bump-safety policy) rather than
+leaving it to transitive resolution. `@codemirror/language` and `@lezer/highlight`
+were promoted to direct dependencies this way.
+
 ### Cargo (direct crates)
 
 There are only a handful of direct crates per workspace member, so the cargo

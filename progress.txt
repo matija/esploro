@@ -1,3 +1,47 @@
+## Dependency Hygiene PRD — Workstream 2: npm unused-dependency detector (knip) [DONE]
+- Implemented the last two Workstream-2 items — "Detection tooling" (npm half) and
+  "Load-bearing exceptions" — which COMPLETES Workstream 2 (dependency prune).
+- Tool choice (the spike): knip over depcheck. knip cleanly splits *unused*
+  (declared, never imported) from *unlisted* (imported, never declared) and handles
+  the Vite/Tailwind config cases out of the box.
+- KEY DECISION overriding the PRD's tentative "detector is a devDependency" wording:
+  run knip via a PINNED npx, not installed. Measured footprint: installing knip@5.46.0
+  adds ~52 transitive packages to package-lock.json — the exact surface this workstream
+  prunes — and every one would fall under the cooldown gate, where a single sub-14-day
+  transitive republish on a fresh resolve breaks the build. npx keeps the committed
+  lockfile + cooldown surface minimal while staying reproducible (version pinned) and
+  CI-runnable. The PRD explicitly delegated install-vs-not to the spike; verdict = npx.
+- package.json: added "deps:unused": "npx --yes knip@5.46.0 --dependencies".
+- Two TRUE findings from the spike, both fixed:
+  - tailwindcss flagged "unused" = false positive. It is load-bearing via
+    `@import "tailwindcss"` in src/styles/index.css + the @tailwindcss/vite plugin in
+    vite.config.ts, neither an import knip can trace. Recorded as the load-bearing
+    exception in knip.jsonc (new) under ignoreDependencies, with a one-line reason.
+  - @codemirror/language + @lezer/highlight flagged "unlisted" = genuinely imported
+    in src/features/query-editor/* (tairikiTheme.ts, MiniSqlEditor.tsx, SqlEditor.tsx)
+    but only resolved transitively. Promoted to direct, exact-pinned deps in
+    package.json at their ALREADY-RESOLVED versions (6.12.3 / 1.2.3), so the dependency
+    graph did not move — package-lock.json gained only 2 lines (the direct declarations).
+    Confirmed both versions are well past cooldown (70d / 220d old) before pinning.
+- After both fixes: `npm run deps:unused` reports nothing, exits 0 — the clean baseline
+  user story 9 wants before a future CI gate.
+- knip.jsonc (new): $schema + ignoreDependencies:["tailwindcss"] with comment reasons.
+  Used .jsonc so the load-bearing reason can live as a comment next to the entry.
+- docs/dependencies.md: added an "### npm" subsection under "Auditing for unused
+  dependencies" — the deps:unused command, the unused-vs-unlisted distinction, the
+  load-bearing-exceptions policy (add only when CONFIRMED load-bearing, with a reason),
+  the why-npx rationale, and the rule that a genuinely-used unlisted dep gets PROMOTED
+  to a direct pin (citing the two codemirror deps as the worked example).
+- Verification (all green): `npm install` refreshed package-lock.json and the preinstall
+  cooldown gate passed; `npm run deps:unused` exit 0 (clean); `npm run type-check` clean;
+  `npm run lint` clean except the pre-existing SchemaTree.tsx exhaustive-deps warning
+  (untouched); `npm run build` (tsc -b && vite build) built clean; `npm run deps:check`
+  exit 0 (cooldown, both ecosystems).
+- PRD.md: flipped "Detection tooling" and "Load-bearing exceptions" to [DONE]. Workstream 2
+  is now fully complete. Next per PRD sequencing: Workstream 3 (code simplification) —
+  but note the open question flagged in the PRD (Vitest component-test seam vs.
+  type-check + manual verification) needs sign-off before Tier-1 frontend splits.
+
 ## Dependency Hygiene PRD — Workstream 2: Cargo direct-crate audit [DONE]
 - Implemented the PRD Workstream-2 "Cargo direct-crate audit" item — covers user
   story 8 (know each declared crate is actually referenced in the Rust source).
