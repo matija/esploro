@@ -8,7 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User, Trash2, Play } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Plus, CheckSquare, Square, User, Play } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -43,6 +43,7 @@ import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
 import { MiniSqlEditor, type MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
 import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
+import { CellContextMenu } from "./CellContextMenu";
 
 // ─── SkeletonGrid ─────────────────────────────────────────────────────────────
 
@@ -526,166 +527,6 @@ function JsonArrayEditor({
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
-  );
-}
-
-// ─── CellContextMenu ──────────────────────────────────────────────────────────
-
-function CellContextMenu({
-  rowData,
-  columns,
-  colIdx,
-  x,
-  y,
-  onClose,
-  onFilterByValue,
-  onDeleteRow,
-  canDelete,
-}: {
-  rowData: CellValue[];
-  columns: ResultColumn[];
-  colIdx: number;
-  x: number;
-  y: number;
-  onClose: () => void;
-  onFilterByValue: (colName: string, value: string | null) => void;
-  onDeleteRow: () => void;
-  canDelete: boolean;
-}) {
-  useEffect(() => {
-    const onDown = () => onClose();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  const rawCell = rowData[colIdx] ?? { t: "null" as const };
-  const cellValue = cellToString(rawCell);
-  const colName = columns[colIdx]?.name ?? "";
-
-  const copyValue = () => {
-    navigator.clipboard.writeText(cellValue ?? "");
-    onClose();
-  };
-
-  const copyColName = () => {
-    navigator.clipboard.writeText(colName);
-    onClose();
-  };
-
-  const copyJson = () => {
-    const obj: Record<string, string | null> = {};
-    columns.forEach((c, i) => {
-      obj[c.name] = cellToString(rowData[i] ?? { t: "null" });
-    });
-    navigator.clipboard.writeText(JSON.stringify(obj));
-    onClose();
-  };
-
-  const copyCsv = () => {
-    const csv = rowData
-      .map((cell) => {
-        const v = cellToString(cell);
-        if (v === null) return "";
-        if (v.includes(",") || v.includes('"') || v.includes("\n")) {
-          return `"${v.replace(/"/g, '""')}"`;
-        }
-        return v;
-      })
-      .join(",");
-    navigator.clipboard.writeText(csv);
-    onClose();
-  };
-
-  const filterByValue = () => {
-    onFilterByValue(colName, cellValue);
-    onClose();
-  };
-
-  const deleteRow = () => {
-    if (!canDelete) return;
-    onDeleteRow();
-    onClose();
-  };
-
-  return createPortal(
-    <div
-      className="fixed z-50 min-w-[200px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
-      style={{ left: x, top: y }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <button
-        onClick={copyValue}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-      >
-        <span className="font-medium">Copy Value</span>
-        {cellValue === null && (
-          <span className="ml-auto font-mono text-[9px] text-tertiary bg-control px-1 rounded border border-separator/50">
-            NULL
-          </span>
-        )}
-      </button>
-      <button
-        onClick={copyColName}
-        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-      >
-        Copy Column Name
-        <span className="ml-auto font-mono text-tertiary text-[11px] pl-2 truncate max-w-[100px]">
-          {colName}
-        </span>
-      </button>
-      <div className="my-1 border-t border-separator" />
-      <button
-        onClick={copyJson}
-        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-      >
-        Copy Row as JSON
-      </button>
-      <button
-        onClick={copyCsv}
-        className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-      >
-        Copy Row as CSV
-      </button>
-      <div className="my-1 border-t border-separator" />
-      {cellValue !== null ? (
-        <button
-          onClick={filterByValue}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-        >
-          <Filter size={10} className="text-secondary shrink-0" />
-          <span>Filter by this value</span>
-          <span className="ml-auto font-mono text-tertiary text-[11px] truncate max-w-[80px]">
-            {cellValue.length > 20 ? cellValue.slice(0, 20) + "…" : cellValue}
-          </span>
-        </button>
-      ) : (
-        <button
-          onClick={filterByValue}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
-        >
-          <Filter size={10} className="text-secondary shrink-0" />
-          Filter: IS NULL
-        </button>
-      )}
-      <div className="my-1 border-t border-separator" />
-      <button
-        onClick={deleteRow}
-        disabled={!canDelete}
-        title={canDelete ? undefined : "Cannot delete: no primary key or ctid"}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-query-failed hover:bg-hover transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-      >
-        <Trash2 size={10} className="shrink-0" />
-        <span>Delete row…</span>
-      </button>
-    </div>,
-    document.body,
   );
 }
 

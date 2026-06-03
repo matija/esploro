@@ -2787,3 +2787,25 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): TableViewerTab cell context menu extraction [DONE]
+- Started the top-ranked frontend simplification target with a narrow, behavior-preserving
+  grid interaction split. This avoids settling the broader frontend test-seam question
+  while still reducing `TableViewerTab.tsx` along an existing responsibility boundary.
+- src/features/table-viewer/CellContextMenu.tsx (new):
+  - Extracted the table cell context menu from `TableViewerTab.tsx`.
+  - Kept copy value, copy column name, copy row as JSON/CSV, filter-by-value, and
+    delete-row actions unchanged.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Imports the extracted `CellContextMenu` and keeps the existing props/call site
+    unchanged.
+  - Still owns table state, data loading, editing, filters, and header menus; broader
+    frontend splits remain gated by the PRD's frontend test-seam decision.
+- PRD.md:
+  - Marked the `TableViewerTab.tsx` cell context menu extraction as DONE under
+    Workstream 3.
+- Checks passed:
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (43 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
