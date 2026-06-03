@@ -6,12 +6,14 @@ description = "Esploro license key generator (internal tool, not shipped)"
 authors = ["Matija Munjaković"]
 license = "MIT"
 
+# Direct deps pinned to exact versions (=x.y.z), matching Cargo.lock. Same
+# policy as src-tauri/Cargo.toml: direct = exact, transitive = lockfile.
 [dependencies]
-hmac = "0.12"
-sha2 = "0.10"
-base64 = "0.22"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
-clap = { version = "4", features = ["derive"] }
-chrono = { version = "0.4", features = ["serde"] }
+hmac = "=0.12.1"
+sha2 = "=0.10.9"
+base64 = "=0.22.1"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+uuid = { version = "=1.23.1", features = ["v4"] }
+clap = { version = "=4.6.1", features = ["derive"] }
+chrono = { version = "=0.4.44", features = ["serde"] }
