@@ -2740,3 +2740,29 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): license.rs UI preferences extraction [DONE]
+- Took the next highest unblocked Tier-2 simplification target. `TableViewerTab.tsx`
+  and `SchemaTree.tsx` remain blocked by the PRD's frontend test-seam decision,
+  and `roles.rs` was already split, so this stayed within the existing Rust seam
+  on `license.rs`.
+- src-tauri/src/commands/license/ui_preferences.rs (new):
+  - Extracted UI preference types, defaults, JSON parsing, and normalization from
+    `license.rs`.
+  - Added focused unit tests for legacy theme normalization and invalid preference
+    fallback behavior.
+- src-tauri/src/commands/license.rs:
+  - Added the private `ui_preferences` submodule and delegated preference defaulting,
+    parsing, and normalization to it.
+  - Kept exported Tauri commands (`get_ui_preferences`, `set_ui_preferences`, and
+    the licensing commands), serialized preference shape, and licensing/payment
+    behavior unchanged.
+  - Reduced the file to 642 lines; the extracted module is 321 lines.
+- PRD.md:
+  - Marked the `license.rs` UI preferences extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (43 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
