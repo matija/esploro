@@ -2662,3 +2662,31 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs table data/count execution extraction [DONE]
+- Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
+  remains blocked by the PRD's frontend test-seam sign-off question, so this stayed
+  within the existing Rust test seam on `data.rs`.
+- src-tauri/src/commands/data/table_query_execution.rs (new):
+  - Extracted PostgreSQL/MySQL table data and count execution from `data.rs`.
+  - Moved column metadata reads, table data query execution, count query execution,
+    row decoding, and ctid collection into a focused private submodule.
+  - Kept the existing PostgreSQL retry behavior at the exported command dispatcher.
+- src-tauri/src/commands/data/table_queries.rs:
+  - Added PostgreSQL/MySQL count SQL helpers.
+  - Added focused unit tests for count SQL formatting with filter fragments.
+- src-tauri/src/commands/data.rs:
+  - Added the private `table_query_execution` submodule and delegated table data/count
+    execution to it.
+  - Kept exported Tauri command functions, request/response structs, pool resolution,
+    retry behavior, row-mutation orchestration, and frontend data shapes unchanged.
+  - Reduced the file to 741 lines; the extracted module is 346 lines.
+- PRD.md:
+  - Marked the `data.rs` table data/count execution extraction as DONE under
+    Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (36 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)

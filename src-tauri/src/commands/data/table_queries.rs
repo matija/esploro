@@ -79,6 +79,10 @@ pub(super) fn build_pg_data_sql(
     )
 }
 
+pub(super) fn build_pg_count_sql(schema: &str, table: &str, where_sql: &str) -> String {
+    format!("SELECT COUNT(*) FROM \"{schema}\".\"{table}\" {where_sql}")
+}
+
 pub(super) fn build_mysql_data_sql(
     schema: &str,
     table: &str,
@@ -93,6 +97,10 @@ pub(super) fn build_mysql_data_sql(
     format!(
         "SELECT {select_list} FROM `{schema}`.`{table}` {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}"
     )
+}
+
+pub(super) fn build_mysql_count_sql(schema: &str, table: &str, where_sql: &str) -> String {
+    format!("SELECT COUNT(*) FROM `{schema}`.`{table}` {where_sql}")
 }
 
 #[cfg(test)]
@@ -172,5 +180,22 @@ mod tests {
             sql,
             r#"SELECT "id", "name", ctid::text AS __ctid FROM "public"."users" WHERE "name"::text LIKE $1 ORDER BY "id" ASC LIMIT 50 OFFSET 100"#
         );
+    }
+
+    #[test]
+    fn pg_count_sql_keeps_filter_fragment() {
+        let sql = build_pg_count_sql("public", "users", r#"WHERE "active" = $1::text::boolean"#);
+
+        assert_eq!(
+            sql,
+            r#"SELECT COUNT(*) FROM "public"."users" WHERE "active" = $1::text::boolean"#
+        );
+    }
+
+    #[test]
+    fn mysql_count_sql_keeps_filter_fragment() {
+        let sql = build_mysql_count_sql("app", "users", "WHERE `active` = ?");
+
+        assert_eq!(sql, "SELECT COUNT(*) FROM `app`.`users` WHERE `active` = ?");
     }
 }
