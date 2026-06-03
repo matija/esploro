@@ -2345,3 +2345,29 @@
 - Did NOT touch: cooldown gate cargo invocation, CI enforcement, allowlist lifecycle,
   bot policy, or the CONTEXT.md "Updating dependencies" doc — those are separate
   tasks in this workstream. One task per change-set.
+
+## Dependency Hygiene PRD — Workstream 1 (bump safety): Allowlist lifecycle [DONE]
+- Next bump-safety sub-task after CI enforcement. PRD: "Review the five bootstrap
+  entries; remove any whose package is now older than the cooldown window."
+- Checked each entry's cached crates.io publish date against today (2026-06-03):
+    filetime 0.2.28           published 2026-05-02  31.2d  ≥14 → remove
+    serde_with 3.20.0         published 2026-05-02  31.2d  ≥14 → remove
+    hashbrown 0.17.1          published 2026-05-09  24.8d  ≥14 → remove
+    hybrid-array 0.4.12       published 2026-05-09  24.0d  ≥14 → remove
+    serde_with_macros 3.20.0  published 2026-05-10  23.2d  ≥14 → remove
+  All five aged past the 14-day window, so every bootstrap exception is now dead
+  weight. Removed all five.
+- .dep-cooldown-allowlist.toml: replaced the auto-generated body with a documented
+  header — the [[allowlist]] entry format (package/version/reason/expires_at) and
+  the policy that an expired entry grants nothing (isAllowed() ignores it after
+  expires_at). The file now has zero entries.
+- Important behavioral nuance preserved: the file still EXISTS (just empty), so
+  allowlist parses to [] not null. Per check-dep-cooldown.mjs, a null allowlist
+  triggers first-run bootstrap (auto-allow + write); an empty-but-present allowlist
+  does NOT — a future sub-cooldown version now FAILS loudly and demands a manual
+  entry. Keeping the file present is what makes the gate strict going forward.
+- Verification: `npm run deps:check` exits 0 ("All packages pass the 14-day
+  cooldown") with the allowlist empty across both npm + cargo. That green run is
+  the proof the five removals were safe and not hiding a still-young package.
+- Did NOT touch: bot policy or the CONTEXT.md "Updating dependencies" doc — those
+  are the remaining Workstream-1 tasks. One task per change-set.
