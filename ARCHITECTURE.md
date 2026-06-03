@@ -50,6 +50,33 @@ esploro/
 
 ---
 
+## Complexity Budget
+
+Large files are treated as a maintenance risk, not just a style issue. Keep each
+source file focused on one responsibility, and split it once a second clear
+responsibility appears (for example, command dispatch vs. SQL construction vs.
+row decoding).
+
+Soft line-count targets:
+
+- **Frontend feature components:** keep the exported tab/page component near 500
+  lines or less; move data loading, grid rendering, editing, toolbar/filter
+  state, and formatting helpers into local hooks or child components when they
+  become independently named responsibilities.
+- **Rust command files:** keep the exported command module near 700 lines or
+  less; move SQL builders, type/value mapping, row decoding, and backend-specific
+  execution helpers into private submodules.
+- **Extracted units:** keep helper modules around 400 lines or less unless they
+  are a narrow table of cases. If an extracted file starts mixing orchestration,
+  SQL construction, and decoding, split it again by responsibility.
+
+These are review guidelines, not a lint gate. Exceeding a target is acceptable
+when the file still has one coherent job, but a new feature should not make an
+already-large file larger without either extracting a named responsibility or
+recording why the split would be premature.
+
+---
+
 ## Request Lifecycle
 
 ```

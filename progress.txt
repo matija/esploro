@@ -2766,3 +2766,24 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): complexity budget guideline [DONE]
+- Took the highest remaining unblocked Workstream-3 task. The frontend split targets
+  (`TableViewerTab.tsx`, `SchemaTree.tsx`, and other UI modules) remain blocked by
+  the PRD's frontend test-seam decision, so this completed the documentation task
+  that prevents future drift back to mega-files.
+- ARCHITECTURE.md:
+  - Added a "Complexity Budget" section that treats large files as a maintenance
+    risk and documents soft review targets: exported frontend feature components
+    near 500 lines, Rust command files near 700 lines, and extracted helper modules
+    around 400 lines.
+  - Recorded the responsibility-first split rule: split when a file gains a second
+    clear job (for example, command dispatch vs. SQL construction vs. row decoding),
+    while keeping the guideline advisory rather than adding a lint gate.
+- PRD.md:
+  - Marked the complexity budget item as DONE under Workstream 3.
+- Checks passed:
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (43 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
