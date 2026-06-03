@@ -2564,3 +2564,28 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs WHERE/filter builder extraction [DONE]
+- Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
+  remains blocked by the PRD's frontend test-seam sign-off question, so this stayed
+  within the existing Rust test seam on `data.rs`.
+- src-tauri/src/commands/data/where_clauses.rs (new):
+  - Extracted PostgreSQL column-filter WHERE clause generation, MySQL column-filter
+    WHERE clause generation, and raw-WHERE composition from `data.rs`.
+  - Moved the existing focused unit tests for typed PostgreSQL casts, LIKE/NULL
+    handling, sequential parameter numbering, and raw-WHERE composition alongside
+    the extracted code.
+- src-tauri/src/commands/data.rs:
+  - Added the private `where_clauses` submodule and imports.
+  - Kept the exported Tauri command surface and frontend response/request shapes
+    unchanged.
+  - Left query/count orchestration in `data.rs`; only the predicate-building
+    responsibility moved.
+- PRD.md:
+  - Marked the `data.rs` WHERE/filter builder extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (24 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
