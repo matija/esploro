@@ -2613,3 +2613,28 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs table-query SQL extraction [DONE]
+- Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
+  remains blocked by the PRD's frontend test-seam sign-off question, so this stayed
+  within the existing Rust test seam on `data.rs`.
+- src-tauri/src/commands/data/table_queries.rs (new):
+  - Extracted PostgreSQL/MySQL table-query SQL assembly from `data.rs`.
+  - Moved sort SQL, SELECT-list construction, and data-query pagination SQL into
+    a focused private submodule.
+  - Added focused unit tests for PostgreSQL/MySQL order SQL, incomplete sort state,
+    unsafe sort identifiers, PostgreSQL native-vs-text SELECT-list behavior, and
+    PostgreSQL pagination SQL with `ctid`.
+- src-tauri/src/commands/data.rs:
+  - Added the private `table_queries` submodule and delegated table data-query SQL
+    construction to it.
+  - Kept exported Tauri command functions, request/response structs, pool resolution,
+    retry behavior, database execution, and frontend data shapes unchanged.
+- PRD.md:
+  - Marked the `data.rs` table-query SQL extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (33 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)

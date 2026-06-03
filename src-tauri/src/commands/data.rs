@@ -9,6 +9,7 @@ use tokio_postgres::SimpleQueryMessage;
 use crate::{AppState, DriverSession};
 
 mod row_mutations;
+mod table_queries;
 mod type_mapping;
 mod where_clauses;
 
@@ -17,9 +18,11 @@ use self::row_mutations::{
     build_mysql_update_sql, build_pg_delete_preview_statement, build_pg_delete_sql,
     build_pg_update_preview_sql, build_pg_update_sql,
 };
-use self::type_mapping::{
-    mysql_cell_value, mysql_str, pg_cell_value, pg_native_udt, resolve_pg_cast, CellValue,
+use self::table_queries::{
+    build_mysql_data_sql, build_mysql_order_sql, build_mysql_select_list, build_pg_data_sql,
+    build_pg_order_sql, build_pg_select_list,
 };
+use self::type_mapping::{mysql_cell_value, mysql_str, pg_cell_value, resolve_pg_cast, CellValue};
 use self::where_clauses::{build_mysql_where_clause, build_pg_where_clause, build_where_sql};
 
 fn validate_identifier(s: &str) -> Result<(), String> {
@@ -353,44 +356,20 @@ async fn query_table_pg(
 
     let where_sql = build_where_sql(&where_clauses, &request.raw_where);
 
-    let order_sql = match (&request.sort_column, &request.sort_direction) {
-        (Some(col), Some(dir)) => {
-            validate_column_identifier(col)?;
-            let d = match dir {
-                SortDirection::Asc => "ASC",
-                SortDirection::Desc => "DESC",
-            };
-            format!("ORDER BY \"{col}\" {d}")
-        }
-        _ => String::new(),
-    };
-
-    // Select natively-typed columns without cast; cast everything else to text.
-    let col_select: String = result_columns
-        .iter()
-        .map(|c| {
-            let udt = col_type_map
-                .get(&c.name)
-                .map(|s| s.as_str())
-                .unwrap_or("text");
-            if pg_native_udt(udt) {
-                format!("\"{}\"", c.name)
-            } else {
-                format!("\"{}\"::text", c.name)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let offset = (request.page * request.page_size) as i64;
-    let limit = request.page_size as i64;
+    let order_sql = build_pg_order_sql(&request.sort_column, &request.sort_direction)?;
+    let col_select = build_pg_select_list(&result_columns, &col_type_map);
 
     // ctid_idx is the index of the appended ctid column in each result row
     let ctid_idx = result_columns.len();
 
-    let data_sql = format!(
-        "SELECT {col_select}, ctid::text AS __ctid FROM \"{}\".\"{}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
-        request.schema, request.table
+    let data_sql = build_pg_data_sql(
+        &request.schema,
+        &request.table,
+        &col_select,
+        &where_sql,
+        &order_sql,
+        request.page,
+        request.page_size,
     );
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
@@ -552,30 +531,17 @@ async fn query_table_mysql(
     let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
     let where_sql = build_where_sql(&where_clauses, &request.raw_where);
 
-    let order_sql = match (&request.sort_column, &request.sort_direction) {
-        (Some(col), Some(dir)) => {
-            validate_column_identifier(col)?;
-            let d = match dir {
-                SortDirection::Asc => "ASC",
-                SortDirection::Desc => "DESC",
-            };
-            format!("ORDER BY `{col}` {d}")
-        }
-        _ => String::new(),
-    };
+    let order_sql = build_mysql_order_sql(&request.sort_column, &request.sort_direction)?;
+    let col_select = build_mysql_select_list(&result_columns);
 
-    let col_select: String = result_columns
-        .iter()
-        .map(|c| format!("`{}`", c.name))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let offset = (request.page * request.page_size) as u64;
-    let limit = request.page_size as u64;
-
-    let data_sql = format!(
-        "SELECT {col_select} FROM `{}`.`{}` {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}",
-        request.schema, request.table
+    let data_sql = build_mysql_data_sql(
+        &request.schema,
+        &request.table,
+        &col_select,
+        &where_sql,
+        &order_sql,
+        request.page,
+        request.page_size,
     );
 
     let start = Instant::now();
