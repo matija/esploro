@@ -2691,6 +2691,30 @@
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
 
+## Dependency Hygiene PRD — Workstream 3 (code simplification): roles.rs SQL builder extraction [DONE]
+- Took the highest unblocked Tier-2 simplification task. `TableViewerTab.tsx` and
+  `SchemaTree.tsx` remain blocked by the PRD's frontend test-seam sign-off question,
+  so this stayed within the existing Rust test seam on `roles.rs`.
+- src-tauri/src/commands/roles/sql_builders.rs (new):
+  - Extracted quoted identifier handling, CREATE/ALTER/DROP ROLE SQL construction,
+    role membership SQL, and role/table/schema privilege GRANT/REVOKE SQL.
+  - Added focused unit tests for quoted CREATE ROLE SQL with password parameters,
+    no-op ALTER ROLE, clear-password/valid-until semantics, role privilege SQL, and
+    unknown-op errors.
+- src-tauri/src/commands/roles.rs:
+  - Added the private `sql_builders` submodule and delegated SQL assembly to it.
+  - Kept exported Tauri command functions, request/response structs, MySQL unsupported
+    errors, database execution, and frontend data shapes unchanged.
+  - Reduced the file to 867 lines; the extracted module is 321 lines.
+- PRD.md:
+  - Marked the `roles.rs` SQL builder extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (41 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
 ## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs row-mutation execution extraction [DONE]
 - Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
   remains blocked by the PRD's frontend test-seam sign-off question, so this stayed

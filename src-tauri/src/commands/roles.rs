@@ -3,9 +3,14 @@ use tauri::State;
 
 use crate::{AppState, DriverSession};
 
-fn quote_ident(name: &str) -> String {
-    format!("\"{}\"", name.replace('"', "\"\""))
-}
+mod sql_builders;
+
+use self::sql_builders::{
+    build_alter_role_sql, build_create_role_sql, build_drop_role_sql, build_membership_sql,
+    build_role_privilege_sql, build_schema_privilege_sql, build_table_privilege_sql,
+    format_unknown_role_privilege_sql, format_unknown_schema_privilege_sql,
+    format_unknown_table_privilege_sql, RoleOptions,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,7 +77,7 @@ pub struct AlterRoleRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MembershipOp {
-    pub op: String,     // "grant" or "revoke"
+    pub op: String, // "grant" or "revoke"
     pub role: String,
     pub member: String,
 }
@@ -114,7 +119,7 @@ pub struct PrivilegeOp {
     pub op: String,          // "grant" or "revoke"
     pub object_type: String, // "table" or "schema"
     pub schema: String,
-    pub name: String,        // table name for tables; same as schema for schema grants
+    pub name: String, // table name for tables; same as schema for schema grants
     pub privilege: String,
 }
 
@@ -135,75 +140,9 @@ pub struct TableGrantee {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TablePrivilegeOp {
-    pub op: String,        // "grant" or "revoke"
+    pub op: String, // "grant" or "revoke"
     pub grantee: String,
     pub privilege: String,
-}
-
-/// Build the WITH clause options for CREATE/ALTER ROLE.
-/// Returns (options_string, password_param) where password_param is Some(pw) for PASSWORD $1.
-#[allow(clippy::too_many_arguments)]
-fn build_role_options(
-    is_superuser: Option<bool>,
-    inherit: Option<bool>,
-    create_role: Option<bool>,
-    create_db: Option<bool>,
-    can_login: Option<bool>,
-    replication: Option<bool>,
-    bypass_rls: Option<bool>,
-    conn_limit: Option<i32>,
-    valid_until: Option<&str>,
-    password: Option<&str>,
-) -> (String, Option<String>) {
-    let mut parts: Vec<String> = Vec::new();
-
-    if let Some(v) = is_superuser {
-        parts.push(if v { "SUPERUSER" } else { "NOSUPERUSER" }.into());
-    }
-    if let Some(v) = inherit {
-        parts.push(if v { "INHERIT" } else { "NOINHERIT" }.into());
-    }
-    if let Some(v) = create_role {
-        parts.push(if v { "CREATEROLE" } else { "NOCREATEROLE" }.into());
-    }
-    if let Some(v) = create_db {
-        parts.push(if v { "CREATEDB" } else { "NOCREATEDB" }.into());
-    }
-    if let Some(v) = can_login {
-        parts.push(if v { "LOGIN" } else { "NOLOGIN" }.into());
-    }
-    if let Some(v) = replication {
-        parts.push(if v { "REPLICATION" } else { "NOREPLICATION" }.into());
-    }
-    if let Some(v) = bypass_rls {
-        parts.push(if v { "BYPASSRLS" } else { "NOBYPASSRLS" }.into());
-    }
-    if let Some(v) = conn_limit {
-        parts.push(format!("CONNECTION LIMIT {}", v));
-    }
-    if let Some(v) = valid_until {
-        if v.is_empty() {
-            parts.push("VALID UNTIL 'infinity'".into());
-        } else {
-            // Strip single quotes to prevent breaking out of the literal.
-            let safe = v.replace('\'', "");
-            parts.push(format!("VALID UNTIL '{}'", safe));
-        }
-    }
-
-    let pass_param = match password {
-        None => None,
-        Some("") => {
-            parts.push("PASSWORD NULL".into());
-            None
-        }
-        Some(pw) => {
-            parts.push("PASSWORD $1".into());
-            Some(pw.to_string())
-        }
-    };
-
-    (parts.join(" "), pass_param)
 }
 
 // ─── list_roles ───────────────────────────────────────────────────────────────
@@ -385,28 +324,27 @@ pub async fn create_role(
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
 
-            let (options, pass_param) = build_role_options(
-                request.is_superuser,
-                request.inherit,
-                request.create_role,
-                request.create_db,
-                request.can_login,
-                request.replication,
-                request.bypass_rls,
-                request.conn_limit,
-                request.valid_until.as_deref(),
-                request.password.as_deref(),
+            let (sql, pass_param) = build_create_role_sql(
+                &request.name,
+                RoleOptions {
+                    is_superuser: request.is_superuser,
+                    inherit: request.inherit,
+                    create_role: request.create_role,
+                    create_db: request.create_db,
+                    can_login: request.can_login,
+                    replication: request.replication,
+                    bypass_rls: request.bypass_rls,
+                    conn_limit: request.conn_limit,
+                    valid_until: request.valid_until.as_deref(),
+                    password: request.password.as_deref(),
+                },
             );
 
-            let ident = quote_ident(&request.name);
-            let sql = if options.is_empty() {
-                format!("CREATE ROLE {}", ident)
-            } else {
-                format!("CREATE ROLE {} WITH {}", ident, options)
-            };
-
             if let Some(pw) = pass_param {
-                client.execute(&sql, &[&pw]).await.map_err(|e| e.to_string())?;
+                client
+                    .execute(&sql, &[&pw])
+                    .await
+                    .map_err(|e| e.to_string())?;
             } else {
                 client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
             }
@@ -435,28 +373,29 @@ pub async fn alter_role(
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
 
-            let (options, pass_param) = build_role_options(
-                request.is_superuser,
-                request.inherit,
-                request.create_role,
-                request.create_db,
-                request.can_login,
-                request.replication,
-                request.bypass_rls,
-                request.conn_limit,
-                request.valid_until.as_deref(),
-                request.password.as_deref(),
-            );
-
-            if options.is_empty() {
+            let Some((sql, pass_param)) = build_alter_role_sql(
+                &role_name,
+                RoleOptions {
+                    is_superuser: request.is_superuser,
+                    inherit: request.inherit,
+                    create_role: request.create_role,
+                    create_db: request.create_db,
+                    can_login: request.can_login,
+                    replication: request.replication,
+                    bypass_rls: request.bypass_rls,
+                    conn_limit: request.conn_limit,
+                    valid_until: request.valid_until.as_deref(),
+                    password: request.password.as_deref(),
+                },
+            ) else {
                 return Ok(());
-            }
-
-            let ident = quote_ident(&role_name);
-            let sql = format!("ALTER ROLE {} WITH {}", ident, options);
+            };
 
             if let Some(pw) = pass_param {
-                client.execute(&sql, &[&pw]).await.map_err(|e| e.to_string())?;
+                client
+                    .execute(&sql, &[&pw])
+                    .await
+                    .map_err(|e| e.to_string())?;
             } else {
                 client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
             }
@@ -483,7 +422,7 @@ pub async fn drop_role(
     match &info.driver {
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
-            let sql = format!("DROP ROLE {}", quote_ident(&role_name));
+            let sql = build_drop_role_sql(&role_name);
             client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
             Ok(())
         }
@@ -528,7 +467,10 @@ pub async fn list_role_privileges(
                 let schema: String = row.get(0);
                 let table: String = row.get(1);
                 let priv_type: String = row.get(2);
-                table_map.entry((schema, table)).or_default().push(priv_type);
+                table_map
+                    .entry((schema, table))
+                    .or_default()
+                    .push(priv_type);
             }
             let table_grants = table_map
                 .into_iter()
@@ -593,41 +535,27 @@ pub async fn manage_role_privileges(
     match &info.driver {
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
-            let role_ident = quote_ident(&role_name);
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
-                let sql = match (op.op.as_str(), op.object_type.as_str()) {
-                    ("grant", "table") => format!(
-                        "GRANT {} ON {}.{} TO {}",
-                        op.privilege,
-                        quote_ident(&op.schema),
-                        quote_ident(&op.name),
-                        role_ident
-                    ),
-                    ("revoke", "table") => format!(
-                        "REVOKE {} ON {}.{} FROM {}",
-                        op.privilege,
-                        quote_ident(&op.schema),
-                        quote_ident(&op.name),
-                        role_ident
-                    ),
-                    ("grant", "schema") => format!(
-                        "GRANT {} ON SCHEMA {} TO {}",
-                        op.privilege,
-                        quote_ident(&op.schema),
-                        role_ident
-                    ),
-                    ("revoke", "schema") => format!(
-                        "REVOKE {} ON SCHEMA {} FROM {}",
-                        op.privilege,
-                        quote_ident(&op.schema),
-                        role_ident
-                    ),
-                    _ => {
+                let sql = match build_role_privilege_sql(
+                    &op.op,
+                    &op.object_type,
+                    &op.schema,
+                    &op.name,
+                    &op.privilege,
+                    &role_name,
+                ) {
+                    Ok(sql) => sql,
+                    Err(error) => {
                         results.push(PrivilegeResult {
-                            sql: format!("{} {} on {}.{}", op.op, op.privilege, op.schema, op.name),
-                            error: Some(format!("Unknown op/object_type: {} / {}", op.op, op.object_type)),
+                            sql: format_unknown_role_privilege_sql(
+                                &op.op,
+                                &op.schema,
+                                &op.name,
+                                &op.privilege,
+                            ),
+                            error: Some(error),
                         });
                         continue;
                     }
@@ -662,23 +590,14 @@ pub async fn manage_role_membership(
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
-                let sql = match op.op.as_str() {
-                    "grant" => format!(
-                        "GRANT {} TO {}",
-                        quote_ident(&op.role),
-                        quote_ident(&op.member)
-                    ),
-                    "revoke" => format!(
-                        "REVOKE {} FROM {}",
-                        quote_ident(&op.role),
-                        quote_ident(&op.member)
-                    ),
-                    other => {
+                let sql = match build_membership_sql(&op.op, &op.role, &op.member) {
+                    Ok(sql) => sql,
+                    Err(error) => {
                         results.push(MembershipResult {
                             op: op.op.clone(),
                             role: op.role.clone(),
                             member: op.member.clone(),
-                            error: Some(format!("Unknown op: {}", other)),
+                            error: Some(error),
                         });
                         continue;
                     }
@@ -740,10 +659,15 @@ pub async fn list_table_privileges(
 
             Ok(map
                 .into_iter()
-                .map(|(grantee, privileges)| TableGrantee { grantee, privileges })
+                .map(|(grantee, privileges)| TableGrantee {
+                    grantee,
+                    privileges,
+                })
                 .collect())
         }
-        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => {
+            Err("Privileges are not supported for MySQL connections".to_string())
+        }
     }
 }
 
@@ -765,18 +689,27 @@ pub async fn manage_table_privileges(
     match &info.driver {
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
-            let table_ref = format!("{}.{}", quote_ident(&schema), quote_ident(&table));
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
-                let grantee_ident = quote_ident(&op.grantee);
-                let sql = match op.op.as_str() {
-                    "grant" => format!("GRANT {} ON {} TO {}", op.privilege, table_ref, grantee_ident),
-                    "revoke" => format!("REVOKE {} ON {} FROM {}", op.privilege, table_ref, grantee_ident),
-                    other => {
+                let sql = match build_table_privilege_sql(
+                    &op.op,
+                    &schema,
+                    &table,
+                    &op.privilege,
+                    &op.grantee,
+                ) {
+                    Ok(sql) => sql,
+                    Err(error) => {
                         results.push(PrivilegeResult {
-                            sql: format!("{} {} on {} to {}", op.op, op.privilege, table_ref, op.grantee),
-                            error: Some(format!("Unknown op: {}", other)),
+                            sql: format_unknown_table_privilege_sql(
+                                &op.op,
+                                &schema,
+                                &table,
+                                &op.privilege,
+                                &op.grantee,
+                            ),
+                            error: Some(error),
                         });
                         continue;
                     }
@@ -787,7 +720,9 @@ pub async fn manage_table_privileges(
 
             Ok(results)
         }
-        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => {
+            Err("Privileges are not supported for MySQL connections".to_string())
+        }
     }
 }
 
@@ -810,7 +745,7 @@ pub struct SchemaInfo {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaPrivilegeOp {
-    pub op: String,      // "grant" or "revoke"
+    pub op: String, // "grant" or "revoke"
     pub grantee: String,
     pub privilege: String,
 }
@@ -868,12 +803,17 @@ pub async fn list_schema_privileges(
 
             let grantees = map
                 .into_iter()
-                .map(|(grantee, privileges)| SchemaGrantee { grantee, privileges })
+                .map(|(grantee, privileges)| SchemaGrantee {
+                    grantee,
+                    privileges,
+                })
                 .collect();
 
             Ok(SchemaInfo { owner, grantees })
         }
-        DriverSession::Mysql(_) => Err("Schema privileges are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => {
+            Err("Schema privileges are not supported for MySQL connections".to_string())
+        }
     }
 }
 
@@ -894,28 +834,33 @@ pub async fn manage_schema_privileges(
     match &info.driver {
         DriverSession::Postgres(pool) => {
             let client = pool.get().await.map_err(|e| e.to_string())?;
-            let schema_ident = quote_ident(&schema);
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
-                let grantee_ident = quote_ident(&op.grantee);
-                let sql = match op.op.as_str() {
-                    "grant" => format!("GRANT {} ON SCHEMA {} TO {}", op.privilege, schema_ident, grantee_ident),
-                    "revoke" => format!("REVOKE {} ON SCHEMA {} FROM {}", op.privilege, schema_ident, grantee_ident),
-                    other => {
-                        results.push(PrivilegeResult {
-                            sql: format!("{} {} on schema {} to {}", op.op, op.privilege, schema, op.grantee),
-                            error: Some(format!("Unknown op: {}", other)),
-                        });
-                        continue;
-                    }
-                };
+                let sql =
+                    match build_schema_privilege_sql(&op.op, &schema, &op.privilege, &op.grantee) {
+                        Ok(sql) => sql,
+                        Err(error) => {
+                            results.push(PrivilegeResult {
+                                sql: format_unknown_schema_privilege_sql(
+                                    &op.op,
+                                    &schema,
+                                    &op.privilege,
+                                    &op.grantee,
+                                ),
+                                error: Some(error),
+                            });
+                            continue;
+                        }
+                    };
                 let error = client.execute(&sql, &[]).await.err().map(|e| e.to_string());
                 results.push(PrivilegeResult { sql, error });
             }
 
             Ok(results)
         }
-        DriverSession::Mysql(_) => Err("Schema privileges are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => {
+            Err("Schema privileges are not supported for MySQL connections".to_string())
+        }
     }
 }
