@@ -44,6 +44,7 @@ import { CellRenderer } from "../data-grid/CellRenderer";
 import { MiniSqlEditor, type MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
 import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 import { CellContextMenu } from "./CellContextMenu";
+import { TableViewerFooter } from "./TableViewerFooter";
 
 // ─── SkeletonGrid ─────────────────────────────────────────────────────────────
 
@@ -1594,10 +1595,19 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const isEstimate = showTotalCount ? (countData?.isEstimate ?? false) : true;
   const pageSize = data?.pageSize ?? 200;
   const currentPage = data?.page ?? page;
-  const start = currentPage * pageSize + 1;
   const end = currentPage * pageSize + (data?.rows.length ?? 0);
   const hasPrev = currentPage > 0;
   const hasNext = totalCount !== null ? end < totalCount : (data?.rows.length ?? 0) >= pageSize;
+  const goToPreviousPage = useCallback(async () => {
+    if (!await guardNavigation()) return;
+    discardEdits();
+    setPage((p) => Math.max(0, p - 1));
+  }, [guardNavigation, discardEdits]);
+  const goToNextPage = useCallback(async () => {
+    if (!await guardNavigation()) return;
+    discardEdits();
+    setPage((p) => p + 1);
+  }, [guardNavigation, discardEdits]);
 
   // ── Filter chip helpers ────────────────────────────────────────────────────
 
@@ -2192,46 +2202,17 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       )}
 
       {/* Footer */}
-      {viewMode === "data" && <div className="shrink-0 flex items-center justify-between px-4 py-1.5 border-t border-separator bg-sidebar/50 text-xs text-secondary">
-        <span>
-          {data
-            ? totalCount === 0
-              ? "No rows"
-              : totalCount === null
-                ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} rows`
-                : isEstimate
-                  ? `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ~${totalCount.toLocaleString()} rows`
-                  : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalCount.toLocaleString()} rows`
-            : ""}
-          {data && data.executionMs > 0 && (
-            <span className="ml-2 text-secondary/60">{data.executionMs} ms</span>
-          )}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={async () => {
-              if (!await guardNavigation()) return;
-              discardEdits();
-              setPage((p) => Math.max(0, p - 1));
-            }}
-            disabled={!hasPrev}
-            className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            ← Prev
-          </button>
-          <button
-            onClick={async () => {
-              if (!await guardNavigation()) return;
-              discardEdits();
-              setPage((p) => p + 1);
-            }}
-            disabled={!hasNext}
-            className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            Next →
-          </button>
-        </div>
-      </div>}
+      {viewMode === "data" && (
+        <TableViewerFooter
+          data={data}
+          totalCount={totalCount}
+          isEstimate={isEstimate}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          onPreviousPage={() => { void goToPreviousPage(); }}
+          onNextPage={() => { void goToNextPage(); }}
+        />
+      )}
 
       {/* Column filter popover (single shared instance) */}
       {openFilterCol !== null && (() => {
