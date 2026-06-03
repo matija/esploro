@@ -52,6 +52,24 @@ jobs:
       - name: Cargo lockfile sync
         run: cargo metadata --locked --format-version 1 --manifest-path Cargo.toml > /dev/null
 
+      # Bot policy: this repo deliberately uses no Dependabot/Renovate (see
+      # docs/dependencies.md). Fail if a bot config is dropped in, so the
+      # "no automated bumps" decision cannot be silently reversed.
+      - name: No dependency-bot config
+        run: |
+          found=$(ls -1 \
+            .github/dependabot.yml .github/dependabot.yaml \
+            .github/renovate.json .github/renovate.json5 \
+            renovate.json renovate.json5 \
+            .renovaterc .renovaterc.json .renovaterc.json5 \
+            2>/dev/null || true)
+          if [ -n "$found" ]; then
+            echo "::error::Dependency-bot config found, but this repo's policy is no bots (docs/dependencies.md):"
+            echo "$found"
+            exit 1
+          fi
+          echo "No dependency-bot config present — policy holds."
+
       # Cooldown gate across both ecosystems (npm + cargo). Non-blocking until
       # one green run confirms it is stable on CI; then drop continue-on-error
       # to enforce. The npm half is already blocking via the `preinstall` hook

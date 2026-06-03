@@ -1,3 +1,31 @@
+## Dependency Hygiene PRD — Workstream 1: Bot policy (no Dependabot/Renovate) [DONE]
+- Implemented PRD Workstream 1, item "Bot policy" — covers user story 28 (explicit,
+  checked-in decision about automated dependency bots; no silent auto-bumping).
+- Chose option (a) from the PRD (no bot config + documented note), the PRD's stated
+  default: the cooldown gate + exact pins already make bot PRs low-value (a bot PR is
+  either blocked by cooldown or re-pins to a version we'd review by hand anyway).
+- docs/dependencies.md (new): created the dependency-policy doc. Top section states the
+  general "every version change is deliberate" stance and points at the supporting
+  machinery; "Automated dependency bots — policy: none" records the decision, why, and
+  that reversing it must happen in the open (edit doc + remove CI guard in one change-set).
+  This file is also the intended home for the next Workstream-1 item (the deliberate
+  upgrade-flow docs), so that "Updating dependencies" section will append here.
+- .github/workflows/ci.yml: added a blocking "No dependency-bot config" step to the
+  `check` job, ordered between "Cargo lockfile sync" and the cooldown step. It greps for
+  dependabot.{yml,yaml}, (.github/)renovate.{json,json5}, and .renovaterc{,.json,.json5};
+  if any exist it emits a ::error:: pointing at docs/dependencies.md and exits 1. This is
+  the "teeth" for story 28's "so that no one can enable silent auto-bumping by dropping in
+  a default config" — a passive note alone doesn't prevent that; the guard does.
+- Made the guard BLOCKING immediately (no continue-on-error): it's a deterministic
+  file-existence check with no network, so it can't be flaky like the cooldown step.
+- Verified: ci.yml parses cleanly via js-yaml (new step present, correct order, no tabs).
+  Guard dry-run reports "policy holds" on the clean tree; negative test (touch a fake
+  .github/dependabot.yml) shows the guard would fail CI; fake file removed. No bot config
+  exists in the repo today.
+- PRD.md: flipped the Bot policy bullet to [DONE] with this summary.
+- Remaining Workstream-1 item: Documentation — the "Updating dependencies" deliberate-
+  upgrade flow (edit manifest, refresh lockfile, dated allowlist entry if inside cooldown,
+  verify build) + the one-command local deps:check, to land in docs/dependencies.md.
 ## Dependency Hygiene PRD — Workstream 1: CI enforcement of cooldown + lockfile sync [DONE]
 - Implemented PRD Workstream 1, item 3 ("Add CI enforcement") — covers user stories 25
   (cooldown on every PR), 26 (lockfile-sync), and 31 (fast/network-resilient checks).
