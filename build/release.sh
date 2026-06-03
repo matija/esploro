@@ -14,9 +14,11 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/release-common.sh"
 
+banner "Release  v${RELEASE_VERSION}  (aarch64 / Apple Silicon)"
+
 UPDATER_PUBLIC_KEY=$(node -e 'const c=require("./src-tauri/tauri.conf.json");process.stdout.write(c.plugins?.updater?.pubkey??"");')
 if [[ -z "$UPDATER_PUBLIC_KEY" || "$UPDATER_PUBLIC_KEY" == "PLACEHOLDER_PUBLIC_KEY" ]]; then
-  echo "error: src-tauri/tauri.conf.json plugins.updater.pubkey is missing." >&2
+  err "src-tauri/tauri.conf.json plugins.updater.pubkey is missing."
   exit 1
 fi
 
@@ -31,7 +33,7 @@ if [[ -z "${RELEASE_NOTES:-}" ]]; then
   fi
 fi
 
-echo "==> Building (aarch64)..."
+step "Building (aarch64)..."
 CI=true npm run tauri build
 
 DMG=$(ls -t target/release/bundle/dmg/*.dmg | head -1)
@@ -40,15 +42,15 @@ APP_TAR_SIG="$APP_TAR.sig"
 LATEST_JSON="target/release/bundle/latest.json"
 
 [[ -f "$APP_TAR" && -f "$APP_TAR_SIG" ]] || {
-  echo "error: updater artifacts not found:" >&2
-  echo "  $APP_TAR" >&2; echo "  $APP_TAR_SIG" >&2
+  err "updater artifacts not found:"
+  info "$APP_TAR"; info "$APP_TAR_SIG"
   exit 1
 }
 
-echo "==> Found: $DMG"
+ok "Built ${_c_dim}$DMG${_c_reset}"
 notarize_dmg "$DMG"
 
-echo "==> Writing updater manifest..."
+step "Writing updater manifest..."
 APP_TAR_SIG="$APP_TAR_SIG" LATEST_JSON="$LATEST_JSON" node -e '
 const fs = require("fs");
 const sig = fs.readFileSync(process.env.APP_TAR_SIG, "utf8").trim();
@@ -66,10 +68,12 @@ const manifest = {
 fs.writeFileSync(process.env.LATEST_JSON, JSON.stringify(manifest, null, 2) + "\n");
 '
 
-echo "==> Uploading release assets..."
+step "Uploading release assets..."
 if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+  info "Existing release $RELEASE_TAG found — clobbering aarch64 assets."
   gh release upload "$RELEASE_TAG" "$DMG" "$APP_TAR" "$LATEST_JSON" --repo "$GH_REPO" --clobber
 else
+  info "Creating new release $RELEASE_TAG."
   gh release create "$RELEASE_TAG" "$DMG" "$APP_TAR" "$LATEST_JSON" \
     --repo "$GH_REPO" \
     --target "$(git rev-parse HEAD)" \
@@ -78,4 +82,5 @@ else
     --latest
 fi
 
-echo "==> Done: $DMG"
+ok "Release ${_c_bold}$RELEASE_TAG${_c_reset} (aarch64) published"
+info "Next: build/release-intel.sh to add the x86_64 assets."
