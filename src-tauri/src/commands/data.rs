@@ -4,11 +4,11 @@ use std::time::Instant;
 use mysql_async::prelude::Queryable;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use tokio_postgres::SimpleQueryMessage;
 
 use crate::{AppState, DriverSession};
 
 mod row_mutations;
+mod sql_execution;
 mod table_queries;
 mod type_mapping;
 mod where_clauses;
@@ -18,6 +18,7 @@ use self::row_mutations::{
     build_mysql_update_sql, build_pg_delete_preview_statement, build_pg_delete_sql,
     build_pg_update_preview_sql, build_pg_update_sql,
 };
+use self::sql_execution::{execute_sql_mysql, execute_sql_pg};
 use self::table_queries::{
     build_mysql_data_sql, build_mysql_order_sql, build_mysql_select_list, build_pg_data_sql,
     build_pg_order_sql, build_pg_select_list,
@@ -1079,171 +1080,4 @@ pub async fn execute_sql(
         },
         PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,
     }
-}
-
-async fn execute_sql_pg(
-    pool: std::sync::Arc<deadpool_postgres::Pool>,
-    sql: String,
-) -> Result<Vec<QueryResult>, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
-
-    let statements: Vec<&str> = sql
-        .split(';')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    let mut results: Vec<QueryResult> = vec![];
-
-    for stmt in statements {
-        let t0 = Instant::now();
-        match client.simple_query(stmt).await {
-            Ok(messages) => {
-                let execution_ms = t0.elapsed().as_millis() as u64;
-                let mut columns: Vec<ResultColumn> = vec![];
-                let mut rows: Vec<Vec<CellValue>> = vec![];
-                let mut rows_affected: Option<u64> = None;
-
-                for msg in messages {
-                    match msg {
-                        SimpleQueryMessage::Row(row) => {
-                            if columns.is_empty() {
-                                columns = (0..row.len())
-                                    .map(|i| ResultColumn {
-                                        name: row.columns()[i].name().to_string(),
-                                        data_type: String::new(),
-                                        is_nullable: false,
-                                        is_primary_key: false,
-                                        is_foreign_key: false,
-                                        is_enum: false,
-                                    })
-                                    .collect();
-                            }
-                            rows.push(
-                                (0..row.len())
-                                    .map(|i| match row.get(i) {
-                                        None => CellValue::Null,
-                                        Some(s) => CellValue::Text(s.to_string()),
-                                    })
-                                    .collect(),
-                            );
-                        }
-                        SimpleQueryMessage::CommandComplete(n) => {
-                            rows_affected = Some(n);
-                        }
-                        _ => {}
-                    }
-                }
-
-                results.push(QueryResult {
-                    columns,
-                    rows,
-                    rows_affected,
-                    execution_ms,
-                    error: None,
-                });
-            }
-            Err(e) => {
-                let execution_ms = t0.elapsed().as_millis() as u64;
-                let position = e.as_db_error().and_then(|db| db.position()).and_then(|p| {
-                    if let tokio_postgres::error::ErrorPosition::Original(pos) = p {
-                        Some(*pos)
-                    } else {
-                        None
-                    }
-                });
-                let code = e.as_db_error().map(|db| db.code().code().to_string());
-                results.push(QueryResult {
-                    columns: vec![],
-                    rows: vec![],
-                    rows_affected: None,
-                    execution_ms,
-                    error: Some(QueryError {
-                        message: e.to_string(),
-                        position,
-                        code,
-                    }),
-                });
-                break;
-            }
-        }
-    }
-
-    Ok(results)
-}
-
-async fn execute_sql_mysql(
-    pool: std::sync::Arc<mysql_async::Pool>,
-    sql: String,
-) -> Result<Vec<QueryResult>, String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
-
-    let statements: Vec<&str> = sql
-        .split(';')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    let mut results: Vec<QueryResult> = vec![];
-
-    for stmt in statements {
-        let t0 = Instant::now();
-        match conn.query::<mysql_async::Row, _>(stmt).await {
-            Ok(rows) => {
-                let execution_ms = t0.elapsed().as_millis() as u64;
-                let rows_affected = if rows.is_empty() {
-                    Some(conn.affected_rows())
-                } else {
-                    None
-                };
-
-                let columns: Vec<ResultColumn> = if let Some(first) = rows.first() {
-                    first
-                        .columns_ref()
-                        .iter()
-                        .map(|c| ResultColumn {
-                            name: c.name_str().into_owned(),
-                            data_type: String::new(),
-                            is_nullable: false,
-                            is_primary_key: false,
-                            is_foreign_key: false,
-                            is_enum: false,
-                        })
-                        .collect()
-                } else {
-                    vec![]
-                };
-
-                let row_data: Vec<Vec<CellValue>> = rows
-                    .iter()
-                    .map(|row| (0..row.len()).map(|i| mysql_cell_value(row, i)).collect())
-                    .collect();
-
-                results.push(QueryResult {
-                    columns,
-                    rows: row_data,
-                    rows_affected,
-                    execution_ms,
-                    error: None,
-                });
-            }
-            Err(e) => {
-                let execution_ms = t0.elapsed().as_millis() as u64;
-                results.push(QueryResult {
-                    columns: vec![],
-                    rows: vec![],
-                    rows_affected: None,
-                    execution_ms,
-                    error: Some(QueryError {
-                        message: e.to_string(),
-                        position: None,
-                        code: None,
-                    }),
-                });
-                break;
-            }
-        }
-    }
-
-    Ok(results)
 }
