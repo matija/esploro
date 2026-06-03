@@ -2690,3 +2690,29 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs row-mutation execution extraction [DONE]
+- Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
+  remains blocked by the PRD's frontend test-seam sign-off question, so this stayed
+  within the existing Rust test seam on `data.rs`.
+- src-tauri/src/commands/data/row_mutation_execution.rs (new):
+  - Extracted PostgreSQL/MySQL row update/delete execution from `data.rs`.
+  - Moved preview metadata reads, PostgreSQL cast-map construction, MySQL primary-key
+    checks, transaction handling, and delete-result assembly into a focused private
+    submodule.
+  - Reuses the existing row-mutation SQL builders from `row_mutations.rs`; no command
+    signatures or serialized response shapes changed.
+- src-tauri/src/commands/data.rs:
+  - Added the private `row_mutation_execution` submodule and delegated row update/delete
+    execution plus PostgreSQL update/delete preview execution to it.
+  - Kept exported Tauri command functions, request/response structs, pool resolution,
+    retry behavior, SQL-editor dispatch, and frontend data shapes unchanged.
+  - Reduced the file to 399 lines; the extracted module is 355 lines.
+- PRD.md:
+  - Marked the `data.rs` row-mutation execution extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (36 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
