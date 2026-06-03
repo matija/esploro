@@ -8,6 +8,13 @@ use tokio_postgres::SimpleQueryMessage;
 
 use crate::{AppState, DriverSession};
 
+mod type_mapping;
+
+use self::type_mapping::{
+    json_to_pg_array_literal, mysql_cell_value, mysql_str, pg_cell_value, pg_native_udt,
+    resolve_pg_cast, CellValue,
+};
+
 fn validate_identifier(s: &str) -> Result<(), String> {
     if s.is_empty() {
         return Err("Identifier cannot be empty".into());
@@ -36,92 +43,6 @@ fn validate_column_identifier(s: &str) -> Result<(), String> {
         return Err(format!("Invalid identifier: '{s}'"));
     }
     Ok(())
-}
-
-fn pg_cast_for_udt(udt: &str) -> &'static str {
-    match udt {
-        "int2" | "int4" | "int8" => "bigint",
-        "float4" | "float8" | "numeric" | "money" => "numeric",
-        "date" => "date",
-        "timestamp" | "timestamptz" => "timestamptz",
-        "timetz" | "time" => "time",
-        "bool" | "boolean" => "boolean",
-        "uuid" => "uuid",
-        "json" => "json",
-        "jsonb" => "jsonb",
-        _ => "text",
-    }
-}
-
-// Map SQL-standard data_type names (from information_schema.columns.data_type) to
-// PostgreSQL cast target types.  This is a fallback when udt_name doesn't match
-// pg_cast_for_udt (e.g. for domain types where udt_name is the domain name while
-// data_type is the underlying base type).
-fn pg_cast_for_data_type(dt: &str) -> &'static str {
-    match dt {
-        "smallint" | "integer" | "bigint" => "bigint",
-        "real" | "double precision" | "numeric" | "money" => "numeric",
-        "date" => "date",
-        "timestamp without time zone" | "timestamp with time zone" => "timestamptz",
-        "time without time zone" | "time with time zone" => "time",
-        "boolean" => "boolean",
-        "uuid" => "uuid",
-        "json" | "jsonb" => "jsonb",
-        "character varying" | "character" | "text" => "text",
-        _ => "text",
-    }
-}
-
-// Resolve the cast target type for a filter comparison on a PostgreSQL column.
-// Tries udt_name (internal PG type name) first, then falls back to data_type
-// (SQL-standard name) so that domain and custom types still produce valid casts
-// (e.g. a domain-over-uuid resolves to "uuid" via data_type).
-// For USER-DEFINED types (enums, composites) the udt_name itself is used as the
-// cast target so that "type" = $1::text::alert_action_type works instead of
-// the broken "type" = $1::text::text.
-fn resolve_pg_cast(udt_name: &str, data_type: &str) -> String {
-    let cast = pg_cast_for_udt(udt_name);
-    if cast != "text" {
-        return cast.to_string();
-    }
-    // User-defined type (enum, composite, etc.) — use the udt_name itself as the
-    // cast target so PostgreSQL can find the operator (e.g. alert_action_type = text).
-    if data_type == "USER-DEFINED" {
-        return udt_name.to_string();
-    }
-    // Try data_type as a SQL-standard type name fallback
-    let dt_cast = pg_cast_for_data_type(data_type);
-    dt_cast.to_string()
-}
-
-// Convert a JSON-array string (e.g. `[1, 2, 3]`) to a PostgreSQL array literal
-// (e.g. `{1,2,3}`).  Each element is double-quoted to let Postgres do the type
-// coercion from text.  NULL JSON elements become SQL NULL elements.
-fn json_to_pg_array_literal(json_str: &str) -> Result<String, String> {
-    let arr: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| format!("Invalid JSON array: {e}"))?;
-    let elements = arr
-        .as_array()
-        .ok_or_else(|| "Expected a JSON array".to_string())?;
-    let parts: Vec<String> = elements
-        .iter()
-        .map(|v| {
-            if v.is_null() {
-                "NULL".to_string()
-            } else {
-                let s = match v {
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                };
-                // PG array element: double-quote and escape backslashes and double-quotes
-                let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-                format!("\"{escaped}\"")
-            }
-        })
-        .collect();
-    Ok(format!("{{{}}}", parts.join(",")))
 }
 
 #[derive(Deserialize, Clone)]
@@ -170,30 +91,13 @@ pub enum SortDirection {
 
 fn is_pg_connection_err(e: &str) -> bool {
     // SQLSTATE: 57P01=admin_shutdown, 57P02=crash_shutdown, 08006=connection_failure
-    e.contains("57P01")
-        || e.contains("57P02")
-        || e.contains("08006")
-        || {
-            let lower = e.to_lowercase();
-            lower.contains("connection closed")
-                || lower.contains("broken pipe")
-                || lower.contains("connection reset")
-                || lower.contains("unexpected eof")
-        }
-}
-
-// Tagged cell value sent to the frontend.
-// serde serialises as {"t":"null"} or {"t":"int","v":42} etc.
-#[derive(Serialize, Clone)]
-#[serde(tag = "t", content = "v", rename_all = "lowercase")]
-pub enum CellValue {
-    Null,
-    Bool(bool),
-    Int(i64),
-    Float(f64),
-    Text(String),
-    Json(serde_json::Value),
-    Other(String),
+    e.contains("57P01") || e.contains("57P02") || e.contains("08006") || {
+        let lower = e.to_lowercase();
+        lower.contains("connection closed")
+            || lower.contains("broken pipe")
+            || lower.contains("connection reset")
+            || lower.contains("unexpected eof")
+    }
 }
 
 #[derive(Serialize)]
@@ -431,12 +335,10 @@ pub async fn query_table_data(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => {
-            match query_table_pg(pool.clone(), request.clone()).await {
-                Err(ref e) if is_pg_connection_err(e) => query_table_pg(pool, request).await,
-                other => other,
-            }
-        }
+        PoolHandle::Pg(pool) => match query_table_pg(pool.clone(), request.clone()).await {
+            Err(ref e) if is_pg_connection_err(e) => query_table_pg(pool, request).await,
+            other => other,
+        },
         PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
     }
 }
@@ -456,12 +358,10 @@ pub async fn query_table_count(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => {
-            match count_table_pg(pool.clone(), request.clone()).await {
-                Err(ref e) if is_pg_connection_err(e) => count_table_pg(pool, request).await,
-                other => other,
-            }
-        }
+        PoolHandle::Pg(pool) => match count_table_pg(pool.clone(), request.clone()).await {
+            Err(ref e) if is_pg_connection_err(e) => count_table_pg(pool, request).await,
+            other => other,
+        },
         PoolHandle::Mysql(pool) => count_table_mysql(pool, request).await,
     }
 }
@@ -561,8 +461,7 @@ async fn query_table_pg(
         })
         .collect();
 
-    let (where_clauses, param_values) =
-        build_pg_where_clause(&request.filters, &col_cast_map)?;
+    let (where_clauses, param_values) = build_pg_where_clause(&request.filters, &col_cast_map)?;
 
     let where_sql = build_where_sql(&where_clauses, &request.raw_where);
 
@@ -582,7 +481,10 @@ async fn query_table_pg(
     let col_select: String = result_columns
         .iter()
         .map(|c| {
-            let udt = col_type_map.get(&c.name).map(|s| s.as_str()).unwrap_or("text");
+            let udt = col_type_map
+                .get(&c.name)
+                .map(|s| s.as_str())
+                .unwrap_or("text");
             if pg_native_udt(udt) {
                 format!("\"{}\"", c.name)
             } else {
@@ -628,7 +530,10 @@ async fn query_table_pg(
             .iter()
             .enumerate()
             .map(|(i, col)| {
-                let udt = col_type_map.get(&col.name).map(|s| s.as_str()).unwrap_or("text");
+                let udt = col_type_map
+                    .get(&col.name)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 pg_cell_value(row, i, udt)
             })
             .collect();
@@ -665,7 +570,10 @@ async fn count_table_pg(
             .map_err(|e| e.to_string())?;
         if let Some(row) = estimate_row {
             let count: i64 = row.get(0);
-            return Ok(TableCountResult { count, is_estimate: true });
+            return Ok(TableCountResult {
+                count,
+                is_estimate: true,
+            });
         }
     }
 
@@ -689,8 +597,7 @@ async fn count_table_pg(
         })
         .collect();
 
-    let (where_clauses, param_values) =
-        build_pg_where_clause(&request.filters, &col_cast_map)?;
+    let (where_clauses, param_values) = build_pg_where_clause(&request.filters, &col_cast_map)?;
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values
         .iter()
@@ -705,10 +612,11 @@ async fn count_table_pg(
     let row = client
         .query_one(count_sql.as_str(), params.as_slice())
         .await
-        .map_err(|e| {
-            format!("Count query failed — SQL: {count_sql}  Error: {e}")
-        })?;
-    Ok(TableCountResult { count: row.get(0), is_estimate: false })
+        .map_err(|e| format!("Count query failed — SQL: {count_sql}  Error: {e}"))?;
+    Ok(TableCountResult {
+        count: row.get(0),
+        is_estimate: false,
+    })
 }
 
 async fn query_table_mysql(
@@ -829,7 +737,10 @@ async fn count_table_mysql(
         .and_then(|r| mysql_str(r, 0))
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    Ok(TableCountResult { count, is_estimate: false })
+    Ok(TableCountResult {
+        count,
+        is_estimate: false,
+    })
 }
 
 // ─── update_rows ─────────────────────────────────────────────────────────────
@@ -849,12 +760,10 @@ pub async fn update_rows(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => {
-            match update_rows_pg(pool.clone(), request.clone()).await {
-                Err(ref e) if is_pg_connection_err(e) => update_rows_pg(pool, request).await,
-                other => other,
-            }
-        }
+        PoolHandle::Pg(pool) => match update_rows_pg(pool.clone(), request.clone()).await {
+            Err(ref e) if is_pg_connection_err(e) => update_rows_pg(pool, request).await,
+            other => other,
+        },
         PoolHandle::Mysql(pool) => update_rows_mysql(pool, request).await,
     }
 }
@@ -891,7 +800,10 @@ async fn update_rows_pg(
         })
         .collect();
 
-    client.batch_execute("BEGIN").await.map_err(|e| e.to_string())?;
+    client
+        .batch_execute("BEGIN")
+        .await
+        .map_err(|e| e.to_string())?;
 
     for change in &request.changes {
         if change.column_changes.is_empty() {
@@ -910,7 +822,10 @@ async fn update_rows_pg(
 
         for cc in &change.column_changes {
             if let Some(ref val) = cc.value {
-                let udt = col_type_map.get(&cc.column).map(|s| s.as_str()).unwrap_or("text");
+                let udt = col_type_map
+                    .get(&cc.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 if udt.starts_with('_') {
                     // PG array type: convert JSON array to PG array literal
                     let elem_type = udt.trim_start_matches('_');
@@ -961,7 +876,8 @@ async fn update_rows_pg(
 
         let sql = format!(
             "UPDATE \"{}\".\"{}\" SET {} WHERE {}",
-            request.schema, request.table,
+            request.schema,
+            request.table,
             set_parts.join(", "),
             where_clause
         );
@@ -977,7 +893,10 @@ async fn update_rows_pg(
         }
     }
 
-    client.batch_execute("COMMIT").await.map_err(|e| e.to_string())
+    client
+        .batch_execute("COMMIT")
+        .await
+        .map_err(|e| e.to_string())
 }
 
 async fn update_rows_mysql(
@@ -1000,12 +919,12 @@ async fn update_rows_mysql(
     };
 
     if pk_cols.is_empty() {
-        return Err(
-            "Inline editing requires a primary key — this table has none".to_string(),
-        );
+        return Err("Inline editing requires a primary key — this table has none".to_string());
     }
 
-    conn.exec_drop("START TRANSACTION", ()).await.map_err(|e| e.to_string())?;
+    conn.exec_drop("START TRANSACTION", ())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let result: Result<(), String> = (async {
         for change in &request.changes {
@@ -1050,10 +969,8 @@ async fn update_rows_mysql(
                 where_parts.join(" AND "),
             );
 
-            let all_params: Vec<mysql_async::Value> = set_params
-                .into_iter()
-                .chain(where_params)
-                .collect();
+            let all_params: Vec<mysql_async::Value> =
+                set_params.into_iter().chain(where_params).collect();
 
             conn.exec_drop(sql.as_str(), all_params)
                 .await
@@ -1067,7 +984,9 @@ async fn update_rows_mysql(
         conn.exec_drop("ROLLBACK", ()).await.ok();
         return result;
     }
-    conn.exec_drop("COMMIT", ()).await.map_err(|e| e.to_string())
+    conn.exec_drop("COMMIT", ())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ─── preview_update_rows_sql ─────────────────────────────────────────────────
@@ -1148,11 +1067,19 @@ async fn preview_update_rows_sql_pg(
             let part = match &cc.value {
                 None => format!("\"{}\" = NULL", cc.column),
                 Some(val) => {
-                    let udt = col_type_map.get(&cc.column).map(|s| s.as_str()).unwrap_or("text");
+                    let udt = col_type_map
+                        .get(&cc.column)
+                        .map(|s| s.as_str())
+                        .unwrap_or("text");
                     if udt.starts_with('_') {
                         let elem_type = udt.trim_start_matches('_');
                         let pg_array = json_to_pg_array_literal(val)?;
-                        format!("\"{}\" = '{}'::{}[]", cc.column, sql_escape_string(&pg_array), elem_type)
+                        format!(
+                            "\"{}\" = '{}'::{}[]",
+                            cc.column,
+                            sql_escape_string(&pg_array),
+                            elem_type
+                        )
                     } else {
                         let cast = col_cast_map
                             .get(&cc.column)
@@ -1162,7 +1089,7 @@ async fn preview_update_rows_sql_pg(
                         if cast == "text" {
                             format!("\"{}\" = '{}'", cc.column, escaped)
                         } else {
-                            format!("\"{}\" = '{}'::{}",  cc.column, escaped, cast)
+                            format!("\"{}\" = '{}'::{}", cc.column, escaped, cast)
                         }
                     }
                 }
@@ -1171,18 +1098,22 @@ async fn preview_update_rows_sql_pg(
         }
 
         let where_clause = if !change.pk_conditions.is_empty() {
-            let parts: Vec<String> = change.pk_conditions.iter().map(|pk| {
-                let cast = col_cast_map
-                    .get(&pk.column)
-                    .map(|s| s.as_str())
-                    .unwrap_or("text");
-                let escaped = sql_escape_string(&pk.value);
-                if cast == "text" {
-                    format!("\"{}\" = '{}'", pk.column, escaped)
-                } else {
-                    format!("\"{}\" = '{}'::{}",  pk.column, escaped, cast)
-                }
-            }).collect();
+            let parts: Vec<String> = change
+                .pk_conditions
+                .iter()
+                .map(|pk| {
+                    let cast = col_cast_map
+                        .get(&pk.column)
+                        .map(|s| s.as_str())
+                        .unwrap_or("text");
+                    let escaped = sql_escape_string(&pk.value);
+                    if cast == "text" {
+                        format!("\"{}\" = '{}'", pk.column, escaped)
+                    } else {
+                        format!("\"{}\" = '{}'::{}", pk.column, escaped, cast)
+                    }
+                })
+                .collect();
             parts.join(" AND ")
         } else if let Some(ref ctid) = change.ctid {
             format!("ctid = '{}'::tid", sql_escape_string(ctid))
@@ -1244,20 +1175,24 @@ async fn preview_update_rows_sql_mysql(
             validate_column_identifier(&pk.column)?;
         }
 
-        let set_parts: Vec<String> = change.column_changes.iter().map(|cc| {
-            match &cc.value {
+        let set_parts: Vec<String> = change
+            .column_changes
+            .iter()
+            .map(|cc| match &cc.value {
                 None => format!("`{}` = NULL", cc.column),
                 Some(val) => format!("`{}` = '{}'", cc.column, sql_escape_string(val)),
-            }
-        }).collect();
+            })
+            .collect();
 
         if change.pk_conditions.is_empty() {
             return Err("MySQL row change has no PK conditions".to_string());
         }
 
-        let where_parts: Vec<String> = change.pk_conditions.iter().map(|pk| {
-            format!("`{}` = '{}'", pk.column, sql_escape_string(&pk.value))
-        }).collect();
+        let where_parts: Vec<String> = change
+            .pk_conditions
+            .iter()
+            .map(|pk| format!("`{}` = '{}'", pk.column, sql_escape_string(&pk.value)))
+            .collect();
 
         statements.push(format!(
             "UPDATE `{}`.`{}` SET {} WHERE {};",
@@ -1295,12 +1230,10 @@ pub async fn delete_rows(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => {
-            match delete_rows_pg(pool.clone(), request.clone()).await {
-                Err(ref e) if is_pg_connection_err(e) => delete_rows_pg(pool, request).await,
-                other => other,
-            }
-        }
+        PoolHandle::Pg(pool) => match delete_rows_pg(pool.clone(), request.clone()).await {
+            Err(ref e) if is_pg_connection_err(e) => delete_rows_pg(pool, request).await,
+            other => other,
+        },
         PoolHandle::Mysql(pool) => delete_rows_mysql(pool, request).await,
     }
 }
@@ -1315,7 +1248,10 @@ fn delete_where_inline(
             .pk_conditions
             .iter()
             .map(|pk| {
-                let cast = col_cast_map.get(&pk.column).map(|s| s.as_str()).unwrap_or("text");
+                let cast = col_cast_map
+                    .get(&pk.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 let escaped = sql_escape_string(&pk.value);
                 if cast == "text" {
                     format!("\"{}\" = '{}'", pk.column, escaped)
@@ -1370,7 +1306,10 @@ async fn delete_rows_pg(
             for pk in &row.pk_conditions {
                 params.push(pk.value.clone());
                 let p = params.len();
-                let cast = col_cast_map.get(&pk.column).map(|s| s.as_str()).unwrap_or("text");
+                let cast = col_cast_map
+                    .get(&pk.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
                 parts.push(format!("\"{}\" = ${}::text::{}", pk.column, p, cast));
             }
             parts.join(" AND ")
@@ -1407,7 +1346,10 @@ async fn delete_rows_pg(
             .await
             .err()
             .map(|e| e.to_string());
-        results.push(DeleteRowResult { sql: disp_sql, error });
+        results.push(DeleteRowResult {
+            sql: disp_sql,
+            error,
+        });
     }
 
     Ok(results)
@@ -1439,7 +1381,11 @@ async fn delete_rows_mysql(
         let mut params: Vec<mysql_async::Value> = vec![];
         for pk in &row.pk_conditions {
             where_parts.push(format!("`{}` = ?", pk.column));
-            disp_parts.push(format!("`{}` = '{}'", pk.column, sql_escape_string(&pk.value)));
+            disp_parts.push(format!(
+                "`{}` = '{}'",
+                pk.column,
+                sql_escape_string(&pk.value)
+            ));
             params.push(mysql_async::Value::Bytes(pk.value.as_bytes().to_vec()));
         }
 
@@ -1456,8 +1402,15 @@ async fn delete_rows_mysql(
             disp_parts.join(" AND ")
         );
 
-        let error = conn.exec_drop(exec_sql.as_str(), params).await.err().map(|e| e.to_string());
-        results.push(DeleteRowResult { sql: disp_sql, error });
+        let error = conn
+            .exec_drop(exec_sql.as_str(), params)
+            .await
+            .err()
+            .map(|e| e.to_string());
+        results.push(DeleteRowResult {
+            sql: disp_sql,
+            error,
+        });
     }
 
     Ok(results)
@@ -1583,12 +1536,10 @@ pub async fn execute_sql(
     };
 
     match handle {
-        PoolHandle::Pg(pool) => {
-            match execute_sql_pg(pool.clone(), sql.clone()).await {
-                Err(ref e) if is_pg_connection_err(e) => execute_sql_pg(pool, sql).await,
-                other => other,
-            }
-        }
+        PoolHandle::Pg(pool) => match execute_sql_pg(pool.clone(), sql.clone()).await {
+            Err(ref e) if is_pg_connection_err(e) => execute_sql_pg(pool, sql).await,
+            other => other,
+        },
         PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,
     }
 }
@@ -1760,101 +1711,6 @@ async fn execute_sql_mysql(
     Ok(results)
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-fn pg_native_udt(udt: &str) -> bool {
-    matches!(
-        udt,
-        "bool" | "boolean"
-            | "int2" | "int4" | "int8"
-            | "float4" | "float8"
-            | "text" | "varchar" | "bpchar" | "char" | "name" | "citext"
-            | "json" | "jsonb"
-    )
-}
-
-fn pg_cell_value(row: &tokio_postgres::Row, i: usize, udt: &str) -> CellValue {
-    macro_rules! get_opt {
-        ($T:ty, $variant:expr) => {
-            match row.try_get::<_, Option<$T>>(i) {
-                Ok(None) => CellValue::Null,
-                Ok(Some(v)) => $variant(v),
-                Err(_) => CellValue::Null,
-            }
-        };
-    }
-    match udt {
-        "bool" | "boolean" => get_opt!(bool, CellValue::Bool),
-        "int2" => get_opt!(i16, |v: i16| CellValue::Int(v as i64)),
-        "int4" => get_opt!(i32, |v: i32| CellValue::Int(v as i64)),
-        "int8" => get_opt!(i64, CellValue::Int),
-        "float4" => get_opt!(f32, |v: f32| CellValue::Float(v as f64)),
-        "float8" => get_opt!(f64, CellValue::Float),
-        "json" | "jsonb" => get_opt!(serde_json::Value, CellValue::Json),
-        // text-like types: String FromSql works for these OIDs
-        // uuid is not here — it arrives as ::text via the SELECT cast and is handled by the _ arm
-        "text" | "varchar" | "bpchar" | "char" | "name" | "citext" => {
-            get_opt!(String, CellValue::Text)
-        }
-        // Everything else was cast ::text in the SELECT; read as Other.
-        _ => match row.try_get::<_, Option<String>>(i) {
-            Ok(None) => CellValue::Null,
-            Ok(Some(s)) => CellValue::Other(s),
-            Err(_) => CellValue::Null,
-        },
-    }
-}
-
-fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue {
-    use mysql_async::Value;
-    match row.as_ref(idx) {
-        None | Some(Value::NULL) => CellValue::Null,
-        Some(Value::Int(n)) => CellValue::Int(*n),
-        Some(Value::UInt(n)) => CellValue::Int(*n as i64),
-        Some(Value::Float(f)) => CellValue::Float(*f as f64),
-        Some(Value::Double(f)) => CellValue::Float(*f),
-        Some(Value::Bytes(b)) => {
-            CellValue::Text(String::from_utf8_lossy(b).into_owned())
-        }
-        Some(Value::Date(y, m, d, h, min, s, _)) => {
-            if *h == 0 && *min == 0 && *s == 0 {
-                CellValue::Other(format!("{y:04}-{m:02}-{d:02}"))
-            } else {
-                CellValue::Other(format!("{y:04}-{m:02}-{d:02} {h:02}:{min:02}:{s:02}"))
-            }
-        }
-        Some(Value::Time(neg, days, h, min, s, _)) => {
-            let sign = if *neg { "-" } else { "" };
-            let total_h = days * 24 + *h as u32;
-            CellValue::Other(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
-        }
-    }
-}
-
-fn mysql_str(row: &mysql_async::Row, idx: usize) -> Option<String> {
-    use mysql_async::Value;
-    match row.as_ref(idx)? {
-        Value::NULL => None,
-        Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
-        Value::Int(n) => Some(n.to_string()),
-        Value::UInt(n) => Some(n.to_string()),
-        Value::Float(f) => Some(f.to_string()),
-        Value::Double(f) => Some(f.to_string()),
-        Value::Date(y, m, d, h, min, s, _) => {
-            if *h == 0 && *min == 0 && *s == 0 {
-                Some(format!("{y:04}-{m:02}-{d:02}"))
-            } else {
-                Some(format!("{y:04}-{m:02}-{d:02} {h:02}:{min:02}:{s:02}"))
-            }
-        }
-        Value::Time(neg, days, h, min, s, _) => {
-            let sign = if *neg { "-" } else { "" };
-            let total_h = days * 24 + *h as u32;
-            Some(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
-        }
-    }
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1862,11 +1718,18 @@ mod tests {
     use super::*;
 
     fn make_map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     fn f(col: &str, op: FilterOperator, val: Option<&str>) -> ColumnFilter {
-        ColumnFilter { column: col.to_string(), operator: op, value: val.map(str::to_string) }
+        ColumnFilter {
+            column: col.to_string(),
+            operator: op,
+            value: val.map(str::to_string),
+        }
     }
 
     #[test]
@@ -1904,22 +1767,17 @@ mod tests {
     #[test]
     fn boolean_eq_uses_text_intermediate() {
         let map = make_map(&[("active", "boolean")]);
-        let (clauses, _) = build_pg_where_clause(
-            &[f("active", FilterOperator::Eq, Some("true"))],
-            &map,
-        )
-        .unwrap();
+        let (clauses, _) =
+            build_pg_where_clause(&[f("active", FilterOperator::Eq, Some("true"))], &map).unwrap();
         assert_eq!(clauses[0], r#""active" = $1::text::boolean"#);
     }
 
     #[test]
     fn numeric_gte_uses_text_intermediate() {
         let map = make_map(&[("amount", "numeric")]);
-        let (clauses, params) = build_pg_where_clause(
-            &[f("amount", FilterOperator::Gte, Some("100.50"))],
-            &map,
-        )
-        .unwrap();
+        let (clauses, params) =
+            build_pg_where_clause(&[f("amount", FilterOperator::Gte, Some("100.50"))], &map)
+                .unwrap();
         assert_eq!(clauses[0], r#""amount" >= $1::text::numeric"#);
         assert_eq!(params[0], "100.50");
     }
@@ -1928,8 +1786,7 @@ mod tests {
     fn text_like_unaffected() {
         let map = make_map(&[("name", "text")]);
         let (clauses, params) =
-            build_pg_where_clause(&[f("name", FilterOperator::Like, Some("%foo%"))], &map)
-                .unwrap();
+            build_pg_where_clause(&[f("name", FilterOperator::Like, Some("%foo%"))], &map).unwrap();
         assert_eq!(clauses[0], r#""name"::text LIKE $1"#);
         assert_eq!(params[0], "%foo%");
     }

@@ -2536,3 +2536,31 @@
   the proof the five removals were safe and not hiding a still-young package.
 - Did NOT touch: bot policy or the CONTEXT.md "Updating dependencies" doc — those
   are the remaining Workstream-1 tasks. One task per change-set.
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs type/value mapping extraction [DONE]
+- Chose the highest unblocked Workstream-3 task. `TableViewerTab.tsx` remains the
+  top-ranked simplification target, but the PRD still requires sign-off on the
+  frontend test seam before splitting it. Took the next Tier-1 target with an
+  existing Rust test seam: `data.rs`.
+- src-tauri/src/commands/data/type_mapping.rs (new):
+  - Extracted the type/value mapping responsibility from `data.rs`.
+  - Moved `CellValue`, PostgreSQL cast resolution (`resolve_pg_cast` and its
+    private helpers), PostgreSQL JSON-array-to-array-literal conversion,
+    PostgreSQL native-type detection/cell decoding, and MySQL cell/string
+    decoding.
+  - Added focused unit tests for USER-DEFINED casts, domain fallback casts, and
+    JSON array literal escaping.
+- src-tauri/src/commands/data.rs:
+  - Added private `type_mapping` submodule imports.
+  - Removed the extracted helper code while preserving the exported Tauri command
+    functions and serialized frontend data shape.
+  - Query/update/delete/execute orchestration remains in place; this change only
+    splits the type/value mapping seam.
+- PRD.md:
+  - Marked the `data.rs` type/value mapping extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (24 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
