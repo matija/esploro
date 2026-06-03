@@ -8,12 +8,17 @@ use tokio_postgres::SimpleQueryMessage;
 
 use crate::{AppState, DriverSession};
 
+mod row_mutations;
 mod type_mapping;
 mod where_clauses;
 
+use self::row_mutations::{
+    build_mysql_delete_preview_sql, build_mysql_delete_sql, build_mysql_update_preview_sql,
+    build_mysql_update_sql, build_pg_delete_preview_statement, build_pg_delete_sql,
+    build_pg_update_preview_sql, build_pg_update_sql,
+};
 use self::type_mapping::{
-    json_to_pg_array_literal, mysql_cell_value, mysql_str, pg_cell_value, pg_native_udt,
-    resolve_pg_cast, CellValue,
+    mysql_cell_value, mysql_str, pg_cell_value, pg_native_udt, resolve_pg_cast, CellValue,
 };
 use self::where_clauses::{build_mysql_where_clause, build_pg_where_clause, build_where_sql};
 
@@ -693,84 +698,30 @@ async fn update_rows_pg(
             continue;
         }
 
-        for cc in &change.column_changes {
-            validate_column_identifier(&cc.column)?;
-        }
-        for pk in &change.pk_conditions {
-            validate_column_identifier(&pk.column)?;
-        }
-
-        let mut params: Vec<String> = vec![];
-        let mut set_parts: Vec<String> = vec![];
-
-        for cc in &change.column_changes {
-            if let Some(ref val) = cc.value {
-                let udt = col_type_map
-                    .get(&cc.column)
-                    .map(|s| s.as_str())
-                    .unwrap_or("text");
-                if udt.starts_with('_') {
-                    // PG array type: convert JSON array to PG array literal
-                    let elem_type = udt.trim_start_matches('_');
-                    let pg_array = match json_to_pg_array_literal(val) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            client.batch_execute("ROLLBACK").await.ok();
-                            return Err(e);
-                        }
-                    };
-                    params.push(pg_array);
-                    let p = params.len();
-                    set_parts.push(format!("\"{}\" = ${}::text::{}[]", cc.column, p, elem_type));
-                } else {
-                    params.push(val.clone());
-                    let p = params.len();
-                    let cast = col_cast_map
-                        .get(&cc.column)
-                        .map(|s| s.as_str())
-                        .unwrap_or("text");
-                    set_parts.push(format!("\"{}\" = ${}::text::{}", cc.column, p, cast));
-                }
-            } else {
-                set_parts.push(format!("\"{}\" = NULL", cc.column));
+        let mutation = match build_pg_update_sql(
+            &request.schema,
+            &request.table,
+            change,
+            &col_type_map,
+            &col_cast_map,
+        ) {
+            Ok(mutation) => mutation,
+            Err(e) => {
+                client.batch_execute("ROLLBACK").await.ok();
+                return Err(e);
             }
-        }
-
-        let where_clause = if !change.pk_conditions.is_empty() {
-            let mut parts = vec![];
-            for pk in &change.pk_conditions {
-                params.push(pk.value.clone());
-                let p = params.len();
-                let cast = col_cast_map
-                    .get(&pk.column)
-                    .map(|s| s.as_str())
-                    .unwrap_or("text");
-                parts.push(format!("\"{}\" = ${}::text::{}", pk.column, p, cast));
-            }
-            parts.join(" AND ")
-        } else if let Some(ref ctid) = change.ctid {
-            params.push(ctid.clone());
-            let p = params.len();
-            format!("ctid = ${}::tid", p)
-        } else {
-            client.batch_execute("ROLLBACK").await.ok();
-            return Err("Row change has no PK conditions and no ctid".to_string());
         };
 
-        let sql = format!(
-            "UPDATE \"{}\".\"{}\" SET {} WHERE {}",
-            request.schema,
-            request.table,
-            set_parts.join(", "),
-            where_clause
-        );
-
-        let pg_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+        let pg_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = mutation
+            .params
             .iter()
             .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
-        if let Err(e) = client.execute(sql.as_str(), pg_params.as_slice()).await {
+        if let Err(e) = client
+            .execute(mutation.sql.as_str(), pg_params.as_slice())
+            .await
+        {
             client.batch_execute("ROLLBACK").await.ok();
             return Err(e.to_string());
         }
@@ -814,48 +765,10 @@ async fn update_rows_mysql(
             if change.column_changes.is_empty() {
                 continue;
             }
-            for cc in &change.column_changes {
-                validate_column_identifier(&cc.column)?;
-            }
-            for pk in &change.pk_conditions {
-                validate_column_identifier(&pk.column)?;
-            }
 
-            let mut set_params: Vec<mysql_async::Value> = vec![];
-            let mut set_parts: Vec<String> = vec![];
+            let mutation = build_mysql_update_sql(&request.schema, &request.table, change)?;
 
-            for cc in &change.column_changes {
-                if let Some(ref val) = cc.value {
-                    set_parts.push(format!("`{}` = ?", cc.column));
-                    set_params.push(mysql_async::Value::Bytes(val.as_bytes().to_vec()));
-                } else {
-                    set_parts.push(format!("`{}` = NULL", cc.column));
-                }
-            }
-
-            if change.pk_conditions.is_empty() {
-                return Err("MySQL row change has no PK conditions".to_string());
-            }
-
-            let mut where_parts: Vec<String> = vec![];
-            let mut where_params: Vec<mysql_async::Value> = vec![];
-            for pk in &change.pk_conditions {
-                where_parts.push(format!("`{}` = ?", pk.column));
-                where_params.push(mysql_async::Value::Bytes(pk.value.as_bytes().to_vec()));
-            }
-
-            let sql = format!(
-                "UPDATE `{}`.`{}` SET {} WHERE {}",
-                request.schema,
-                request.table,
-                set_parts.join(", "),
-                where_parts.join(" AND "),
-            );
-
-            let all_params: Vec<mysql_async::Value> =
-                set_params.into_iter().chain(where_params).collect();
-
-            conn.exec_drop(sql.as_str(), all_params)
+            conn.exec_drop(mutation.sql.as_str(), mutation.params)
                 .await
                 .map_err(|e| e.to_string())?;
         }
@@ -873,10 +786,6 @@ async fn update_rows_mysql(
 }
 
 // ─── preview_update_rows_sql ─────────────────────────────────────────────────
-
-fn sql_escape_string(s: &str) -> String {
-    s.replace('\'', "''")
-}
 
 #[tauri::command]
 pub async fn preview_update_rows_sql(
@@ -932,95 +841,13 @@ async fn preview_update_rows_sql_pg(
         })
         .collect();
 
-    let mut statements: Vec<String> = vec![];
-
-    for change in &request.changes {
-        if change.column_changes.is_empty() {
-            continue;
-        }
-        for cc in &change.column_changes {
-            validate_column_identifier(&cc.column)?;
-        }
-        for pk in &change.pk_conditions {
-            validate_column_identifier(&pk.column)?;
-        }
-
-        let mut set_parts: Vec<String> = vec![];
-        for cc in &change.column_changes {
-            let part = match &cc.value {
-                None => format!("\"{}\" = NULL", cc.column),
-                Some(val) => {
-                    let udt = col_type_map
-                        .get(&cc.column)
-                        .map(|s| s.as_str())
-                        .unwrap_or("text");
-                    if udt.starts_with('_') {
-                        let elem_type = udt.trim_start_matches('_');
-                        let pg_array = json_to_pg_array_literal(val)?;
-                        format!(
-                            "\"{}\" = '{}'::{}[]",
-                            cc.column,
-                            sql_escape_string(&pg_array),
-                            elem_type
-                        )
-                    } else {
-                        let cast = col_cast_map
-                            .get(&cc.column)
-                            .map(|s| s.as_str())
-                            .unwrap_or("text");
-                        let escaped = sql_escape_string(val);
-                        if cast == "text" {
-                            format!("\"{}\" = '{}'", cc.column, escaped)
-                        } else {
-                            format!("\"{}\" = '{}'::{}", cc.column, escaped, cast)
-                        }
-                    }
-                }
-            };
-            set_parts.push(part);
-        }
-
-        let where_clause = if !change.pk_conditions.is_empty() {
-            let parts: Vec<String> = change
-                .pk_conditions
-                .iter()
-                .map(|pk| {
-                    let cast = col_cast_map
-                        .get(&pk.column)
-                        .map(|s| s.as_str())
-                        .unwrap_or("text");
-                    let escaped = sql_escape_string(&pk.value);
-                    if cast == "text" {
-                        format!("\"{}\" = '{}'", pk.column, escaped)
-                    } else {
-                        format!("\"{}\" = '{}'::{}", pk.column, escaped, cast)
-                    }
-                })
-                .collect();
-            parts.join(" AND ")
-        } else if let Some(ref ctid) = change.ctid {
-            format!("ctid = '{}'::tid", sql_escape_string(ctid))
-        } else {
-            return Err("Row change has no PK conditions and no ctid".to_string());
-        };
-
-        statements.push(format!(
-            "UPDATE \"{}\".\"{}\" SET {} WHERE {};",
-            request.schema,
-            request.table,
-            set_parts.join(", "),
-            where_clause,
-        ));
-    }
-
-    if statements.is_empty() {
-        return Ok(String::new());
-    }
-
-    Ok(format!(
-        "BEGIN;\n-- Generated by Esploro from inline edits. Review before running.\n{}\nCOMMIT;",
-        statements.join("\n"),
-    ))
+    build_pg_update_preview_sql(
+        &request.schema,
+        &request.table,
+        &request.changes,
+        &col_type_map,
+        &col_cast_map,
+    )
 }
 
 async fn preview_update_rows_sql_mysql(
@@ -1045,55 +872,7 @@ async fn preview_update_rows_sql_mysql(
         return Err("Inline editing requires a primary key — this table has none".to_string());
     }
 
-    let mut statements: Vec<String> = vec![];
-
-    for change in &request.changes {
-        if change.column_changes.is_empty() {
-            continue;
-        }
-        for cc in &change.column_changes {
-            validate_column_identifier(&cc.column)?;
-        }
-        for pk in &change.pk_conditions {
-            validate_column_identifier(&pk.column)?;
-        }
-
-        let set_parts: Vec<String> = change
-            .column_changes
-            .iter()
-            .map(|cc| match &cc.value {
-                None => format!("`{}` = NULL", cc.column),
-                Some(val) => format!("`{}` = '{}'", cc.column, sql_escape_string(val)),
-            })
-            .collect();
-
-        if change.pk_conditions.is_empty() {
-            return Err("MySQL row change has no PK conditions".to_string());
-        }
-
-        let where_parts: Vec<String> = change
-            .pk_conditions
-            .iter()
-            .map(|pk| format!("`{}` = '{}'", pk.column, sql_escape_string(&pk.value)))
-            .collect();
-
-        statements.push(format!(
-            "UPDATE `{}`.`{}` SET {} WHERE {};",
-            request.schema,
-            request.table,
-            set_parts.join(", "),
-            where_parts.join(" AND "),
-        ));
-    }
-
-    if statements.is_empty() {
-        return Ok(String::new());
-    }
-
-    Ok(format!(
-        "START TRANSACTION;\n-- Generated by Esploro from inline edits. Review before running.\n{}\nCOMMIT;",
-        statements.join("\n"),
-    ))
+    build_mysql_update_preview_sql(&request.schema, &request.table, &request.changes)
 }
 
 // ─── delete_rows ─────────────────────────────────────────────────────────────
@@ -1118,36 +897,6 @@ pub async fn delete_rows(
             other => other,
         },
         PoolHandle::Mysql(pool) => delete_rows_mysql(pool, request).await,
-    }
-}
-
-// Builds the inlined (value-substituted) WHERE clause used for display/preview.
-fn delete_where_inline(
-    row: &DeleteRowRequest,
-    col_cast_map: &HashMap<String, String>,
-) -> Result<String, String> {
-    if !row.pk_conditions.is_empty() {
-        let parts: Vec<String> = row
-            .pk_conditions
-            .iter()
-            .map(|pk| {
-                let cast = col_cast_map
-                    .get(&pk.column)
-                    .map(|s| s.as_str())
-                    .unwrap_or("text");
-                let escaped = sql_escape_string(&pk.value);
-                if cast == "text" {
-                    format!("\"{}\" = '{}'", pk.column, escaped)
-                } else {
-                    format!("\"{}\" = '{}'::{}", pk.column, escaped, cast)
-                }
-            })
-            .collect();
-        Ok(parts.join(" AND "))
-    } else if let Some(ref ctid) = row.ctid {
-        Ok(format!("ctid = '{}'::tid", sql_escape_string(ctid)))
-    } else {
-        Err("Row has no PK conditions and no ctid".to_string())
     }
 }
 
@@ -1183,54 +932,31 @@ async fn delete_rows_pg(
             validate_column_identifier(&pk.column)?;
         }
 
-        let mut params: Vec<String> = vec![];
-        let exec_where = if !row.pk_conditions.is_empty() {
-            let mut parts = vec![];
-            for pk in &row.pk_conditions {
-                params.push(pk.value.clone());
-                let p = params.len();
-                let cast = col_cast_map
-                    .get(&pk.column)
-                    .map(|s| s.as_str())
-                    .unwrap_or("text");
-                parts.push(format!("\"{}\" = ${}::text::{}", pk.column, p, cast));
-            }
-            parts.join(" AND ")
-        } else if let Some(ref ctid) = row.ctid {
-            params.push(ctid.clone());
-            let p = params.len();
-            format!("ctid = ${}::tid", p)
-        } else {
-            results.push(DeleteRowResult {
-                sql: String::new(),
-                error: Some("Row has no PK conditions and no ctid".to_string()),
-            });
-            continue;
-        };
+        let delete_sql =
+            match build_pg_delete_sql(&request.schema, &request.table, row, &col_cast_map) {
+                Ok(delete_sql) => delete_sql,
+                Err(e) => {
+                    results.push(DeleteRowResult {
+                        sql: String::new(),
+                        error: Some(e),
+                    });
+                    continue;
+                }
+            };
 
-        let exec_sql = format!(
-            "DELETE FROM \"{}\".\"{}\" WHERE {}",
-            request.schema, request.table, exec_where
-        );
-        let disp_sql = format!(
-            "DELETE FROM \"{}\".\"{}\" WHERE {};",
-            request.schema,
-            request.table,
-            delete_where_inline(row, &col_cast_map)?
-        );
-
-        let pg_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = params
+        let pg_params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = delete_sql
+            .params
             .iter()
             .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
             .collect();
 
         let error = client
-            .execute(exec_sql.as_str(), pg_params.as_slice())
+            .execute(delete_sql.exec_sql.as_str(), pg_params.as_slice())
             .await
             .err()
             .map(|e| e.to_string());
         results.push(DeleteRowResult {
-            sql: disp_sql,
+            sql: delete_sql.display_sql,
             error,
         });
     }
@@ -1251,47 +977,24 @@ async fn delete_rows_mysql(
             validate_column_identifier(&pk.column)?;
         }
 
-        if row.pk_conditions.is_empty() {
-            results.push(DeleteRowResult {
-                sql: String::new(),
-                error: Some("MySQL delete requires a primary key".to_string()),
-            });
-            continue;
-        }
-
-        let mut where_parts: Vec<String> = vec![];
-        let mut disp_parts: Vec<String> = vec![];
-        let mut params: Vec<mysql_async::Value> = vec![];
-        for pk in &row.pk_conditions {
-            where_parts.push(format!("`{}` = ?", pk.column));
-            disp_parts.push(format!(
-                "`{}` = '{}'",
-                pk.column,
-                sql_escape_string(&pk.value)
-            ));
-            params.push(mysql_async::Value::Bytes(pk.value.as_bytes().to_vec()));
-        }
-
-        let exec_sql = format!(
-            "DELETE FROM `{}`.`{}` WHERE {}",
-            request.schema,
-            request.table,
-            where_parts.join(" AND ")
-        );
-        let disp_sql = format!(
-            "DELETE FROM `{}`.`{}` WHERE {};",
-            request.schema,
-            request.table,
-            disp_parts.join(" AND ")
-        );
+        let delete_sql = match build_mysql_delete_sql(&request.schema, &request.table, row) {
+            Ok(delete_sql) => delete_sql,
+            Err(e) => {
+                results.push(DeleteRowResult {
+                    sql: String::new(),
+                    error: Some(e),
+                });
+                continue;
+            }
+        };
 
         let error = conn
-            .exec_drop(exec_sql.as_str(), params)
+            .exec_drop(delete_sql.exec_sql.as_str(), delete_sql.params)
             .await
             .err()
             .map(|e| e.to_string());
         results.push(DeleteRowResult {
-            sql: disp_sql,
+            sql: delete_sql.display_sql,
             error,
         });
     }
@@ -1317,26 +1020,11 @@ pub async fn preview_delete_rows_sql(
 
     match handle {
         PoolHandle::Pg(pool) => preview_delete_rows_sql_pg(pool, request).await,
-        PoolHandle::Mysql(_) => {
-            let statements: Vec<String> = request
-                .rows
-                .iter()
-                .map(|row| {
-                    let parts: Vec<String> = row
-                        .pk_conditions
-                        .iter()
-                        .map(|pk| format!("`{}` = '{}'", pk.column, sql_escape_string(&pk.value)))
-                        .collect();
-                    format!(
-                        "DELETE FROM `{}`.`{}` WHERE {};",
-                        request.schema,
-                        request.table,
-                        parts.join(" AND ")
-                    )
-                })
-                .collect();
-            Ok(statements.join("\n"))
-        }
+        PoolHandle::Mysql(_) => Ok(build_mysql_delete_preview_sql(
+            &request.schema,
+            &request.table,
+            &request.rows,
+        )),
     }
 }
 
@@ -1370,12 +1058,12 @@ async fn preview_delete_rows_sql_pg(
         for pk in &row.pk_conditions {
             validate_column_identifier(&pk.column)?;
         }
-        statements.push(format!(
-            "DELETE FROM \"{}\".\"{}\" WHERE {};",
-            request.schema,
-            request.table,
-            delete_where_inline(row, &col_cast_map)?
-        ));
+        statements.push(build_pg_delete_preview_statement(
+            &request.schema,
+            &request.table,
+            row,
+            &col_cast_map,
+        )?);
     }
 
     Ok(statements.join("\n"))

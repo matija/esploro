@@ -2589,3 +2589,27 @@
   - `cargo check --workspace --locked`
   - `npm run type-check`
   - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
+
+## Dependency Hygiene PRD — Workstream 3 (code simplification): data.rs row-mutation SQL extraction [DONE]
+- Continued the highest unblocked Tier-1 simplification task. `TableViewerTab.tsx`
+  remains blocked by the PRD's frontend test-seam sign-off question, so this stayed
+  within the existing Rust test seam on `data.rs`.
+- src-tauri/src/commands/data/row_mutations.rs (new):
+  - Extracted PostgreSQL/MySQL UPDATE and DELETE SQL assembly from `data.rs`.
+  - Moved preview SQL rendering, SQL string escaping, ctid/PK WHERE construction,
+    and mutation parameter construction into a focused private submodule.
+  - Added focused unit tests for PostgreSQL casted UPDATE parameters, PostgreSQL
+    ctid DELETE execution/preview SQL, and MySQL preview escaping/PK validation.
+- src-tauri/src/commands/data.rs:
+  - Added the private `row_mutations` submodule and delegated update/delete
+    execution plus preview SQL assembly to it.
+  - Kept exported Tauri command functions, request/response structs, retry
+    behavior, transaction handling, and frontend data shapes unchanged.
+- PRD.md:
+  - Marked the `data.rs` row-mutation SQL extraction as DONE under Workstream 3.
+- Checks passed:
+  - `cargo fmt --manifest-path src-tauri/Cargo.toml`
+  - `cargo test --manifest-path src-tauri/Cargo.toml --lib` (27 passed)
+  - `cargo check --workspace --locked`
+  - `npm run type-check`
+  - `npm run lint` (0 errors, 1 pre-existing SchemaTree exhaustive-deps warning)
