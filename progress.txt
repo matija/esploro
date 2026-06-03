@@ -1,3 +1,39 @@
+## Dependency Hygiene PRD — Workstream 1: Updating-dependencies docs [DONE]
+- Implemented the final Workstream-1 item, "Documentation" — covers user stories
+  29 (deliberate-upgrade flow), 30 (predictable fresh-clone behavior), and the
+  deps:check half of 32 (one documented command to reproduce CI's verdict).
+- docs/dependencies.md: appended an "Updating dependencies" section below the
+  bot-policy block (the home that item established; chose it over CONTEXT.md so
+  all dependency policy lives in one file). Contents:
+  - Per-ecosystem upgrade flow. npm: edit exact pin in package.json (.npmrc
+    save-exact=true keeps installs exact) → npm install to refresh
+    package-lock.json (the preinstall hook runs the cooldown gate here) →
+    type-check + lint + tauri build. cargo: edit =x.y.z in src-tauri/Cargo.toml
+    or tools/keygen/Cargo.toml → cargo update -p <crate> --precise / cargo check
+    to refresh Cargo.lock → cargo check --workspace --locked + build. States the
+    direct=exact / transitive=lockfile policy.
+  - "Inside the cooldown window": the dated [[allowlist]] TOML format with the
+    expiry semantics — entries are time-boxed, isAllowed() ignores them past
+    expires_at, so delete once aged out; set expires_at = publish date + 14 days.
+  - "One command": npm run deps:check runs the cooldown gate over BOTH npm and
+    cargo and exits non-zero on any violation — the same verdict CI gives; the
+    preinstall hook runs the npm half automatically.
+  - "Behavior on a fresh clone" (story 30): the committed allowlist exists with
+    zero [[allowlist]] entries, so a <14-day version FAILS LOUDLY and demands a
+    manual entry — identical on a new machine / CI runner as on the maintainer's
+    laptop. The tool only auto-bootstraps when the file is ENTIRELY ABSENT;
+    because it's present (header only), there is no silent bootstrap path. This
+    matches the source: main() reads allowlistSrc only if the file exists, so a
+    present-but-empty file parses to [] (not null) → the bootstrap branch
+    (allowlist === null) is skipped → violations fail.
+- Doc-only change (markdown): no type-check/lint applies. Verified the command
+  the doc points at: `npm run deps:check` exits 0 ("All packages pass the 14-day
+  cooldown") across npm + cargo.
+- PRD.md: flipped the Documentation bullet to [DONE]. THIS COMPLETES WORKSTREAM 1
+  (bump safety) — all six items DONE (pin cargo, cooldown for cargo+npm, CI
+  enforcement, allowlist lifecycle, bot policy, docs). Next per PRD sequencing:
+  Workstream 2 (dependency prune).
+
 ## Dependency Hygiene PRD — Workstream 1: Bot policy (no Dependabot/Renovate) [DONE]
 - Implemented PRD Workstream 1, item "Bot policy" — covers user story 28 (explicit,
   checked-in decision about automated dependency bots; no silent auto-bumping).
