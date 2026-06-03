@@ -1,3 +1,20 @@
+## Dependency Hygiene PRD — Workstream 1: cooldown gate for cargo + npm via deps:check [DONE]
+- Implemented PRD Workstream 1, item 2 ("Run the cooldown gate for cargo as well as
+  npm") — covers user stories 24 and the cooldown portion of 32.
+- package.json:
+  - Added `"deps:check": "node tools/check-dep-cooldown.mjs"` script. Passing no flags
+    makes the tool check BOTH npm (package-lock.json) and cargo (Cargo.lock) against the
+    14-day cooldown — see runNpm/runCargo defaulting in tools/check-dep-cooldown.mjs.
+  - `preinstall` left untouched at `--npm` (fast npm-only guard on install lifecycle, per
+    the PRD decision to keep install fast and put the full check in a dedicated command).
+- The cooldown tool itself needed no changes — it already supported `--cargo` and a
+  both-ecosystems default; this task just wired it to a documented local command.
+- Verified: `npm run deps:check` exits 0 with "✓ All packages pass the 14-day cooldown"
+  across both ecosystems. `node --check` on the tool and JSON.parse on package.json pass.
+- NOT done here (separate PRD items, future iterations): CI enforcement + lockfile-sync
+  check (item 3), allowlist lifecycle review (item 4, entries expire 2026-06-05), bot
+  policy (item 5), docs (item 6).
+
 ## Auto-Update PRD — Automatic update checks & new-version indicator [DONE]
 - Lifted update state out of AboutSettings into a shared, app-wide hook so the
   toolbar indicator and the About panel read from one source of truth.
