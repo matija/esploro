@@ -1,3 +1,35 @@
+## Dependency Hygiene PRD — Workstream 3: TableViewerTab.tsx filter/JSON popover extraction [DONE]
+- Continued the top-ranked Workstream-3 frontend target (TableViewerTab.tsx) with the two
+  "next unblocked narrow candidates" flagged in the prior entry: ColumnFilterPopover and
+  JsonArrayEditor. Both are self-contained presentational popovers, so the split needs NO
+  new test infrastructure — same pattern as the CellContextMenu/footer/privileges splits,
+  staying clear of the still-open Vitest test-seam sign-off that blocks the deeper
+  data/edit/grid splits.
+- src/features/table-viewer/ColumnFilterPopover.tsx (new, 159 lines): moved the column
+  header filter popover (operator Radix Select + value input + Apply/Clear). Also moved the
+  `FilterEntry` interface here and EXPORTED it — the main TableViewerTab still uses it for
+  the openFilters state record (line ~664) and applyFilterEntry callback, so it re-imports
+  `{ ColumnFilterPopover, type FilterEntry }`.
+- src/features/table-viewer/JsonArrayEditor.tsx (new, 110 lines): moved the inline JSON/array
+  cell editor (validating textarea, Format/OK, ⌘-Enter commit / Esc cancel). No shared types.
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed both component defs + the FilterEntry interface (was lines ~274-531).
+  - Added two imports: ColumnFilterPopover/FilterEntry from ./ColumnFilterPopover and
+    JsonArrayEditor from ./JsonArrayEditor. Call sites UNCHANGED.
+  - Pruned imports MY change orphaned: `* as Popover` (@radix-ui/react-popover) and
+    `* as Select` (@radix-ui/react-select) — only the two popovers used them; the
+    `ChevronDown as SelectChevron, Check` lucide line (Select-only); and the now-unused
+    `FilterOperator` / `getOperatorsForFamily` type imports from ./types. Kept Tooltip,
+    OP_LABELS, getTypeFamily, typeFamilyBadgeClass — still used elsewhere in the file.
+  - Line count: 1989 → 1727.
+- Verification (all green): `npm run type-check` clean; `npm run lint` clean except the
+  pre-existing SchemaTree.tsx exhaustive-deps warning (untouched); `npm run build`
+  (tsc -b && vite build) built clean; `cargo test --manifest-path src-tauri/Cargo.toml
+  --lib` 43 passed (sanity — no Rust change, kept the full gate per prior change-sets).
+- PRD.md: added a "TableViewerTab.tsx filter/JSON popover extraction [DONE]" bullet under
+  Workstream 3. TableViewerTab.tsx remains the top target; its deeper data/edit/grid splits
+  are still gated on the open frontend test-seam sign-off question.
+
 ## Dependency Hygiene PRD — Workstream 3: TableViewerTab.tsx privileges sub-tab extraction [DONE]
 - Continued the top-ranked Workstream-3 frontend target (TableViewerTab.tsx) with another
   narrow, behavior-preserving UI split that needs NO new test infrastructure — the same
