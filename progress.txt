@@ -1,3 +1,33 @@
+## Dependency Hygiene PRD — Workstream 3: TableViewerTab.tsx privileges sub-tab extraction [DONE]
+- Continued the top-ranked Workstream-3 frontend target (TableViewerTab.tsx) with another
+  narrow, behavior-preserving UI split that needs NO new test infrastructure — the same
+  pattern as the prior CellContextMenu and footer extractions, so it stays clear of the
+  still-open Vitest test-seam sign-off question that blocks the deeper behavior-bearing
+  splits (data fetching / grid rendering / cell editing).
+- src/features/table-viewer/TablePrivilegesTab.tsx (new, 311 lines): moved the whole
+  table-privileges sub-view — TablePrivilegesTab (grantee list, privilege checkbox grid,
+  add-grantee role picker, apply/discard bar, React Query wiring) plus PrivApplyResultSummary
+  (the SQL-result modal). Exported BOTH because PrivApplyResultSummary is shared: the main
+  TableViewerTab still renders it for the delete-row partial-failure summary. Also moved the
+  TABLE_GRANT_PRIVILEGES constant (only used by the privilege grid).
+- src/features/table-viewer/TableViewerTab.tsx:
+  - Removed the two component defs + the constant (was lines 534-838).
+  - Added `import { TablePrivilegesTab, PrivApplyResultSummary } from "./TablePrivilegesTab"`.
+  - Call sites UNCHANGED: <TablePrivilegesTab sessionId/schema/table> in the privileges
+    view, and <PrivApplyResultSummary> for deleteResults. No prop/signature changes.
+  - Pruned imports MY change orphaned: `rolesApi`, `TablePrivilegeOp` (only the privileges
+    tab used them), `useQueryClient` (ditto), and lucide `Plus`/`CheckSquare`/`Square`/`User`.
+    Kept `X`, `useToast`, `cn` — still used elsewhere in TableViewerTab.
+  - Line count: 2296 → 1989.
+- Verification (all green): `npm run type-check` clean; `npm run lint` clean except the
+  pre-existing SchemaTree.tsx exhaustive-deps warning (untouched); `npm run build` (tsc -b
+  && vite build) built clean; `cargo test --manifest-path src-tauri/Cargo.toml --lib`
+  43 passed (sanity — no Rust change here, but kept the full gate per prior change-sets).
+- PRD.md: added a "TableViewerTab.tsx privileges sub-tab extraction [DONE]" bullet under
+  Workstream 3. TableViewerTab.tsx remains the top target; its deeper splits are still
+  gated on the frontend test-seam decision (open question in the PRD). Next unblocked
+  narrow candidates in the same file: ColumnFilterPopover, JsonArrayEditor.
+
 ## Dependency Hygiene PRD — Workstream 2: npm unused-dependency detector (knip) [DONE]
 - Implemented the last two Workstream-2 items — "Detection tooling" (npm half) and
   "Load-bearing exceptions" — which COMPLETES Workstream 2 (dependency prune).
