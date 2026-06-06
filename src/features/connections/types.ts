@@ -1,36 +1,9 @@
-export type DbDriver = 'postgres' | 'mysql';
-export type SslMode = 'disable' | 'prefer' | 'require' | 'verifyFull';
-
-export interface ConnectionProfile {
-  id: string;
-  displayName: string;
-  color?: string;
-  folder?: string;
-  driver: DbDriver;
-  host?: string;
-  port: number;
-  socketPath?: string;
-  database: string;
-  username: string;
-  sslMode: SslMode;
-  poolMaxConnections?: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ConnectionInput {
-  displayName: string;
-  color?: string;
-  folder?: string;
-  driver: DbDriver;
-  host?: string;
-  port: number;
-  socketPath?: string;
-  database: string;
-  username: string;
-  sslMode: SslMode;
-  poolMaxConnections?: number;
-}
+export type {
+  ConnectionInput,
+  ConnectionProfile,
+  DbDriver,
+  SslMode,
+} from "../../lib/bindings";
 
 export const DEFAULT_COLORS = [
   '#007AFF', // blue

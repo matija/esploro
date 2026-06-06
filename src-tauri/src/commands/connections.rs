@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{AppError, AppState, DriverSession, SessionInfo};
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum DbDriver {
     #[default]
@@ -18,7 +18,7 @@ pub enum DbDriver {
     Mysql,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum SslMode {
     Disable,
@@ -28,7 +28,7 @@ pub enum SslMode {
     VerifyFull,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionProfile {
     pub id: String,
@@ -52,7 +52,7 @@ pub struct ConnectionProfile {
 }
 
 /// What the frontend sends for create/update/test (no timestamps, no id)
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, specta::Type, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionInput {
     pub display_name: String,
@@ -187,11 +187,13 @@ fn build_mysql_pool(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_connections(app: AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
     load_profiles(&app).await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_connection(
     app: AppHandle,
     input: ConnectionInput,
@@ -228,6 +230,7 @@ pub async fn create_connection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_connection(
     app: AppHandle,
     id: String,
@@ -261,6 +264,7 @@ pub async fn update_connection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_connection(
     app: AppHandle,
     id: String,
@@ -287,6 +291,7 @@ pub async fn delete_connection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn test_connection(input: ConnectionInput, password: String) -> Result<u64, AppError> {
     let profile = ConnectionProfile {
         id: String::new(),
@@ -334,6 +339,7 @@ pub async fn test_connection(input: ConnectionInput, password: String) -> Result
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn connect(
     app: AppHandle,
     id: String,
@@ -400,6 +406,7 @@ pub async fn connect(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), AppError> {
     state.sessions.lock().await.remove(&session_id);
     eprintln!(

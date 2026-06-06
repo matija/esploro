@@ -110,6 +110,18 @@ structural hardening effort; every change must be behavior-preserving.
 > and keeps only UI-local tree types/helpers. Verified: `cargo test` (50 pass),
 > `cargo clippy`, `tsc --noEmit`, and `eslint` clean apart from the pre-existing
 > `SchemaTree.tsx` hook warning.
+>
+> **Connections slice complete.** `DbDriver`, `SslMode`, `ConnectionProfile`,
+> and `ConnectionInput` now derive `specta::Type`, the seven connection commands
+> are annotated and registered with the debug/test Specta builder, and regenerated
+> bindings include `listConnections`, `createConnection`, `updateConnection`,
+> `deleteConnection`, `testConnection`, `connect`, and `disconnect`.
+> `src/features/connections/api.ts` now calls generated wrappers while preserving
+> `IpcError` normalization; `connections/types.ts` re-exports generated
+> connection DTOs and keeps only local color constants. Nullable connection
+> fields are now sent as explicit `null` at the frontend boundary. Verified:
+> `cargo test` (50 pass), `cargo clippy`, `tsc --noEmit`, and `eslint` clean
+> apart from the pre-existing `SchemaTree.tsx` hook warning.
 
 **Problem.** Rust structs (`TableQueryRequest`, `CellValue`, `ResultColumn`,
 `UpdateRowsRequest`, …) are hand-mirrored in `src/features/*/types.ts`. Nothing enforces
@@ -275,7 +287,7 @@ trail for field debugging; no secret material in output.
 | Phase | Scope | Depends on |
 |---|---|---|
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
-| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, then other features | P2 |
+| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, then roles/license/updater/settings | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
 | 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
 | 5 | **P5** — structured logging | — |

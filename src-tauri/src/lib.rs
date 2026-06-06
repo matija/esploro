@@ -41,6 +41,13 @@ impl Default for AppState {
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(tauri_specta::collect_commands![
+            commands::connections::list_connections,
+            commands::connections::create_connection,
+            commands::connections::update_connection,
+            commands::connections::delete_connection,
+            commands::connections::test_connection,
+            commands::connections::connect,
+            commands::connections::disconnect,
             commands::data::query_table_data,
             commands::data::query_table_count,
             commands::data::update_rows,

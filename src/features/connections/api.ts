@@ -1,23 +1,36 @@
-import { invoke } from "../../lib/ipc";
+import { commands } from "../../lib/bindings";
+import { normalizeError } from "../../lib/ipc";
 import type { ConnectionInput, ConnectionProfile } from './types';
 
+async function normalizeCommandError<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (raw) {
+    throw normalizeError(raw);
+  }
+}
+
 export const connectionsApi = {
-  list: () => invoke<ConnectionProfile[]>('list_connections'),
+  list: (): Promise<ConnectionProfile[]> =>
+    normalizeCommandError(commands.listConnections()),
 
   create: (input: ConnectionInput, password: string) =>
-    invoke<string>('create_connection', { input, password }),
+    normalizeCommandError(commands.createConnection(input, password)),
 
   update: (id: string, input: ConnectionInput, password?: string) =>
-    invoke<void>('update_connection', { id, input, password: password ?? null }),
+    normalizeCommandError(commands.updateConnection(id, input, password ?? null)).then(() => undefined),
 
-  delete: (id: string) => invoke<void>('delete_connection', { id }),
+  delete: (id: string): Promise<void> =>
+    normalizeCommandError(commands.deleteConnection(id)).then(() => undefined),
 
   test: (input: ConnectionInput, password: string) =>
-    invoke<number>('test_connection', { input, password }),
+    normalizeCommandError(commands.testConnection(input, password)),
 
-  connect: (id: string) => invoke<string>('connect', { id }),
+  connect: (id: string): Promise<string> =>
+    normalizeCommandError(commands.connect(id)),
 
-  disconnect: (sessionId: string) => invoke<void>('disconnect', { sessionId }),
+  disconnect: (sessionId: string): Promise<void> =>
+    normalizeCommandError(commands.disconnect(sessionId)).then(() => undefined),
 };
 
 export type ParsedConnectionUrl = Partial<ConnectionInput> & {

@@ -152,12 +152,12 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     const maxConn = parseInt(poolMaxConnections);
     return {
       displayName: displayName.trim(),
-      color: color || undefined,
-      folder: folder.trim() || undefined,
+      color: color || null,
+      folder: folder.trim() || null,
       driver,
-      host: connType === 'host' ? host.trim() || undefined : undefined,
+      host: connType === 'host' ? host.trim() || null : null,
       port: parseInt(port) || DEFAULT_PORT[driver],
-      socketPath: driver === 'postgres' && connType === 'socket' ? socketPath.trim() || undefined : undefined,
+      socketPath: driver === 'postgres' && connType === 'socket' ? socketPath.trim() || null : null,
       database: database.trim(),
       username: username.trim(),
       sslMode,

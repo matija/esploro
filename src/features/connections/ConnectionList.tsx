@@ -338,6 +338,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
       database: profile.database,
       username: profile.username,
       sslMode: profile.sslMode,
+      poolMaxConnections: profile.poolMaxConnections,
     };
     try {
       await connectionsApi.create(input, '');

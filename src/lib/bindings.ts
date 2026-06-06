@@ -4,6 +4,13 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	listConnections: () => __TAURI_INVOKE<ConnectionProfile[]>("list_connections"),
+	createConnection: (input: ConnectionInput, password: string) => __TAURI_INVOKE<string>("create_connection", { input, password }),
+	updateConnection: (id: string, input: ConnectionInput, password: string | null) => __TAURI_INVOKE<null>("update_connection", { id, input, password }),
+	deleteConnection: (id: string) => __TAURI_INVOKE<null>("delete_connection", { id }),
+	testConnection: (input: ConnectionInput, password: string) => __TAURI_INVOKE<number>("test_connection", { input, password }),
+	connect: (id: string) => __TAURI_INVOKE<string>("connect", { id }),
+	disconnect: (sessionId: string) => __TAURI_INVOKE<null>("disconnect", { sessionId }),
 	queryTableData: (sessionId: string, request: TableQueryRequest) => __TAURI_INVOKE<TableQueryResult>("query_table_data", { sessionId, request }),
 	queryTableCount: (sessionId: string, request: TableQueryRequest) => __TAURI_INVOKE<TableCountResult>("query_table_count", { sessionId, request }),
 	updateRows: (sessionId: string, request: UpdateRowsRequest) => __TAURI_INVOKE<null>("update_rows", { sessionId, request }),
@@ -58,6 +65,42 @@ export type ColumnFilter = {
 	operator: FilterOperator,
 	value: string | null,
 };
+
+/**  What the frontend sends for create/update/test (no timestamps, no id) */
+export type ConnectionInput = {
+	displayName: string,
+	color: string | null,
+	folder: string | null,
+	driver?: DbDriver,
+	host: string | null,
+	port: number,
+	socketPath: string | null,
+	database: string,
+	username: string,
+	sslMode: SslMode,
+	poolMaxConnections?: number,
+};
+
+export type ConnectionProfile = {
+	id: string,
+	displayName: string,
+	color: string | null,
+	folder: string | null,
+	driver?: DbDriver,
+	/**  TCP hostname/IP; None when using socket_path */
+	host: string | null,
+	port: number,
+	/**  Unix socket directory path (e.g. /var/run/postgresql) */
+	socketPath: string | null,
+	database: string,
+	username: string,
+	sslMode: SslMode,
+	poolMaxConnections?: number,
+	createdAt: string,
+	updatedAt: string,
+};
+
+export type DbDriver = "postgres" | "mysql";
 
 export type DeleteRowRequest = {
 	pkConditions: PkCondition[],
@@ -135,6 +178,8 @@ export type SchemaObjects = {
 };
 
 export type SortDirection = "Asc" | "Desc";
+
+export type SslMode = "disable" | "prefer" | "require" | "verifyFull";
 
 export type TableCountResult = {
 	count: number,
