@@ -331,3 +331,23 @@ clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 
 Next: switch runtime command dispatch to the Specta builder, then P5 logging
 once dependency fetching is available.
+
+## 2026-06-06 — Phase 2 (P1): switch runtime dispatch to Specta builder
+
+Picked the highest-priority remaining task, P1, and completed only the runtime
+dispatch follow-up now that every command is registered with Specta.
+
+- `src-tauri/src/lib.rs` now builds the Specta command registry in all builds and
+  uses `specta_builder.invoke_handler()` as the actual Tauri invoke handler.
+  This removes the duplicate `tauri::generate_handler!` command list and makes
+  the Specta registry the single source of truth for runtime dispatch.
+- Debug TypeScript binding export now reuses the same builder instance that feeds
+  the invoke handler, preserving the existing generated bindings workflow without
+  changing command behavior.
+- Left P5 structured logging untouched; this iteration completed one task only.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy -- -D warnings` clean, `npm run type-check` clean, `npm run lint`
+clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: P5 structured logging, if it is still desired.

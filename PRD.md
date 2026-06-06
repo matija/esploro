@@ -71,7 +71,7 @@ structural hardening effort; every change must be behavior-preserving.
 
 ## 4. Requirements
 
-### P1 — Typed IPC boundary (`tauri-specta`)
+### P1 — Typed IPC boundary (`tauri-specta`) ✅ Done
 
 > **Status: in progress (data slice).** Added the locked P1 dependencies
 > (`specta`, `tauri-specta`, `specta-typescript`) and enabled Tauri's
@@ -151,11 +151,18 @@ structural hardening effort; every change must be behavior-preserving.
 > `checkForUpdate`, `installUpdate`, and `UpdateInfo`. Added
 > `src/features/updates/api.ts`; `useUpdateChecker.ts` and `UpdateSheet.tsx` now
 > call generated wrappers while preserving `IpcError` normalization for visible
-> updater errors. Runtime command dispatch still uses the existing Tauri
-> `generate_handler!`; switching dispatch to the Specta builder remains a
-> follow-up now that every command is registered. Verified: `cargo test` (50
-> pass), `cargo clippy -- -D warnings`, `tsc --noEmit`, and `eslint` clean apart
-> from the pre-existing `SchemaTree.tsx` hook warning.
+> updater errors. Verified: `cargo test` (50 pass), `cargo clippy -- -D warnings`,
+> `tsc --noEmit`, and `eslint` clean apart from the pre-existing `SchemaTree.tsx`
+> hook warning.
+>
+> **Runtime dispatch switch complete.** Now that every command is registered with
+> the Specta builder, `src-tauri/src/lib.rs` uses `specta_builder.invoke_handler()`
+> as the actual Tauri invoke handler instead of maintaining a duplicate
+> `tauri::generate_handler!` command list. The same builder instance is reused for
+> debug TypeScript binding export, and the command registry is available in release
+> builds. Verified: `cargo test` (50 pass), `cargo clippy -- -D warnings`,
+> `npm run type-check`, and `npm run lint` clean apart from the pre-existing
+> `SchemaTree.tsx` hook warning.
 
 **Problem.** Rust structs (`TableQueryRequest`, `CellValue`, `ResultColumn`,
 `UpdateRowsRequest`, …) are hand-mirrored in `src/features/*/types.ts`. Nothing enforces
@@ -321,7 +328,7 @@ trail for field debugging; no secret material in output.
 | Phase | Scope | Depends on |
 |---|---|---|
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
-| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, `license/settings` ✅, updater ✅; runtime dispatch switch pending | P2 |
+| 2 ✅ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, `license/settings` ✅, updater ✅; runtime dispatch now uses the Specta builder ✅ | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
 | 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
 | 5 | **P5** — structured logging | — |
@@ -332,7 +339,8 @@ trail for field debugging; no secret material in output.
 > `src-tauri/Cargo.toml`/`Cargo.lock`: `specta = "=2.0.0-rc.25"` (features
 > `derive`, `serde_json`), `tauri-specta = "=2.0.0-rc.25"` (features `derive`,
 > `typescript`), `specta-typescript = "=0.0.12"`, and Tauri's `specta` feature.
-> Continue P1 feature-by-feature after the completed migrated slices.
+> P1 is complete: every command is registered with Specta, all migrated feature
+> APIs use generated wrappers, and runtime dispatch now uses the Specta builder.
 
 P1+P2 are the meaningful architectural upgrade; P3–P5 are polish and can land independently.
 

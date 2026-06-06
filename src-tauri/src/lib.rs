@@ -37,7 +37,6 @@ impl Default for AppState {
     }
 }
 
-#[cfg(debug_assertions)]
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(tauri_specta::collect_commands![
@@ -93,19 +92,21 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 }
 
 #[cfg(debug_assertions)]
-fn export_typescript_bindings() {
+fn export_typescript_bindings(builder: &tauri_specta::Builder<tauri::Wry>) {
     let export_path =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/lib/bindings.ts");
 
-    specta_builder()
+    builder
         .export(specta_typescript::Typescript::default(), export_path)
         .expect("failed to export TypeScript bindings");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let specta_builder = specta_builder();
+
     #[cfg(debug_assertions)]
-    export_typescript_bindings();
+    export_typescript_bindings(&specta_builder);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -181,54 +182,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::connections::list_connections,
-            commands::connections::create_connection,
-            commands::connections::update_connection,
-            commands::connections::delete_connection,
-            commands::connections::test_connection,
-            commands::connections::connect,
-            commands::connections::disconnect,
-            commands::schema::list_schemas,
-            commands::schema::list_objects,
-            commands::schema::list_columns,
-            commands::roles::list_roles,
-            commands::roles::list_role_members,
-            commands::roles::get_role_dependents,
-            commands::roles::create_role,
-            commands::roles::alter_role,
-            commands::roles::drop_role,
-            commands::roles::manage_role_membership,
-            commands::roles::list_role_privileges,
-            commands::roles::manage_role_privileges,
-            commands::roles::list_table_privileges,
-            commands::roles::manage_table_privileges,
-            commands::roles::list_schema_privileges,
-            commands::roles::manage_schema_privileges,
-            commands::data::query_table_data,
-            commands::data::query_table_count,
-            commands::data::update_rows,
-            commands::data::preview_update_rows_sql,
-            commands::data::delete_rows,
-            commands::data::preview_delete_rows_sql,
-            commands::data::execute_sql,
-            commands::saved_queries::save_query,
-            commands::saved_queries::list_saved_queries,
-            commands::saved_queries::get_saved_query,
-            commands::saved_queries::delete_saved_query,
-            commands::license::get_license_status,
-            commands::license::activate_license,
-            commands::license::deactivate_license,
-            commands::license::answer_usage_dialog,
-            commands::license::dismiss_license_banner,
-            commands::license::notify_connection_count,
-            commands::license::open_customer_portal,
-            commands::license::open_url,
-            commands::license::get_ui_preferences,
-            commands::license::set_ui_preferences,
-            commands::updater::check_for_update,
-            commands::updater::install_update,
-        ])
+        .invoke_handler(specta_builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -237,6 +191,7 @@ pub fn run() {
 mod tests {
     #[test]
     fn exports_typescript_bindings() {
-        super::export_typescript_bindings();
+        let builder = super::specta_builder();
+        super::export_typescript_bindings(&builder);
     }
 }
