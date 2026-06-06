@@ -197,6 +197,39 @@ fn resolve_pool(
     })
 }
 
+/// Lock the session map, resolve the session's pool handle, and drop the lock
+/// before any query runs — queries operate on the cloned `Arc` pool, so the
+/// session map is not held across `.await`.
+async fn lock_pool(state: &AppState, session_id: &str) -> Result<PoolHandle, AppError> {
+    let sessions = state.sessions.lock().await;
+    resolve_pool(&sessions, session_id)
+}
+
+/// Resolve the session pool and dispatch to the driver-specific closure.
+///
+/// For Postgres the closure is retried **once** if the first attempt fails with
+/// a retryable (dropped-connection) error — the pool hands out a fresh
+/// connection on the retry. This collapses the lock → resolve → one-shot-retry
+/// block that was duplicated across the data commands. MySQL runs once.
+async fn with_pool<T, PgFut, MyFut>(
+    state: &AppState,
+    session_id: &str,
+    on_pg: impl Fn(std::sync::Arc<deadpool_postgres::Pool>) -> PgFut,
+    on_mysql: impl FnOnce(std::sync::Arc<mysql_async::Pool>) -> MyFut,
+) -> Result<T, AppError>
+where
+    PgFut: std::future::Future<Output = Result<T, AppError>>,
+    MyFut: std::future::Future<Output = Result<T, AppError>>,
+{
+    match lock_pool(state, session_id).await? {
+        PoolHandle::Pg(pool) => match on_pg(pool.clone()).await {
+            Err(ref e) if e.is_retryable() => on_pg(pool).await,
+            other => other,
+        },
+        PoolHandle::Mysql(pool) => on_mysql(pool).await,
+    }
+}
+
 #[tauri::command]
 pub async fn query_table_data(
     session_id: String,
@@ -206,18 +239,13 @@ pub async fn query_table_data(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
-        PoolHandle::Pg(pool) => match query_table_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if e.is_retryable() => query_table_pg(pool, request).await,
-            other => other,
-        },
-        PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
-    }
+    with_pool(
+        &state,
+        &session_id,
+        |pool| query_table_pg(pool, request.clone()),
+        |pool| query_table_mysql(pool, request.clone()),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -229,18 +257,13 @@ pub async fn query_table_count(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
-        PoolHandle::Pg(pool) => match count_table_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if e.is_retryable() => count_table_pg(pool, request).await,
-            other => other,
-        },
-        PoolHandle::Mysql(pool) => count_table_mysql(pool, request).await,
-    }
+    with_pool(
+        &state,
+        &session_id,
+        |pool| count_table_pg(pool, request.clone()),
+        |pool| count_table_mysql(pool, request.clone()),
+    )
+    .await
 }
 
 // ─── update_rows ─────────────────────────────────────────────────────────────
@@ -254,18 +277,13 @@ pub async fn update_rows(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
-        PoolHandle::Pg(pool) => match update_rows_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if e.is_retryable() => update_rows_pg(pool, request).await,
-            other => other,
-        },
-        PoolHandle::Mysql(pool) => update_rows_mysql(pool, request).await,
-    }
+    with_pool(
+        &state,
+        &session_id,
+        |pool| update_rows_pg(pool, request.clone()),
+        |pool| update_rows_mysql(pool, request.clone()),
+    )
+    .await
 }
 
 // ─── preview_update_rows_sql ─────────────────────────────────────────────────
@@ -279,12 +297,7 @@ pub async fn preview_update_rows_sql(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
+    match lock_pool(&state, &session_id).await? {
         PoolHandle::Pg(pool) => preview_update_rows_sql_pg(pool, request).await,
         PoolHandle::Mysql(pool) => preview_update_rows_sql_mysql(pool, request).await,
     }
@@ -301,18 +314,13 @@ pub async fn delete_rows(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
-        PoolHandle::Pg(pool) => match delete_rows_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if e.is_retryable() => delete_rows_pg(pool, request).await,
-            other => other,
-        },
-        PoolHandle::Mysql(pool) => delete_rows_mysql(pool, request).await,
-    }
+    with_pool(
+        &state,
+        &session_id,
+        |pool| delete_rows_pg(pool, request.clone()),
+        |pool| delete_rows_mysql(pool, request.clone()),
+    )
+    .await
 }
 
 // ─── preview_delete_rows_sql ─────────────────────────────────────────────────
@@ -326,12 +334,7 @@ pub async fn preview_delete_rows_sql(
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        resolve_pool(&sessions, &session_id)?
-    };
-
-    match handle {
+    match lock_pool(&state, &session_id).await? {
         PoolHandle::Pg(pool) => preview_delete_rows_sql_pg(pool, request).await,
         PoolHandle::Mysql(_) => Ok(row_mutations::build_mysql_delete_preview_sql(
             &request.schema,
@@ -367,20 +370,11 @@ pub async fn execute_sql(
     sql: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<QueryResult>, AppError> {
-    let handle = {
-        let sessions = state.sessions.lock().await;
-        let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
-        match &info.driver {
-            DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
-            DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
-        }
-    };
-
-    match handle {
-        PoolHandle::Pg(pool) => match execute_sql_pg(pool.clone(), sql.clone()).await {
-            Err(ref e) if e.is_retryable() => execute_sql_pg(pool, sql).await,
-            other => other,
-        },
-        PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,
-    }
+    with_pool(
+        &state,
+        &session_id,
+        |pool| execute_sql_pg(pool, sql.clone()),
+        |pool| execute_sql_mysql(pool, sql.clone()),
+    )
+    .await
 }
