@@ -37,8 +37,37 @@ impl Default for AppState {
     }
 }
 
+#[cfg(debug_assertions)]
+fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::new()
+        .commands(tauri_specta::collect_commands![
+            commands::data::query_table_data,
+            commands::data::query_table_count,
+            commands::data::update_rows,
+            commands::data::preview_update_rows_sql,
+            commands::data::delete_rows,
+            commands::data::preview_delete_rows_sql,
+            commands::data::execute_sql,
+        ])
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        .dangerously_cast_bigints_to_number()
+}
+
+#[cfg(debug_assertions)]
+fn export_typescript_bindings() {
+    let export_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/lib/bindings.ts");
+
+    specta_builder()
+        .export(specta_typescript::Typescript::default(), export_path)
+        .expect("failed to export TypeScript bindings");
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(debug_assertions)]
+    export_typescript_bindings();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -163,4 +192,12 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn exports_typescript_bindings() {
+        super::export_typescript_bindings();
+    }
 }

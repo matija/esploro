@@ -254,7 +254,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         operator: f.operator,
         value:
           f.operator === "IsNull" || f.operator === "IsNotNull"
-            ? undefined
+            ? null
             : f.value,
       }));
   }, [activeFilters]);
@@ -281,9 +281,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           schema: ctx!.schema,
           table: ctx!.table,
           filters: apiFilters,
-          rawWhere: appliedRawWhere || undefined,
-          sortColumn: sortColumn ?? undefined,
-          sortDirection: sortColumn ? sortDirection : undefined,
+          rawWhere: appliedRawWhere || null,
+          sortColumn: sortColumn ?? null,
+          sortDirection: sortColumn ? sortDirection : null,
           page,
           pageSize: gridPageSize,
         }),
@@ -298,7 +298,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     schema: ctx?.schema ?? "",
     table: ctx?.table ?? "",
     filters: apiFilters,
-    rawWhere: appliedRawWhere || undefined,
+    rawWhere: appliedRawWhere || null,
+    sortColumn: null,
+    sortDirection: null,
     page: 0,
     pageSize: gridPageSize,
   }), [ctx?.database, ctx?.schema, ctx?.table, apiFilters, appliedRawWhere, gridPageSize]);
@@ -517,7 +519,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           const cellStr = cellToString(row[pkColIdx] ?? { t: "null" });
           return { column: pkName, value: cellStr ?? "" };
         });
-        changes.push({ pkConditions, columnChanges });
+        changes.push({ pkConditions, ctid: null, columnChanges });
       } else {
         const ctid = ctids[rowIdx];
         if (!ctid) {
@@ -604,7 +606,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           const cellStr = cellToString(row[idx] ?? { t: "null" });
           return { column: pkName, value: cellStr ?? "" };
         });
-        return { pkConditions };
+        return { pkConditions, ctid: null };
       }
       const ctid = ctids[rowIdx];
       if (ctid) return { pkConditions: [], ctid };

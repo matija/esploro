@@ -1,9 +1,23 @@
+use std::collections::BTreeMap;
+
 use mysql_async::Value;
 use serde::Serialize;
 
+#[allow(dead_code)]
+#[derive(Serialize, specta::Type)]
+#[serde(untagged)]
+enum JsonValue {
+    Null,
+    Bool(bool),
+    Number(f64),
+    String(String),
+    Array(Vec<JsonValue>),
+    Object(BTreeMap<String, JsonValue>),
+}
+
 // Tagged cell value sent to the frontend.
 // serde serialises as {"t":"null"} or {"t":"int","v":42} etc.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, specta::Type, Clone)]
 #[serde(tag = "t", content = "v", rename_all = "lowercase")]
 pub enum CellValue {
     Null,
@@ -11,7 +25,7 @@ pub enum CellValue {
     Int(i64),
     Float(f64),
     Text(String),
-    Json(serde_json::Value),
+    Json(#[specta(type = JsonValue)] serde_json::Value),
     Other(String),
 }
 

@@ -17,7 +17,7 @@ tauri-build = { version = "=2.6.1", features = [] }
 # cannot move them within a caret range; transitive crates are governed by
 # Cargo.lock. To bump: edit the version here and refresh Cargo.lock deliberately.
 [dependencies]
-tauri = { version = "=2.11.1", features = ["macos-private-api"] }
+tauri = { version = "=2.11.1", features = ["macos-private-api", "specta"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 uuid = { version = "=1.23.1", features = ["v4"] }
@@ -30,3 +30,6 @@ thiserror = "=2.0.18"
 chrono = { version = "=0.4.44", features = ["serde"] }
 tauri-plugin-updater = "=2.10.1"
 tauri-plugin-process = "=2.3.1"
+specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript = "=0.0.12"

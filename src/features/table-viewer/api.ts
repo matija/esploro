@@ -1,4 +1,5 @@
-import { invoke } from "../../lib/ipc";
+import { commands } from "../../lib/bindings";
+import { normalizeError } from "../../lib/ipc";
 import type {
   DeleteRowResult,
   DeleteRowsRequest,
@@ -8,23 +9,31 @@ import type {
   UpdateRowsRequest,
 } from "./types";
 
+async function normalizeCommandError<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (raw) {
+    throw normalizeError(raw);
+  }
+}
+
 export const tableApi = {
   queryTableData(sessionId: string, request: TableQueryRequest): Promise<TableQueryResult> {
-    return invoke("query_table_data", { sessionId, request });
+    return normalizeCommandError(commands.queryTableData(sessionId, request));
   },
   queryTableCount(sessionId: string, request: TableQueryRequest): Promise<TableCountResult> {
-    return invoke("query_table_count", { sessionId, request });
+    return normalizeCommandError(commands.queryTableCount(sessionId, request));
   },
   updateRows(sessionId: string, request: UpdateRowsRequest): Promise<void> {
-    return invoke("update_rows", { sessionId, request });
+    return normalizeCommandError(commands.updateRows(sessionId, request)).then(() => undefined);
   },
   previewUpdateRowsSql(sessionId: string, request: UpdateRowsRequest): Promise<string> {
-    return invoke("preview_update_rows_sql", { sessionId, request });
+    return normalizeCommandError(commands.previewUpdateRowsSql(sessionId, request));
   },
   deleteRows(sessionId: string, request: DeleteRowsRequest): Promise<DeleteRowResult[]> {
-    return invoke("delete_rows", { sessionId, request });
+    return normalizeCommandError(commands.deleteRows(sessionId, request));
   },
   previewDeleteRowsSql(sessionId: string, request: DeleteRowsRequest): Promise<string> {
-    return invoke("preview_delete_rows_sql", { sessionId, request });
+    return normalizeCommandError(commands.previewDeleteRowsSql(sessionId, request));
   },
 };

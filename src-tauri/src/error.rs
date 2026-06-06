@@ -11,7 +11,18 @@
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
-#[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+struct AppErrorWire {
+    kind: String,
+    message: String,
+    code: Option<String>,
+    position: Option<u32>,
+}
+
+#[derive(Debug, thiserror::Error, specta::Type)]
+#[specta(type = AppErrorWire)]
 pub enum AppError {
     #[error("Session not found")]
     SessionNotFound,

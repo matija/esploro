@@ -1,104 +1,29 @@
-export type FilterOperator =
-  | "Eq"
-  | "Neq"
-  | "Like"
-  | "ILike"
-  | "Gt"
-  | "Lt"
-  | "Gte"
-  | "Lte"
-  | "IsNull"
-  | "IsNotNull";
+import type {
+  CellValue,
+  FilterOperator,
+  ResultColumn,
+} from "../../lib/bindings";
 
-export type SortDirection = "Asc" | "Desc";
-
-export interface ColumnFilter {
-  column: string;
-  operator: FilterOperator;
-  value?: string;
-}
-
-export interface TableQueryRequest {
-  database: string;
-  schema: string;
-  table: string;
-  filters: ColumnFilter[];
-  sortColumn?: string;
-  sortDirection?: SortDirection;
-  page: number;
-  pageSize: number;
-  rawWhere?: string;
-}
-
-export interface ResultColumn {
-  name: string;
-  dataType: string;
-  isNullable: boolean;
-  isPrimaryKey: boolean;
-  isForeignKey: boolean;
-  isEnum: boolean;
-}
-
-export type CellValue =
-  | { t: "null" }
-  | { t: "bool"; v: boolean }
-  | { t: "int"; v: number }
-  | { t: "float"; v: number }
-  | { t: "text"; v: string }
-  | { t: "json"; v: unknown }
-  | { t: "other"; v: string };
+export type {
+  CellValue,
+  ColumnFilter,
+  DeleteRowRequest,
+  DeleteRowResult,
+  DeleteRowsRequest,
+  FilterOperator,
+  ResultColumn,
+  RowChange,
+  SortDirection,
+  TableCountResult,
+  TableQueryRequest,
+  TableQueryResult,
+  UpdateRowsRequest,
+} from "../../lib/bindings";
 
 export function cellToString(cell: CellValue): string | null {
   if (cell.t === "null") return null;
   if (cell.t === "json") return JSON.stringify(cell.v);
   return String(cell.v);
-}
-
-export interface TableQueryResult {
-  columns: ResultColumn[];
-  rows: CellValue[][];
-  ctids: (string | null)[];
-  page: number;
-  pageSize: number;
-  executionMs: number;
-}
-
-export interface PkCondition {
-  column: string;
-  value: string;
-}
-
-export interface ColumnChange {
-  column: string;
-  value: string | null;
-}
-
-export interface RowChange {
-  pkConditions: PkCondition[];
-  ctid?: string;
-  columnChanges: ColumnChange[];
-}
-
-export interface UpdateRowsRequest {
-  schema: string;
-  table: string;
-  changes: RowChange[];
-}
-
-export interface DeleteRowRequest {
-  pkConditions: PkCondition[];
-  ctid?: string;
-}
-
-export interface DeleteRowsRequest {
-  schema: string;
-  table: string;
-  rows: DeleteRowRequest[];
-}
-
-export interface DeleteRowResult {
-  sql: string;
-  error: string | null;
 }
 
 export type EditableKind = "scalar" | "json" | "array" | "none";
@@ -129,11 +54,6 @@ export function isEditableType(udt: string): boolean {
   if (udt.endsWith("[]")) return false;
   const t = udt.toLowerCase();
   return t !== "json" && t !== "jsonb" && t !== "bytea";
-}
-
-export interface TableCountResult {
-  count: number;
-  isEstimate: boolean;
 }
 
 export type TypeFamily = "text" | "numeric" | "date" | "boolean" | "json" | "other";

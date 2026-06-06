@@ -19,7 +19,7 @@ use self::sql_execution::{execute_sql_mysql, execute_sql_pg};
 use self::table_query_execution::{
     count_table_mysql, count_table_pg, query_table_mysql, query_table_pg,
 };
-use self::type_mapping::CellValue;
+pub use self::type_mapping::CellValue;
 
 // Returns a plain-`String` error: these validators are shared with the
 // `String`-returning SQL builders; command-level callers convert the message
@@ -54,7 +54,7 @@ pub(super) fn validate_column_identifier(s: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryRequest {
     #[allow(dead_code)]
@@ -70,7 +70,7 @@ pub struct TableQueryRequest {
     pub raw_where: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnFilter {
     pub column: String,
@@ -78,7 +78,7 @@ pub struct ColumnFilter {
     pub value: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 pub enum FilterOperator {
     Eq,
     Neq,
@@ -92,13 +92,13 @@ pub enum FilterOperator {
     IsNotNull,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 pub enum SortDirection {
     Asc,
     Desc,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryResult {
     pub columns: Vec<ResultColumn>,
@@ -109,21 +109,21 @@ pub struct TableQueryResult {
     pub execution_ms: u64,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PkCondition {
     pub column: String,
     pub value: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnChange {
     pub column: String,
     pub value: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RowChange {
     pub pk_conditions: Vec<PkCondition>,
@@ -131,7 +131,7 @@ pub struct RowChange {
     pub column_changes: Vec<ColumnChange>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRowsRequest {
     pub schema: String,
@@ -139,14 +139,14 @@ pub struct UpdateRowsRequest {
     pub changes: Vec<RowChange>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteRowRequest {
     pub pk_conditions: Vec<PkCondition>,
     pub ctid: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteRowsRequest {
     pub schema: String,
@@ -154,21 +154,21 @@ pub struct DeleteRowsRequest {
     pub rows: Vec<DeleteRowRequest>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteRowResult {
     pub sql: String,
     pub error: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableCountResult {
     pub count: i64,
     pub is_estimate: bool,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultColumn {
     pub name: String,
@@ -231,6 +231,7 @@ where
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn query_table_data(
     session_id: String,
     request: TableQueryRequest,
@@ -249,6 +250,7 @@ pub async fn query_table_data(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn query_table_count(
     session_id: String,
     request: TableQueryRequest,
@@ -269,6 +271,7 @@ pub async fn query_table_count(
 // ─── update_rows ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_rows(
     session_id: String,
     request: UpdateRowsRequest,
@@ -289,6 +292,7 @@ pub async fn update_rows(
 // ─── preview_update_rows_sql ─────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn preview_update_rows_sql(
     session_id: String,
     request: UpdateRowsRequest,
@@ -306,6 +310,7 @@ pub async fn preview_update_rows_sql(
 // ─── delete_rows ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_rows(
     session_id: String,
     request: DeleteRowsRequest,
@@ -326,6 +331,7 @@ pub async fn delete_rows(
 // ─── preview_delete_rows_sql ─────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn preview_delete_rows_sql(
     session_id: String,
     request: DeleteRowsRequest,
@@ -346,7 +352,7 @@ pub async fn preview_delete_rows_sql(
 
 // ─── execute_sql ─────────────────────────────────────────────────────────────
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub columns: Vec<ResultColumn>,
@@ -356,7 +362,7 @@ pub struct QueryResult {
     pub error: Option<QueryError>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryError {
     pub message: String,
@@ -365,6 +371,7 @@ pub struct QueryError {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn execute_sql(
     session_id: String,
     sql: String,
