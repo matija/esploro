@@ -15,6 +15,9 @@ export const commands = {
 	listSavedQueries: () => __TAURI_INVOKE<SavedQuery[]>("list_saved_queries"),
 	getSavedQuery: (id: string) => __TAURI_INVOKE<SavedQuery>("get_saved_query", { id }),
 	deleteSavedQuery: (id: string) => __TAURI_INVOKE<null>("delete_saved_query", { id }),
+	listSchemas: (sessionId: string, database: string) => __TAURI_INVOKE<string[]>("list_schemas", { sessionId, database }),
+	listObjects: (sessionId: string, database: string, schema: string) => __TAURI_INVOKE<SchemaObjects>("list_objects", { sessionId, database, schema }),
+	listColumns: (sessionId: string, database: string, schema: string, table: string) => __TAURI_INVOKE<ColumnDef[]>("list_columns", { sessionId, database, schema, table }),
 };
 
 /* Types */
@@ -37,6 +40,17 @@ export type CellValue = { t: "null" } | { t: "bool"; v: boolean } | { t: "int"; 
 export type ColumnChange = {
 	column: string,
 	value: string | null,
+};
+
+export type ColumnDef = {
+	name: string,
+	dataType: string,
+	isNullable: boolean,
+	columnDefault: string | null,
+	isPrimaryKey: boolean,
+	isForeignKey: boolean,
+	foreignKeyRef: string | null,
+	isEnum: boolean,
 };
 
 export type ColumnFilter = {
@@ -62,6 +76,11 @@ export type DeleteRowsRequest = {
 };
 
 export type FilterOperator = "Eq" | "Neq" | "Like" | "ILike" | "Gt" | "Lt" | "Gte" | "Lte" | "IsNull" | "IsNotNull";
+
+export type FunctionSummary = {
+	name: string,
+	resultType: string,
+};
 
 export type JsonValue = "Null" | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
@@ -108,6 +127,13 @@ export type SavedQuery = {
 	updatedAt: string,
 };
 
+export type SchemaObjects = {
+	tables: TableSummary[],
+	views: string[],
+	sequences: string[],
+	functions: FunctionSummary[],
+};
+
 export type SortDirection = "Asc" | "Desc";
 
 export type TableCountResult = {
@@ -134,6 +160,11 @@ export type TableQueryResult = {
 	page: number,
 	pageSize: number,
 	executionMs: number,
+};
+
+export type TableSummary = {
+	name: string,
+	estimatedRowCount: number | null,
 };
 
 export type UpdateRowsRequest = {

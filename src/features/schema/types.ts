@@ -1,29 +1,11 @@
-export interface TableSummary {
-  name: string;
-  estimatedRowCount: number | null;
-}
+import type { ColumnDef } from "../../lib/bindings";
 
-export interface FunctionSummary {
-  name: string;
-  resultType: string;
-}
-
-export interface SchemaObjects {
-  tables: TableSummary[];
-  views: string[];
-  sequences: string[];
-  functions: FunctionSummary[];
-}
-
-export interface ColumnDef {
-  name: string;
-  dataType: string;
-  isNullable: boolean;
-  columnDefault: string | null;
-  isPrimaryKey: boolean;
-  isForeignKey: boolean;
-  foreignKeyRef: string | null;
-}
+export type {
+  ColumnDef,
+  FunctionSummary,
+  SchemaObjects,
+  TableSummary,
+} from "../../lib/bindings";
 
 export type GroupLabel = 'Tables' | 'Views' | 'Sequences' | 'Functions';
 

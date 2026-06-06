@@ -193,3 +193,29 @@ for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 Next: continue P1 feature-by-feature (schema, connections, roles,
 license/updater/settings), then switch runtime command dispatch to the Specta
 builder once every command is registered.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC schema slice
+
+Picked the highest-priority remaining task, P1, and completed only the schema
+slice.
+
+- Added `specta::Type` to the schema DTOs (`TableSummary`, `FunctionSummary`,
+  `SchemaObjects`, `ColumnDef`), annotated the three schema commands with
+  `#[specta::specta]`, and registered them with the debug/test Specta builder.
+  Regenerated `src/lib/bindings.ts`, which now includes generated wrappers for
+  `listSchemas`, `listObjects`, and `listColumns`.
+- Migrated `src/features/schema/api.ts` from raw `invoke(...)` calls to
+  generated `commands.*` wrappers. Kept the same `normalizeError` path so
+  `IpcError`/session retry behavior is unchanged.
+- Replaced the hand-maintained schema DTO interfaces with generated type
+  re-exports for `TableSummary`, `FunctionSummary`, `SchemaObjects`, and
+  `ColumnDef`. Kept the UI-local schema tree types and helpers in place.
+  Other feature APIs were intentionally left untouched.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy` clean, `npm run type-check` clean, `npm run lint` clean except
+for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: continue P1 feature-by-feature (connections, roles, license/updater/
+settings), then switch runtime command dispatch to the Specta builder once
+every command is registered.

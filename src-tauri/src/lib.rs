@@ -52,6 +52,9 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::saved_queries::list_saved_queries,
             commands::saved_queries::get_saved_query,
             commands::saved_queries::delete_saved_query,
+            commands::schema::list_schemas,
+            commands::schema::list_objects,
+            commands::schema::list_columns,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .dangerously_cast_bigints_to_number()

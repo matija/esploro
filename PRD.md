@@ -100,6 +100,16 @@ structural hardening effort; every change must be behavior-preserving.
 > `QueryError`, `ResultColumn`, and `SavedQuery`. Verified: `cargo test` (50
 > pass), `cargo clippy`, `tsc --noEmit`, and `eslint` clean apart from the
 > pre-existing `SchemaTree.tsx` hook warning.
+>
+> **Schema slice complete.** `TableSummary`, `FunctionSummary`,
+> `SchemaObjects`, and `ColumnDef` now derive `specta::Type`, the three schema
+> commands are annotated and registered with the debug/test Specta builder, and
+> regenerated bindings include `listSchemas`, `listObjects`, and `listColumns`.
+> `src/features/schema/api.ts` now calls generated wrappers while preserving
+> `IpcError` normalization; `schema/types.ts` re-exports generated schema DTOs
+> and keeps only UI-local tree types/helpers. Verified: `cargo test` (50 pass),
+> `cargo clippy`, `tsc --noEmit`, and `eslint` clean apart from the pre-existing
+> `SchemaTree.tsx` hook warning.
 
 **Problem.** Rust structs (`TableQueryRequest`, `CellValue`, `ResultColumn`,
 `UpdateRowsRequest`, …) are hand-mirrored in `src/features/*/types.ts`. Nothing enforces
@@ -265,7 +275,7 @@ trail for field debugging; no secret material in output.
 | Phase | Scope | Depends on |
 |---|---|---|
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
-| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, then other features | P2 |
+| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, then other features | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
 | 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
 | 5 | **P5** — structured logging | — |

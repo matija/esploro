@@ -4,21 +4,21 @@ use tauri::State;
 
 use crate::{AppError, AppState, DriverSession};
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableSummary {
     pub name: String,
     pub estimated_row_count: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionSummary {
     pub name: String,
     pub result_type: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaObjects {
     pub tables: Vec<TableSummary>,
@@ -27,7 +27,7 @@ pub struct SchemaObjects {
     pub functions: Vec<FunctionSummary>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnDef {
     pub name: String,
@@ -43,6 +43,7 @@ pub struct ColumnDef {
 // ─── list_schemas ────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_schemas(
     session_id: String,
     database: String,
@@ -80,6 +81,7 @@ pub async fn list_schemas(
 // ─── list_objects ────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_objects(
     session_id: String,
     _database: String,
@@ -199,6 +201,7 @@ pub async fn list_objects(
 // ─── list_columns ────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_columns(
     session_id: String,
     _database: String,
