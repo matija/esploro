@@ -4,6 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_log::log::warn;
 
 use crate::{AppError, AppState};
 
@@ -76,7 +77,7 @@ fn read_stored_license() -> Option<StoredLicense> {
         Ok(json) => serde_json::from_str(&json).ok(),
         Err(keyring::Error::NoEntry) => None,
         Err(e) => {
-            eprintln!("Failed to read license from keychain: {e}");
+            warn!("failed to read license from keychain: {e}");
             None
         }
     }
@@ -138,7 +139,7 @@ fn load_prefs(app: &AppHandle) -> UserPrefs {
             if let Ok(prefs) = serde_json::from_str::<UserPrefs>(&data) {
                 return prefs;
             }
-            eprintln!("Failed to parse prefs.json; using defaults");
+            warn!("failed to parse prefs.json; using defaults");
         }
     }
     UserPrefs {
@@ -275,7 +276,9 @@ pub async fn activate_license(
             let dismissed = *state.banner_dismissed.lock().await;
             Ok(compute_status(&app, dismissed))
         }
-        Ok(false) => Err(AppError::License(dodo::dodo_invalid_key_message().to_string())),
+        Ok(false) => Err(AppError::License(
+            dodo::dodo_invalid_key_message().to_string(),
+        )),
         Err(ref e) => Err(AppError::License(dodo::dodo_error_message(e))),
     }
 }
@@ -359,7 +362,7 @@ pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, AppErro
         Ok(Some(value)) => Ok(preferences_from_json(&value)),
         Ok(None) => Ok(default_ui_preferences()),
         Err(error) => {
-            eprintln!("Failed to parse prefs.json: {error}; using UI preference defaults");
+            warn!("failed to parse prefs.json: {error}; using UI preference defaults");
             Ok(default_ui_preferences())
         }
     }
@@ -376,7 +379,7 @@ pub async fn set_ui_preferences(
         Ok(Some(Value::Object(map))) => map,
         Ok(Some(_)) | Ok(None) => Map::new(),
         Err(error) => {
-            eprintln!("Failed to parse prefs.json before writing UI preferences: {error}");
+            warn!("failed to parse prefs.json before writing UI preferences: {error}");
             Map::new()
         }
     };

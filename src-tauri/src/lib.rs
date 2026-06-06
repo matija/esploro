@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Emitter;
+use tauri_plugin_log::{log::LevelFilter, RotationStrategy, Target, TargetKind};
 use tokio::sync::Mutex;
 
 pub use commands::connections::ConnectionProfile;
@@ -109,6 +110,19 @@ pub fn run() {
     export_typescript_bindings(&specta_builder);
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(LevelFilter::Info)
+                .rotation_strategy(RotationStrategy::KeepSome(3))
+                .max_file_size(256_000)
+                .targets([
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("esploro".into()),
+                    }),
+                    Target::new(TargetKind::Stdout),
+                ])
+                .build(),
+        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())

@@ -1,6 +1,6 @@
 # PRD: Architecture Hardening — Typed IPC, Error Model, and Boilerplate Consolidation
 
-**Status:** Draft
+**Status:** Complete
 **Owner:** Matija Munjaković
 **Date:** 2026-06-06
 **Target:** Esploro (Tauri 2 + React/TS Postgres/MySQL client)
@@ -271,7 +271,7 @@ is re-implemented inline at `data.rs:225, 248, 273, 320, 392` and similarly else
 calls; `cargo test` passes; manual smoke of query/update/delete with a server restart
 mid-session still reconnects.
 
-### P4 — Split oversized modules/components (opportunistic)
+### P4 — Split oversized modules/components (opportunistic) ✅ Done
 
 **Problem.** A few files are at the size where navigation/testing degrade. They are
 *justified by complexity* and already extract sub-components — not god objects — so this is
@@ -294,8 +294,8 @@ refinement, not rescue.
   `cargo clippy`, `tsc -b` clean.
 - R4.2 Continue the table-viewer extraction trend already in recent commits (footer,
   popovers, privileges sub-tab were just pulled out). Extract further only where cohesion is
-  genuinely separable; do not force splits that fragment tightly-coupled logic. ◐ **In
-  progress.** Pulled the three self-contained presentational sub-components out of
+  genuinely separable; do not force splits that fragment tightly-coupled logic. ✅ **Done.**
+  Pulled the three self-contained presentational sub-components out of
   `TableViewerTab.tsx` into their own files: `SkeletonGrid.tsx`, `RefreshButton.tsx`,
   `ColumnHeaderCell.tsx` (each has explicit props and zero coupling to the parent's state).
   `TableViewerTab.tsx`: 1,727 → 1,518 lines. The inline-editing state cluster
@@ -307,7 +307,17 @@ refinement, not rescue.
 **Acceptance.** No behavior change; `cargo test` + `tsc -b` pass; each split module/file has
 a single clear responsibility.
 
-### P5 — Structured logging (optional)
+### P5 — Structured logging ✅ Done
+
+> **Status: complete.** Added `tauri-plugin-log` and initialized it in
+> `src-tauri/src/lib.rs` with INFO-level logging, stdout output, and a rotating
+> OS log-dir file target (`esploro.log`, keep 3 rotations). Replaced the backend
+> `eprintln!` calls in session lifecycle and license/preferences fallback paths
+> with leveled `info!`/`warn!` records. Session logs include non-secret session
+> and connection IDs plus driver/removal metadata; profile credentials and
+> license keys are not logged. Verified: `cargo test` (50 pass), `cargo clippy
+> -- -D warnings`, `npm run type-check`, and `npm run lint` clean apart from the
+> pre-existing `SchemaTree.tsx` hook warning.
 
 **Problem.** Logging is `eprintln!` only; no leveled/structured logs. (Test coverage is
 otherwise good: 43 unit tests.)
@@ -330,8 +340,8 @@ trail for field debugging; no secret material in output.
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
 | 2 ✅ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, `license/settings` ✅, updater ✅; runtime dispatch now uses the Specta builder ✅ | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
-| 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
-| 5 | **P5** — structured logging | — |
+| 4 ✅ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) ✅ | — |
+| 5 ✅ | **P5** — structured logging | — |
 
 > **P1 sequencing note.** The global cargo registry is still read-only in this
 > dev environment, but P1 can be verified by setting `CARGO_HOME` to a writable
@@ -342,7 +352,7 @@ trail for field debugging; no secret material in output.
 > P1 is complete: every command is registered with Specta, all migrated feature
 > APIs use generated wrappers, and runtime dispatch now uses the Specta builder.
 
-P1+P2 are the meaningful architectural upgrade; P3–P5 are polish and can land independently.
+P1+P2 were the meaningful architectural upgrade; P3–P5 completed the hardening polish.
 
 ---
 

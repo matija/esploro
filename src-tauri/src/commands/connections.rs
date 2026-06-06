@@ -5,6 +5,7 @@ use std::time::Instant;
 use deadpool_postgres::{Config as PoolConfig, ManagerConfig, RecyclingMethod, Runtime};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_log::log::info;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
@@ -280,11 +281,12 @@ pub async fn delete_connection(
 
     // Close any active sessions for this connection
     let mut sessions = state.sessions.lock().await;
+    let before = sessions.len();
     sessions.retain(|_, info| info.connection_id != id);
-    eprintln!(
-        "[sessions] retain remove_connection_id={} ts={}",
-        id,
-        chrono::Utc::now().to_rfc3339(),
+    let removed = before.saturating_sub(sessions.len());
+    info!(
+        target: "sessions",
+        "removed sessions for deleted connection connection_id={id} removed_sessions={removed}",
     );
 
     Ok(())
@@ -395,11 +397,10 @@ pub async fn connect(
             );
         }
     }
-    eprintln!(
-        "[sessions] insert session_id={} connection_id={} ts={}",
-        session_id,
-        id,
-        chrono::Utc::now().to_rfc3339(),
+    info!(
+        target: "sessions",
+        "opened session session_id={session_id} connection_id={id} driver={:?}",
+        &profile.driver,
     );
 
     Ok(session_id)
@@ -408,11 +409,10 @@ pub async fn connect(
 #[tauri::command]
 #[specta::specta]
 pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), AppError> {
-    state.sessions.lock().await.remove(&session_id);
-    eprintln!(
-        "[sessions] remove session_id={} ts={}",
-        session_id,
-        chrono::Utc::now().to_rfc3339(),
+    let removed = state.sessions.lock().await.remove(&session_id).is_some();
+    info!(
+        target: "sessions",
+        "closed session session_id={session_id} removed={removed}",
     );
     Ok(())
 }

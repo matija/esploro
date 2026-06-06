@@ -351,3 +351,28 @@ Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
 clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 
 Next: P5 structured logging, if it is still desired.
+
+## 2026-06-06 — Phase 5 (P5): structured logging
+
+Picked the only remaining PRD task, P5, and completed structured backend
+logging.
+
+- Added the locked Tauri logging plugin dependency:
+  `tauri-plugin-log = "=2.8.0"`.
+- Initialized the plugin in `src-tauri/src/lib.rs` with an INFO threshold,
+  stdout output, and a rotating OS log-dir file target (`esploro.log`, keep 3
+  rotations at 256 KB each). This gives release builds a field-debuggable log
+  trail without requiring frontend behavior changes.
+- Replaced the remaining backend `eprintln!` calls in session lifecycle and
+  license/preferences fallback paths with leveled `info!`/`warn!` records.
+  Session logs include only non-secret session IDs, connection IDs, driver, and
+  removal counts; profile passwords, profile details, and license keys are not
+  logged.
+- Confirmed no Rust `eprintln!`/`dbg!` calls remain in `src-tauri/src`.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy -- -D warnings` clean, `npm run type-check` clean, and
+`npm run lint` clean except for the pre-existing `SchemaTree.tsx`
+exhaustive-deps warning.
+
+PRD complete.
