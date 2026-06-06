@@ -27,6 +27,7 @@ import {
   cellToString,
   detectEnumColumns,
   editableKind,
+  getIdentifierFirstColumnIndexes,
 } from "./types";
 import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
@@ -378,6 +379,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const ctids = useMemo(() => data?.ctids ?? [], [data?.ctids]);
   const enumCols = useMemo(() => detectEnumColumns(columns), [columns]);
+  const displayColumnIndexes = useMemo(
+    () => getIdentifierFirstColumnIndexes(columns),
+    [columns],
+  );
+  const firstDisplayColumnName = displayColumnIndexes.length > 0
+    ? columns[displayColumnIndexes[0]]?.name
+    : undefined;
 
   // MySQL requires a PK to edit any row. If none exists, nothing is editable.
   const hasTablePk = useMemo(() => columns.some((c) => c.isPrimaryKey), [columns]);
@@ -445,14 +453,19 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const findNextEditableCol = useCallback(
     (fromCol: number, dir: 1 | -1): number | null => {
-      let idx = fromCol + dir;
-      while (idx >= 0 && idx < columns.length) {
-        if (isColEditable(columns[idx].dataType)) return idx;
+      const displayIndex = displayColumnIndexes.indexOf(fromCol);
+      if (displayIndex === -1) return null;
+
+      let idx = displayIndex + dir;
+      while (idx >= 0 && idx < displayColumnIndexes.length) {
+        const colIdx = displayColumnIndexes[idx];
+        const col = columns[colIdx];
+        if (col && isColEditable(col.dataType)) return colIdx;
         idx += dir;
       }
       return null;
     },
-    [columns, isColEditable],
+    [columns, displayColumnIndexes, isColEditable],
   );
 
   // Commit the current draft and optionally move to a different cell.
@@ -901,15 +914,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // ⌘F: open filter popover for sorted column or first column
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "f" && columns.length > 0) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f" && firstDisplayColumnName) {
         e.preventDefault();
-        const target = sortColumn ?? columns[0].name;
+        const target = sortColumn ?? firstDisplayColumnName;
         setOpenFilterCol(target);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [columns, sortColumn]);
+  }, [firstDisplayColumnName, sortColumn]);
 
   const totalWidth = useMemo(
     () => columns.reduce((sum, col) => sum + (colWidths[col.name] ?? COL_WIDTH), 0),
@@ -1172,34 +1185,39 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 className="flex divide-x divide-separator"
                 style={{ width: Math.max(totalWidth, 1), minWidth: "100%" }}
               >
-                {columns.map((col) => (
-                  <ColumnHeaderCell
-                    key={col.name}
-                    col={col}
-                    width={colWidths[col.name] ?? COL_WIDTH}
-                    sortDir={
-                      sortColumn === col.name
-                        ? sortDirection === "Asc"
-                          ? "asc"
-                          : "desc"
-                        : null
-                    }
-                    isFiltered={activeFilterCols.has(col.name)}
-                    onClick={() => handleSort(col.name)}
-                    onFilterClick={(e) => {
-                      e.stopPropagation();
-                      filterAnchorEl.current = e.currentTarget;
-                      setOpenFilterCol((prev) =>
-                        prev === col.name ? null : col.name,
-                      );
-                    }}
-                    onResizeStart={(e) => handleResizeMouseDown(col.name, e)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setHeaderMenu({ x: e.clientX, y: e.clientY });
-                    }}
-                  />
-                ))}
+                {displayColumnIndexes.map((ci) => {
+                  const col = columns[ci];
+                  if (!col) return null;
+
+                  return (
+                    <ColumnHeaderCell
+                      key={col.name}
+                      col={col}
+                      width={colWidths[col.name] ?? COL_WIDTH}
+                      sortDir={
+                        sortColumn === col.name
+                          ? sortDirection === "Asc"
+                            ? "asc"
+                            : "desc"
+                          : null
+                      }
+                      isFiltered={activeFilterCols.has(col.name)}
+                      onClick={() => handleSort(col.name)}
+                      onFilterClick={(e) => {
+                        e.stopPropagation();
+                        filterAnchorEl.current = e.currentTarget;
+                        setOpenFilterCol((prev) =>
+                          prev === col.name ? null : col.name,
+                        );
+                      }}
+                      onResizeStart={(e) => handleResizeMouseDown(col.name, e)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setHeaderMenu({ x: e.clientX, y: e.clientY });
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -1269,7 +1287,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           width: "100%",
                         }}
                       >
-                        {columns.map((col, ci) => {
+                        {displayColumnIndexes.map((ci) => {
+                          const col = columns[ci];
+                          if (!col) return null;
+
                           const isSelected =
                             selectedCell?.row === vr.index &&
                             selectedCell?.col === ci;

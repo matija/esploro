@@ -163,3 +163,37 @@ export function detectEnumColumns(columns: ResultColumn[]): Set<number> {
 
   return enumCols;
 }
+
+const IDENTIFIER_COLUMN_FALLBACK_RANK = Number.MAX_SAFE_INTEGER;
+
+function identifierColumnRank(column: ResultColumn): number {
+  const name = column.name.trim().toLowerCase();
+  const dataType = column.dataType.trim().toLowerCase();
+
+  if (name === "id") return 0;
+  if (name === "uuid") return 1;
+  if (column.isPrimaryKey && dataType === "uuid") return 2;
+  if (column.isPrimaryKey && (name.endsWith("_id") || name.endsWith("_uuid"))) return 3;
+  if (name.endsWith("_id")) return 4;
+  if (name.endsWith("_uuid")) return 5;
+  if (dataType === "uuid") return 6;
+
+  return IDENTIFIER_COLUMN_FALLBACK_RANK;
+}
+
+export function getIdentifierFirstColumnIndexes(columns: ResultColumn[]): number[] {
+  return columns
+    .map((column, index) => ({
+      index,
+      rank: identifierColumnRank(column),
+    }))
+    .sort((a, b) => {
+      const aIsIdentifier = a.rank !== IDENTIFIER_COLUMN_FALLBACK_RANK;
+      const bIsIdentifier = b.rank !== IDENTIFIER_COLUMN_FALLBACK_RANK;
+
+      if (aIsIdentifier !== bIsIdentifier) return aIsIdentifier ? -1 : 1;
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.index - b.index;
+    })
+    .map(({ index }) => index);
+}
