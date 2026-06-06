@@ -11,6 +11,10 @@ export const commands = {
 	deleteRows: (sessionId: string, request: DeleteRowsRequest) => __TAURI_INVOKE<DeleteRowResult[]>("delete_rows", { sessionId, request }),
 	previewDeleteRowsSql: (sessionId: string, request: DeleteRowsRequest) => __TAURI_INVOKE<string>("preview_delete_rows_sql", { sessionId, request }),
 	executeSql: (sessionId: string, sql: string) => __TAURI_INVOKE<QueryResult[]>("execute_sql", { sessionId, sql }),
+	saveQuery: (id: string | null, name: string, folder: string | null, sql: string) => __TAURI_INVOKE<string>("save_query", { id, name, folder, sql }),
+	listSavedQueries: () => __TAURI_INVOKE<SavedQuery[]>("list_saved_queries"),
+	getSavedQuery: (id: string) => __TAURI_INVOKE<SavedQuery>("get_saved_query", { id }),
+	deleteSavedQuery: (id: string) => __TAURI_INVOKE<null>("delete_saved_query", { id }),
 };
 
 /* Types */
@@ -93,6 +97,15 @@ export type RowChange = {
 	pkConditions: PkCondition[],
 	ctid: string | null,
 	columnChanges: ColumnChange[],
+};
+
+export type SavedQuery = {
+	id: string,
+	name: string,
+	folder: string | null,
+	sql: string,
+	createdAt: string,
+	updatedAt: string,
 };
 
 export type SortDirection = "Asc" | "Desc";

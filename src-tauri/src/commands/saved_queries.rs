@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedQuery {
     pub id: String,
@@ -41,6 +41,7 @@ async fn persist(app: &AppHandle, queries: &[SavedQuery]) -> Result<(), AppError
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_query(
     app: AppHandle,
     id: Option<String>,
@@ -77,11 +78,13 @@ pub async fn save_query(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_saved_queries(app: AppHandle) -> Result<Vec<SavedQuery>, AppError> {
     Ok(load(&app).await)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, AppError> {
     load(&app)
         .await
@@ -91,6 +94,7 @@ pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, A
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_saved_query(app: AppHandle, id: String) -> Result<(), AppError> {
     let mut queries = load(&app).await;
     let before = queries.len();

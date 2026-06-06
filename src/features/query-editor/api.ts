@@ -1,15 +1,24 @@
-import { invoke } from "../../lib/ipc";
+import { commands } from "../../lib/bindings";
+import { normalizeError } from "../../lib/ipc";
 import type { QueryResult, SavedQuery } from "./types";
+
+async function normalizeCommandError<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (raw) {
+    throw normalizeError(raw);
+  }
+}
 
 export const queryEditorApi = {
   executeSql(sessionId: string, sql: string): Promise<QueryResult[]> {
-    return invoke("execute_sql", { sessionId, sql });
+    return normalizeCommandError(commands.executeSql(sessionId, sql));
   },
 };
 
 export const savedQueriesApi = {
   list(): Promise<SavedQuery[]> {
-    return invoke("list_saved_queries");
+    return normalizeCommandError(commands.listSavedQueries());
   },
 
   save(params: {
@@ -18,19 +27,19 @@ export const savedQueriesApi = {
     folder?: string;
     sql: string;
   }): Promise<string> {
-    return invoke("save_query", {
-      id: params.id ?? null,
-      name: params.name,
-      folder: params.folder ?? null,
-      sql: params.sql,
-    });
+    return normalizeCommandError(commands.saveQuery(
+      params.id ?? null,
+      params.name,
+      params.folder ?? null,
+      params.sql,
+    ));
   },
 
   get(id: string): Promise<SavedQuery> {
-    return invoke("get_saved_query", { id });
+    return normalizeCommandError(commands.getSavedQuery(id));
   },
 
   delete(id: string): Promise<void> {
-    return invoke("delete_saved_query", { id });
+    return normalizeCommandError(commands.deleteSavedQuery(id)).then(() => undefined);
   },
 };

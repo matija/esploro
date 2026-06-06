@@ -1,0 +1,195 @@
+## 2026-06-06 — Phase 1 (P2): Structured error type (AppError)
+
+Implemented the structured error model end-to-end, replacing `Result<_, String>`
++ string-matching across the IPC boundary.
+
+Backend:
+- New `src-tauri/src/error.rs`: `AppError` enum (SessionNotFound, Connection,
+  Sql{code,position,message}, Validation, License, Io, Internal). Manual
+  `Serialize` → internally-tagged `{ kind, message, code, position }`.
+  `From` impls for tokio_postgres, deadpool PoolError/CreatePoolError,
+  mysql_async, io, serde_json, keyring, tauri, tauri_plugin_updater, plus
+  `From<String>/<&str>` (→ Internal) glue. `is_retryable()` (SQLSTATE
+  57P01/57P02/08006 + Connection variant) replaces `is_pg_connection_err`.
+  `context()` preserves kind/code while enriching the message. 6 unit tests.
+- Added `thiserror = "=2.0.18"`; wired `mod error; pub use error::AppError;`.
+- Migrated every `#[tauri::command]` (connections, schema, roles, data,
+  license, saved_queries, updater) + the data driver helpers to
+  `Result<_, AppError>`. Removed `is_pg_connection_err`; data retries now
+  branch on `e.is_retryable()`.
+- Kept pure SQL-builder + identifier-validator helpers on `Result<_, String>`
+  (convert via `From<String>` at command boundaries); per-row error fields stay
+  `Option<String>`. Preserved `error_chain` source-chain detail for
+  connect/test_connection (wrapped as `AppError::Connection`).
+
+Frontend:
+- New `src/lib/ipc.ts`: `invoke` wrapper that normalizes the serialized
+  `AppError` into an `IpcError` (real Error with `.message`, plus
+  `.kind`/`.code`/`.position`); `isSessionNotFound()` helper. Repointed all
+  `invoke` imports (api.ts x6, settings x3, updates x2, store, AppShell) to it.
+- `sessionRetry.ts` now branches on `kind === "SessionNotFound"` instead of
+  substring matching.
+
+Verification: `cargo test` 49 pass, `cargo clippy` clean, `tsc -b` clean,
+`eslint` clean.
+
+Next: Phase 2 (P1) — tauri-specta typed bindings (export AppError + DTOs),
+then P3 (with_pool helper), P4 (split license.rs / table-viewer), P5 (logging).
+
+## 2026-06-06 — Phase 3 (P3): with_pool helper, collapse duplication
+
+P1 was attempted first (it's higher priority) but is blocked in this dev
+environment: `cargo fetch` for specta/tauri-specta fails with "Operation not
+permitted" creating dirs under `~/.cargo/registry` (read-only here, persists
+even with the sandbox disabled; `/tmp` and the project dir are writable).
+Relocating CARGO_HOME forces a full from-scratch recompile of the Tauri dep
+tree — too heavy/fragile for one iteration. Verified compatible pins recorded
+in PRD for when P1 runs in a normal cargo environment:
+specta/tauri-specta = "=2.0.0-rc.25", specta-typescript = "=0.0.12", and
+`tauri` needs its `specta` feature. Reverted the Cargo.toml/Cargo.lock probe.
+
+Pivoted to P3 (no new deps, reuses build cache):
+- Added `lock_pool(state, session_id)` (lock → resolve_pool → drop lock) and
+  `with_pool(state, session_id, on_pg, on_mysql)` in `commands/data.rs`.
+  `with_pool` dispatches to the driver closure and retries the PG closure once
+  on a retryable `AppError`, encapsulating the lock/resolve/one-shot-retry
+  block that was duplicated at data.rs:225/248/273/320/392.
+- Refactored the 5 retry commands (query_table_data, query_table_count,
+  update_rows, delete_rows, execute_sql) to single `with_pool` calls and the
+  2 preview commands (no retry) to `lock_pool`. Net −76/+70 lines in data.rs.
+- Behavior-preserving: same retry policy/error surface. The MySQL branches now
+  clone the request inside the closure instead of moving it (single call, no
+  semantic change). `roles.rs`/`schema.rs` left untouched — they hold the lock
+  across the query and have no retry, so they are not structurally identical.
+
+Verification: `cargo test` 49 pass, `cargo clippy` clean, `tsc -b` clean.
+
+Next: Phase 2 (P1) in a cargo-writable environment, then P4 (split
+license.rs / continue table-viewer extraction), P5 (logging).
+
+## 2026-06-06 — Phase 4 (P4 / R4.1): split license.rs by concern
+
+P1 still blocked: `~/.cargo/registry` remains read-only ("Operation not
+permitted" on write), so the specta/tauri-specta deps can't be fetched. Picked
+the next achievable priority — P4 / R4.1 (split license.rs along its three
+concerns). UI preferences was already its own file (`license/ui_preferences.rs`),
+so the remaining split was the Dodo external API + background task.
+
+- New `src-tauri/src/commands/license/dodo.rs`: moved the Dodo Payments
+  validation (`DodoError`, `call_dodo_validate`, `dodo_error_message`,
+  `dodo_invalid_key_message`) and the background re-validation task
+  (`revalidate_license_background`) out of license.rs. Re-exported the task from
+  the module root (`pub use self::dodo::revalidate_license_background;`) so
+  `commands::license::revalidate_license_background` in lib.rs is unchanged.
+- `license.rs` now holds only license-domain logic: types, keychain + prefs
+  plumbing, `compute_status[_pure]`, and the thin Tauri commands. 640 → 470
+  lines. Call sites repointed to `dodo::*`. The 3 dodo message tests moved into
+  dodo.rs; status-machine tests stay in license.rs.
+- dodo.rs reads parent-private keychain helpers (`read/write/clear_stored_license`,
+  `StoredLicense`) via `super::` — child modules see parent-private items, so no
+  visibility was widened. Functions used only within the module are `pub(super)`.
+- Behavior-preserving; no FE changes. roles.rs / row_mutations.rs left as-is
+  (out of R4.1 scope; R4.2 table-viewer extraction still pending).
+
+Verification: `cargo test` 49 pass, `cargo clippy` clean, `tsc -b` clean.
+
+Next: P4/R4.2 (continue table-viewer extraction), P5 (logging), and P1 once a
+cargo-writable environment is available.
+
+## 2026-06-06 — Phase 4 (P4 / R4.2): extract table-viewer presentational components
+
+P1 still blocked (verified again: `~/.cargo/registry` is read-only even with the
+sandbox disabled — filesystem-level "Operation not permitted"; specta/tauri-specta
+can't be fetched). P5 also blocked for the same reason: neither `tauri-plugin-log`
+nor `tracing-subscriber` is in Cargo.lock (only transitive `tracing`/`log`/
+`tracing-core` are cached), so a real structured-logging setup needs a new fetch.
+Picked the one achievable remaining task — P4/R4.2 (table-viewer extraction, no
+new deps).
+
+- Pulled the three self-contained presentational sub-components out of
+  `TableViewerTab.tsx` into their own files under `src/features/table-viewer/`:
+  `SkeletonGrid.tsx` (+ the SKELETON_* layout constants), `RefreshButton.tsx`
+  (owns its own now/interval state), and `ColumnHeaderCell.tsx`. Each takes
+  explicit props and has zero coupling to the parent component's state.
+- `TableViewerTab.tsx`: 1,727 → 1,518 lines. Repointed imports to the new files
+  and pruned the now-unused imports the moved code carried (lucide: ChevronUp,
+  ChevronDown, KeyRound, Link, RefreshCw; `* as Tooltip`; types: ResultColumn,
+  getTypeFamily, typeFamilyBadgeClass; constants: HEADER_HEIGHT). Kept the pure
+  SQL helpers (`quoteTableIdentifier`, `buildTableRawWhereSql`) in place — still
+  used by `copyRawWhereSql`.
+- Deliberately did NOT extract the inline-editing state cluster (pendingEdits,
+  editingCell, commitAndAdvance, buildRowChanges, handleSave/handleDeleteRow,
+  etc.). It is tightly coupled to data/columns/rows/ctx/ctids and the query's
+  refetch; hoisting it into a hook would fragment cohesive logic — exactly the
+  split R4.2 says not to force. SchemaTree.tsx / RoleDetailPanel.tsx left as-is.
+- Behavior-preserving; pure file moves with unchanged JSX/props.
+
+Verification: `cargo test` 49 pass, `tsc -b` clean (incl. --force), `eslint`
+clean. No Rust changed this iteration.
+
+Next: P1 + P5 once a cargo-writable environment is available; further R4.2
+extraction only if a genuinely separable cluster appears.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC data/table-viewer slice
+
+Picked the highest-priority remaining task, P1, and completed the data-first
+slice without touching the other feature APIs.
+
+- Added the locked Specta stack already planned in the PRD:
+  `specta = "=2.0.0-rc.25"` (`derive`, `serde_json`),
+  `tauri-specta = "=2.0.0-rc.25"` (`derive`, `typescript`),
+  `specta-typescript = "=0.0.12"`, and Tauri's `specta` feature. The global
+  cargo registry is still read-only, so Rust verification used a temporary
+  project-local `CARGO_HOME`.
+- Derived `specta::Type` for the data command DTOs (`TableQueryRequest`,
+  `CellValue`, row mutation requests/results, `QueryResult`, etc.) and for
+  `AppError` via an export-only wire-shape override matching the actual
+  serialized `{ kind, message, code, position }` payload. Added a JSON payload
+  type override so `serde_json::Value` does not expand into a recursive inline
+  TypeScript type.
+- Annotated the seven data commands with `#[specta::specta]` and added a
+  debug/test exporter in `src-tauri/src/lib.rs` that writes
+  `src/lib/bindings.ts`. Runtime command dispatch intentionally stays on the
+  existing `tauri::generate_handler!` until all commands are registered with
+  Specta; switching now would drop the un-migrated commands.
+- Migrated `src/features/table-viewer/api.ts` off raw
+  `invoke("<data command>")` calls and onto generated `commands.*` wrappers,
+  with `normalizeError` still applied so existing `IpcError`/session retry
+  behavior is preserved. Replaced the hand-maintained table-viewer DTOs in
+  `types.ts` with generated type re-exports; kept only UI helper types and
+  functions there. Updated request construction to send explicit `null` for
+  generated nullable fields.
+
+Verification: `cargo test` 50 pass (with local `CARGO_HOME`), `cargo clippy`
+clean, `tsc --noEmit` clean, `eslint` clean except for the pre-existing
+`SchemaTree.tsx` exhaustive-deps warning.
+
+Next: continue P1 feature-by-feature (query editor/saved queries, schema,
+connections, roles, license/updater), then switch runtime command dispatch to
+the Specta builder once every command is registered.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC query-editor/saved-queries slice
+
+Picked the highest-priority remaining task, P1, and completed only the
+query-editor/saved-queries slice.
+
+- Added `specta::Type` to `SavedQuery`, annotated the four saved-query commands
+  with `#[specta::specta]`, and registered them with the debug/test Specta
+  builder. Regenerated `src/lib/bindings.ts`, which now includes generated
+  wrappers for `saveQuery`, `listSavedQueries`, `getSavedQuery`, and
+  `deleteSavedQuery`.
+- Migrated `src/features/query-editor/api.ts` from raw `invoke(...)` calls to
+  generated `commands.*` wrappers for both `executeSql` and saved-query
+  operations. Kept the same `normalizeError` path so `IpcError`/session retry
+  behavior is unchanged.
+- Replaced the hand-maintained query-editor DTO interfaces with generated type
+  re-exports for `QueryResult`, `QueryError`, `ResultColumn`, and `SavedQuery`.
+  Other feature APIs were intentionally left untouched.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy` clean, `npm run type-check` clean, `npm run lint` clean except
+for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: continue P1 feature-by-feature (schema, connections, roles,
+license/updater/settings), then switch runtime command dispatch to the Specta
+builder once every command is registered.

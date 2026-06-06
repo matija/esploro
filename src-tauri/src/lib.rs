@@ -48,6 +48,10 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::data::delete_rows,
             commands::data::preview_delete_rows_sql,
             commands::data::execute_sql,
+            commands::saved_queries::save_query,
+            commands::saved_queries::list_saved_queries,
+            commands::saved_queries::get_saved_query,
+            commands::saved_queries::delete_saved_query,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .dangerously_cast_bigints_to_number()
