@@ -60,7 +60,7 @@ export function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum
         )}
         title={raw}
       >
-        <span className="truncate">{raw}</span>
+        <span className="relative -top-px truncate">{raw}</span>
       </span>
     );
   }
