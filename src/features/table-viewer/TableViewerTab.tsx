@@ -8,8 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, Loader2, Filter, Database, Table2, KeyRound, Link, AlertCircle, RotateCw, RefreshCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Play } from "lucide-react";
-import * as Tooltip from "@radix-ui/react-tooltip";
+import { Loader2, Filter, Database, Table2, AlertCircle, RotateCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Play } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
@@ -20,14 +19,11 @@ import { withSessionRetry } from "../../lib/sessionRetry";
 import {
   type SortDirection,
   type ColumnFilter,
-  type ResultColumn,
   type CellValue,
   type RowChange,
   type DeleteRowRequest,
   type EditableKind,
   OP_LABELS,
-  getTypeFamily,
-  typeFamilyBadgeClass,
   cellToString,
   detectEnumColumns,
   editableKind,
@@ -35,26 +31,15 @@ import {
 import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
 import { MiniSqlEditor, type MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
-import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
+import { COL_WIDTH, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 import { CellContextMenu } from "./CellContextMenu";
+import { ColumnHeaderCell } from "./ColumnHeaderCell";
+import { RefreshButton } from "./RefreshButton";
+import { SkeletonGrid } from "./SkeletonGrid";
 import { TableViewerFooter } from "./TableViewerFooter";
 import { TablePrivilegesTab, PrivApplyResultSummary } from "./TablePrivilegesTab";
 import { ColumnFilterPopover, type FilterEntry } from "./ColumnFilterPopover";
 import { JsonArrayEditor } from "./JsonArrayEditor";
-
-// ─── SkeletonGrid ─────────────────────────────────────────────────────────────
-
-const SKELETON_COL_WIDTHS = [140, 100, 80, 160, 120];
-const SKELETON_ROW_WIDTHS = [
-  [120, 80, 70, 140, 110],
-  [100, 90, 60, 120, 100],
-  [130, 70, 75, 150, 115],
-  [110, 85, 65, 130, 105],
-  [125, 75, 80, 145, 120],
-  [95,  95, 70, 125,  90],
-  [135, 80, 60, 155, 115],
-  [115, 70, 75, 135, 100],
-];
 
 function quoteTableIdentifier(identifier: string, driver: "postgres" | "mysql"): string {
   if (driver === "mysql") return `\`${identifier.replace(/`/g, "``")}\``;
@@ -72,200 +57,6 @@ function buildTableRawWhereSql(
   return trimmed
     ? `SELECT *\nFROM ${tableRef}\nWHERE ${trimmed};`
     : `SELECT *\nFROM ${tableRef};`;
-}
-
-function SkeletonGrid() {
-  return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="shrink-0 flex border-b-2 border-separator bg-sidebar overflow-x-hidden">
-        <div className="flex divide-x divide-separator" style={{ minWidth: "100%" }}>
-          {SKELETON_COL_WIDTHS.map((w, i) => (
-            <div
-              key={i}
-              className="flex items-center px-2 shrink-0"
-              style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
-            >
-              <div
-                className="h-2.5 rounded bg-control animate-pulse"
-                style={{ width: w }}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="flex-1 overflow-hidden">
-        {SKELETON_ROW_WIDTHS.map((widths, ri) => (
-          <div
-            key={ri}
-            className={cn(
-              "flex divide-x divide-separator/50 border-b border-separator/50",
-              ri % 2 === 1 && "bg-subtle/30",
-            )}
-            style={{ height: ROW_HEIGHT_BY_DENSITY.compact }}
-          >
-            {SKELETON_COL_WIDTHS.map((_, ci) => (
-              <div
-                key={ci}
-                className="flex items-center px-2 shrink-0"
-                style={{ width: COL_WIDTH, minWidth: COL_WIDTH }}
-              >
-                <div
-                  className="h-2 rounded bg-control animate-pulse"
-                  style={{
-                    width: widths[ci] ?? 80,
-                    animationDelay: `${(ri * SKELETON_COL_WIDTHS.length + ci) * 30}ms`,
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RefreshButton({
-  dataUpdatedAt,
-  isFetching,
-  isLoading,
-  onRefresh,
-}: {
-  dataUpdatedAt: number;
-  isFetching: boolean;
-  isLoading: boolean;
-  onRefresh: () => void;
-}) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (dataUpdatedAt <= 0 || isFetching) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, [dataUpdatedAt, isFetching]);
-
-  const ageMs = dataUpdatedAt > 0 ? now - dataUpdatedAt : null;
-  const isStale = ageMs !== null && ageMs > 30_000;
-  const ageLabel = ageMs === null || isFetching
-    ? null
-    : ageMs < 60_000
-      ? `${Math.floor(ageMs / 1000)}s ago`
-      : `${Math.floor(ageMs / 60_000)}m ago`;
-
-  return (
-    <button
-      onClick={onRefresh}
-      disabled={isLoading || isFetching}
-      className={cn(
-        "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0",
-        isStale
-          ? "text-label bg-control hover:bg-subtle active:bg-subtle"
-          : "text-secondary hover:bg-control hover:text-label active:bg-subtle",
-        "disabled:opacity-40 disabled:cursor-not-allowed",
-      )}
-      title="Refresh table data (⌘R)"
-    >
-      <RefreshCw
-        size={12}
-        className={cn(isFetching && !isLoading && "animate-spin")}
-      />
-      {ageLabel ? <span>{ageLabel}</span> : <span>Refresh</span>}
-    </button>
-  );
-}
-
-// ─── ColumnHeaderCell ─────────────────────────────────────────────────────────
-
-function ColumnHeaderCell({
-  col,
-  width,
-  sortDir,
-  isFiltered,
-  onClick,
-  onFilterClick,
-  onResizeStart,
-  onContextMenu,
-}: {
-  col: ResultColumn;
-  width: number;
-  sortDir: "asc" | "desc" | null;
-  isFiltered: boolean;
-  onClick: () => void;
-  onFilterClick: (e: React.MouseEvent) => void;
-  onResizeStart: (e: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "relative flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
-        isFiltered && "bg-accent/5",
-      )}
-      style={{ width, minWidth: width, height: HEADER_HEIGHT }}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-    >
-      {col.isPrimaryKey && (
-        <KeyRound size={10} className="text-schema-key shrink-0" aria-label="Primary key" />
-      )}
-      {col.isForeignKey && !col.isPrimaryKey && (
-        <Link size={10} className="text-schema-foreign-key shrink-0" aria-label="Foreign key" />
-      )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
-            {col.name}
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="bottom"
-            sideOffset={4}
-            className="z-50 px-2 py-1 rounded-[var(--radius-control)] border border-separator bg-raised shadow-[var(--shadow-popover)] text-xs text-label font-mono"
-          >
-            {col.name}
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-      {col.isNullable && (
-        <span className="text-[8px] font-mono text-tertiary shrink-0 group-hover:hidden" title="Nullable">?</span>
-      )}
-      {/* Filter icon: accent when filtered, visible on hover when not */}
-      <button
-        onClick={onFilterClick}
-        title={`Filter by ${col.name}`}
-        className={cn(
-          "shrink-0 p-0.5 rounded transition-colors",
-          isFiltered
-            ? "text-accent"
-            : "text-tertiary opacity-0 group-hover:opacity-100 hover:text-accent",
-        )}
-      >
-        <Filter size={9} />
-      </button>
-      <span
-        className={cn(
-          "text-[9px] font-mono px-1 py-px rounded shrink-0",
-          typeFamilyBadgeClass(getTypeFamily(col.dataType)),
-        )}
-      >
-        {col.dataType}
-      </span>
-      {sortDir === "asc" && (
-        <ChevronUp size={12} className="text-accent shrink-0" />
-      )}
-      {sortDir === "desc" && (
-        <ChevronDown size={12} className="text-accent shrink-0" />
-      )}
-      {/* Resize handle */}
-      <div
-        className="absolute right-0 top-1 bottom-1 w-1 rounded-full opacity-0 group-hover:opacity-100 bg-separator hover:bg-accent/60 cursor-col-resize transition-opacity"
-        onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
-        onClick={(e) => e.stopPropagation()}
-      />
-    </div>
-  );
 }
 
 // ─── TableViewerTab ───────────────────────────────────────────────────────────
