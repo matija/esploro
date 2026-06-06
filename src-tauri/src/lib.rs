@@ -62,6 +62,19 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::schema::list_schemas,
             commands::schema::list_objects,
             commands::schema::list_columns,
+            commands::roles::list_roles,
+            commands::roles::list_role_members,
+            commands::roles::get_role_dependents,
+            commands::roles::create_role,
+            commands::roles::alter_role,
+            commands::roles::drop_role,
+            commands::roles::manage_role_membership,
+            commands::roles::list_role_privileges,
+            commands::roles::manage_role_privileges,
+            commands::roles::list_table_privileges,
+            commands::roles::manage_table_privileges,
+            commands::roles::list_schema_privileges,
+            commands::roles::manage_schema_privileges,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .dangerously_cast_bigints_to_number()

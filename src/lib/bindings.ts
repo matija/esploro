@@ -25,9 +25,37 @@ export const commands = {
 	listSchemas: (sessionId: string, database: string) => __TAURI_INVOKE<string[]>("list_schemas", { sessionId, database }),
 	listObjects: (sessionId: string, database: string, schema: string) => __TAURI_INVOKE<SchemaObjects>("list_objects", { sessionId, database, schema }),
 	listColumns: (sessionId: string, database: string, schema: string, table: string) => __TAURI_INVOKE<ColumnDef[]>("list_columns", { sessionId, database, schema, table }),
+	listRoles: (sessionId: string) => __TAURI_INVOKE<RoleSummary[]>("list_roles", { sessionId }),
+	listRoleMembers: (sessionId: string, roleName: string) => __TAURI_INVOKE<RoleMembers>("list_role_members", { sessionId, roleName }),
+	getRoleDependents: (sessionId: string, roleName: string) => __TAURI_INVOKE<RoleDependent[]>("get_role_dependents", { sessionId, roleName }),
+	createRole: (sessionId: string, request: CreateRoleRequest) => __TAURI_INVOKE<null>("create_role", { sessionId, request }),
+	alterRole: (sessionId: string, roleName: string, request: AlterRoleRequest) => __TAURI_INVOKE<null>("alter_role", { sessionId, roleName, request }),
+	dropRole: (sessionId: string, roleName: string) => __TAURI_INVOKE<null>("drop_role", { sessionId, roleName }),
+	manageRoleMembership: (sessionId: string, ops: MembershipOp[]) => __TAURI_INVOKE<MembershipResult[]>("manage_role_membership", { sessionId, ops }),
+	listRolePrivileges: (sessionId: string, roleName: string) => __TAURI_INVOKE<RolePrivileges>("list_role_privileges", { sessionId, roleName }),
+	manageRolePrivileges: (sessionId: string, roleName: string, ops: PrivilegeOp[]) => __TAURI_INVOKE<PrivilegeResult[]>("manage_role_privileges", { sessionId, roleName, ops }),
+	listTablePrivileges: (sessionId: string, schema: string, table: string) => __TAURI_INVOKE<TableGrantee[]>("list_table_privileges", { sessionId, schema, table }),
+	manageTablePrivileges: (sessionId: string, schema: string, table: string, ops: TablePrivilegeOp[]) => __TAURI_INVOKE<PrivilegeResult[]>("manage_table_privileges", { sessionId, schema, table, ops }),
+	listSchemaPrivileges: (sessionId: string, schema: string) => __TAURI_INVOKE<SchemaInfo>("list_schema_privileges", { sessionId, schema }),
+	manageSchemaPrivileges: (sessionId: string, schema: string, ops: SchemaPrivilegeOp[]) => __TAURI_INVOKE<PrivilegeResult[]>("manage_schema_privileges", { sessionId, schema, ops }),
 };
 
 /* Types */
+export type AlterRoleRequest = {
+	isSuperuser?: boolean | null,
+	inherit?: boolean | null,
+	createRole?: boolean | null,
+	createDb?: boolean | null,
+	canLogin?: boolean | null,
+	replication?: boolean | null,
+	bypassRls?: boolean | null,
+	connLimit?: number | null,
+	/**  ISO date string to set, empty string to clear (sets to 'infinity') */
+	validUntil?: string | null,
+	/**  Set-only. None = don't change. Some("") = set to NULL. Some(pw) = set new password. */
+	password?: string | null,
+};
+
 export type AppError = {
 	kind: string,
 	message: string,
@@ -100,6 +128,20 @@ export type ConnectionProfile = {
 	updatedAt: string,
 };
 
+export type CreateRoleRequest = {
+	name: string,
+	isSuperuser?: boolean | null,
+	inherit?: boolean | null,
+	createRole?: boolean | null,
+	createDb?: boolean | null,
+	canLogin?: boolean | null,
+	replication?: boolean | null,
+	bypassRls?: boolean | null,
+	connLimit?: number | null,
+	validUntil?: string | null,
+	password?: string | null,
+};
+
 export type DbDriver = "postgres" | "mysql";
 
 export type DeleteRowRequest = {
@@ -127,9 +169,35 @@ export type FunctionSummary = {
 
 export type JsonValue = "Null" | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
+export type MembershipOp = {
+	op: string,
+	role: string,
+	member: string,
+};
+
+export type MembershipResult = {
+	op: string,
+	role: string,
+	member: string,
+	error: string | null,
+};
+
 export type PkCondition = {
 	column: string,
 	value: string,
+};
+
+export type PrivilegeOp = {
+	op: string,
+	objectType: string,
+	schema: string,
+	name: string,
+	privilege: string,
+};
+
+export type PrivilegeResult = {
+	sql: string,
+	error: string | null,
 };
 
 export type QueryError = {
@@ -155,6 +223,45 @@ export type ResultColumn = {
 	isEnum: boolean,
 };
 
+export type RoleDependent = {
+	kind: string,
+	name: string,
+};
+
+export type RoleMembers = {
+	memberOf: string[],
+	members: string[],
+};
+
+export type RolePrivileges = {
+	tableGrants: RoleTableGrant[],
+	schemaGrants: RoleSchemaGrant[],
+};
+
+export type RoleSchemaGrant = {
+	schema: string,
+	privileges: string[],
+};
+
+export type RoleSummary = {
+	name: string,
+	isSuperuser: boolean,
+	inherit: boolean,
+	createRole: boolean,
+	createDb: boolean,
+	canLogin: boolean,
+	replication: boolean,
+	bypassRls: boolean,
+	connLimit: number,
+	validUntil: string | null,
+};
+
+export type RoleTableGrant = {
+	schema: string,
+	table: string,
+	privileges: string[],
+};
+
 export type RowChange = {
 	pkConditions: PkCondition[],
 	ctid: string | null,
@@ -170,11 +277,27 @@ export type SavedQuery = {
 	updatedAt: string,
 };
 
+export type SchemaGrantee = {
+	grantee: string,
+	privileges: string[],
+};
+
+export type SchemaInfo = {
+	owner: string,
+	grantees: SchemaGrantee[],
+};
+
 export type SchemaObjects = {
 	tables: TableSummary[],
 	views: string[],
 	sequences: string[],
 	functions: FunctionSummary[],
+};
+
+export type SchemaPrivilegeOp = {
+	op: string,
+	grantee: string,
+	privilege: string,
 };
 
 export type SortDirection = "Asc" | "Desc";
@@ -184,6 +307,17 @@ export type SslMode = "disable" | "prefer" | "require" | "verifyFull";
 export type TableCountResult = {
 	count: number,
 	isEstimate: boolean,
+};
+
+export type TableGrantee = {
+	grantee: string,
+	privileges: string[],
+};
+
+export type TablePrivilegeOp = {
+	op: string,
+	grantee: string,
+	privilege: string,
 };
 
 export type TableQueryRequest = {

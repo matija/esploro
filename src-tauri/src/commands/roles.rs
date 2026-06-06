@@ -12,7 +12,7 @@ use self::sql_builders::{
     format_unknown_table_privilege_sql, RoleOptions,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleSummary {
     pub name: String,
@@ -27,54 +27,74 @@ pub struct RoleSummary {
     pub valid_until: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleMembers {
     pub member_of: Vec<String>,
     pub members: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleDependent {
     pub kind: String,
     pub name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateRoleRequest {
     pub name: String,
+    #[serde(default)]
     pub is_superuser: Option<bool>,
+    #[serde(default)]
     pub inherit: Option<bool>,
+    #[serde(default)]
     pub create_role: Option<bool>,
+    #[serde(default)]
     pub create_db: Option<bool>,
+    #[serde(default)]
     pub can_login: Option<bool>,
+    #[serde(default)]
     pub replication: Option<bool>,
+    #[serde(default)]
     pub bypass_rls: Option<bool>,
+    #[serde(default)]
     pub conn_limit: Option<i32>,
+    #[serde(default)]
     pub valid_until: Option<String>,
+    #[serde(default)]
     pub password: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AlterRoleRequest {
+    #[serde(default)]
     pub is_superuser: Option<bool>,
+    #[serde(default)]
     pub inherit: Option<bool>,
+    #[serde(default)]
     pub create_role: Option<bool>,
+    #[serde(default)]
     pub create_db: Option<bool>,
+    #[serde(default)]
     pub can_login: Option<bool>,
+    #[serde(default)]
     pub replication: Option<bool>,
+    #[serde(default)]
     pub bypass_rls: Option<bool>,
+    #[serde(default)]
     pub conn_limit: Option<i32>,
     /// ISO date string to set, empty string to clear (sets to 'infinity')
+    #[serde(default)]
     pub valid_until: Option<String>,
     /// Set-only. None = don't change. Some("") = set to NULL. Some(pw) = set new password.
+    #[serde(default)]
     pub password: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MembershipOp {
     pub op: String, // "grant" or "revoke"
@@ -82,7 +102,7 @@ pub struct MembershipOp {
     pub member: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MembershipResult {
     pub op: String,
@@ -91,7 +111,7 @@ pub struct MembershipResult {
     pub error: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleTableGrant {
     pub schema: String,
@@ -99,21 +119,21 @@ pub struct RoleTableGrant {
     pub privileges: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleSchemaGrant {
     pub schema: String,
     pub privileges: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RolePrivileges {
     pub table_grants: Vec<RoleTableGrant>,
     pub schema_grants: Vec<RoleSchemaGrant>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrivilegeOp {
     pub op: String,          // "grant" or "revoke"
@@ -123,21 +143,21 @@ pub struct PrivilegeOp {
     pub privilege: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PrivilegeResult {
     pub sql: String,
     pub error: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableGrantee {
     pub grantee: String,
     pub privileges: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TablePrivilegeOp {
     pub op: String, // "grant" or "revoke"
@@ -148,6 +168,7 @@ pub struct TablePrivilegeOp {
 // ─── list_roles ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_roles(
     session_id: String,
     state: State<'_, AppState>,
@@ -193,6 +214,7 @@ pub async fn list_roles(
 // ─── list_role_members ────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_role_members(
     session_id: String,
     role_name: String,
@@ -241,6 +263,7 @@ pub async fn list_role_members(
 // ─── get_role_dependents ──────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_role_dependents(
     session_id: String,
     role_name: String,
@@ -300,6 +323,7 @@ pub async fn get_role_dependents(
 // ─── create_role ──────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn create_role(
     session_id: String,
     request: CreateRoleRequest,
@@ -343,6 +367,7 @@ pub async fn create_role(
 // ─── alter_role ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn alter_role(
     session_id: String,
     role_name: String,
@@ -389,6 +414,7 @@ pub async fn alter_role(
 // ─── drop_role ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn drop_role(
     session_id: String,
     role_name: String,
@@ -411,6 +437,7 @@ pub async fn drop_role(
 // ─── list_role_privileges ─────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_role_privileges(
     session_id: String,
     role_name: String,
@@ -495,6 +522,7 @@ pub async fn list_role_privileges(
 // ─── manage_role_privileges ───────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn manage_role_privileges(
     session_id: String,
     role_name: String,
@@ -546,6 +574,7 @@ pub async fn manage_role_privileges(
 // ─── manage_role_membership ───────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn manage_role_membership(
     session_id: String,
     ops: Vec<MembershipOp>,
@@ -591,6 +620,7 @@ pub async fn manage_role_membership(
 // ─── list_table_privileges ────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_table_privileges(
     session_id: String,
     schema: String,
@@ -639,6 +669,7 @@ pub async fn list_table_privileges(
 // ─── manage_table_privileges ──────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn manage_table_privileges(
     session_id: String,
     schema: String,
@@ -689,21 +720,21 @@ pub async fn manage_table_privileges(
 
 // ─── list_schema_privileges ───────────────────────────────────────────────────
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaGrantee {
     pub grantee: String,
     pub privileges: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaInfo {
     pub owner: String,
     pub grantees: Vec<SchemaGrantee>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaPrivilegeOp {
     pub op: String, // "grant" or "revoke"
@@ -712,6 +743,7 @@ pub struct SchemaPrivilegeOp {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_schema_privileges(
     session_id: String,
     schema: String,
@@ -778,6 +810,7 @@ pub async fn list_schema_privileges(
 // ─── manage_schema_privileges ─────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn manage_schema_privileges(
     session_id: String,
     schema: String,

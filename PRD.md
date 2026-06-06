@@ -122,6 +122,18 @@ structural hardening effort; every change must be behavior-preserving.
 > fields are now sent as explicit `null` at the frontend boundary. Verified:
 > `cargo test` (50 pass), `cargo clippy`, `tsc --noEmit`, and `eslint` clean
 > apart from the pre-existing `SchemaTree.tsx` hook warning.
+>
+> **Roles slice complete.** The full roles DTO surface now derives
+> `specta::Type` (`RoleSummary`, membership/dependent/privilege DTOs, role
+> create/alter requests, table/schema privilege requests/results), the thirteen
+> roles commands are annotated and registered with the debug/test Specta builder,
+> and regenerated bindings include the generated roles command wrappers.
+> `src/features/roles/api.ts` now calls generated wrappers while preserving
+> `IpcError` normalization; `roles/types.ts` re-exports generated role DTOs.
+> Sparse create/alter request fields remain optional at the frontend boundary via
+> `serde(default)`. Verified: `cargo test` (50 pass), `cargo clippy
+> -- -D warnings`, `tsc --noEmit`, and `eslint` clean apart from the
+> pre-existing `SchemaTree.tsx` hook warning.
 
 **Problem.** Rust structs (`TableQueryRequest`, `CellValue`, `ResultColumn`,
 `UpdateRowsRequest`, …) are hand-mirrored in `src/features/*/types.ts`. Nothing enforces
@@ -287,7 +299,7 @@ trail for field debugging; no secret material in output.
 | Phase | Scope | Depends on |
 |---|---|---|
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
-| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, then roles/license/updater/settings | P2 |
+| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, then license/updater/settings | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
 | 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
 | 5 | **P5** — structured logging | — |
@@ -298,7 +310,7 @@ trail for field debugging; no secret material in output.
 > `src-tauri/Cargo.toml`/`Cargo.lock`: `specta = "=2.0.0-rc.25"` (features
 > `derive`, `serde_json`), `tauri-specta = "=2.0.0-rc.25"` (features `derive`,
 > `typescript`), `specta-typescript = "=0.0.12"`, and Tauri's `specta` feature.
-> Continue P1 feature-by-feature after the completed `data` slice.
+> Continue P1 feature-by-feature after the completed migrated slices.
 
 P1+P2 are the meaningful architectural upgrade; P3–P5 are polish and can land independently.
 

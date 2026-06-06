@@ -247,3 +247,31 @@ clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 Next: continue P1 feature-by-feature (roles, license/updater/settings), then
 switch runtime command dispatch to the Specta builder once every command is
 registered.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC roles slice
+
+Picked the highest-priority remaining task, P1, and completed only the roles
+slice.
+
+- Added `specta::Type` to the roles DTO surface (`RoleSummary`, role
+  membership/dependent/privilege DTOs, create/alter requests, table/schema
+  privilege requests/results), annotated all 13 roles commands with
+  `#[specta::specta]`, and registered them with the debug/test Specta builder.
+  Regenerated `src/lib/bindings.ts`, which now includes generated wrappers for
+  `listRoles`, `listRoleMembers`, `getRoleDependents`, `createRole`,
+  `alterRole`, `dropRole`, `manageRoleMembership`, `listRolePrivileges`,
+  `manageRolePrivileges`, `listTablePrivileges`, `manageTablePrivileges`,
+  `listSchemaPrivileges`, and `manageSchemaPrivileges`.
+- Migrated `src/features/roles/api.ts` from raw `invoke(...)` calls to
+  generated `commands.*` wrappers. Kept the same `normalizeError` path so
+  `IpcError`/session retry behavior is unchanged.
+- Replaced the hand-maintained roles DTO interfaces with generated type
+  re-exports. Added `serde(default)` to sparse optional create/alter request
+  fields so existing callers can keep sending only changed fields.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy -- -D warnings` clean, `npm run type-check` clean, `npm run lint`
+clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: continue P1 feature-by-feature (license/updater/settings), then switch
+runtime command dispatch to the Specta builder once every command is registered.
