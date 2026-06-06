@@ -87,6 +87,28 @@ body {
   overscroll-behavior: auto;
 }
 
+.enum-value-badge-0 { --enum-value-color: var(--data-enum-0); }
+.enum-value-badge-1 { --enum-value-color: var(--data-enum-1); }
+.enum-value-badge-2 { --enum-value-color: var(--data-enum-2); }
+.enum-value-badge-3 { --enum-value-color: var(--data-enum-3); }
+.enum-value-badge-4 { --enum-value-color: var(--data-enum-4); }
+.enum-value-badge-5 { --enum-value-color: var(--data-enum-5); }
+.enum-value-badge-6 { --enum-value-color: var(--data-enum-6); }
+.enum-value-badge-7 { --enum-value-color: var(--data-enum-7); }
+
+.enum-value-badge-0,
+.enum-value-badge-1,
+.enum-value-badge-2,
+.enum-value-badge-3,
+.enum-value-badge-4,
+.enum-value-badge-5,
+.enum-value-badge-6,
+.enum-value-badge-7 {
+  border: 1px solid color-mix(in srgb, var(--enum-value-color) 28%, transparent);
+  background-color: color-mix(in srgb, var(--enum-value-color) 12%, transparent);
+  color: var(--enum-value-color);
+}
+
 /* Disable default outline; use custom focus styles */
 :focus-visible {
   outline: 2px solid var(--ds-accent);

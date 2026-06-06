@@ -517,6 +517,14 @@
   --data-date:              var(--ds-syntax-type);
   --data-number:            var(--ds-syntax-number);
   --data-text:              var(--ds-label);
+  --data-enum-0:            var(--ds-syntax-enum);
+  --data-enum-1:            var(--ds-syntax-keyword);
+  --data-enum-2:            var(--ds-syntax-type);
+  --data-enum-3:            var(--ds-syntax-string);
+  --data-enum-4:            var(--ds-syntax-number);
+  --data-enum-5:            var(--ds-syntax-special);
+  --data-enum-6:            var(--ds-accent);
+  --data-enum-7:            var(--ds-warning);
   --data-modified:          var(--ds-warning);
   --data-filtered:          var(--ds-accent);
   --data-sorted:            var(--ds-accent);

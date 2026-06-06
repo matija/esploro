@@ -123,18 +123,17 @@ export function getOperatorsForFamily(family: TypeFamily, driver: "postgres" | "
 
 // ─── Enum badge palette ──────────────────────────────────────────────────────
 
-// 8 muted hues. Backgrounds use the 500-series at low opacity so the badge
-// tints into whatever theme surface is behind it instead of carrying its own
-// solid colour. Text picks a darker/lighter shade per scheme for readability.
+// 8 theme-aware hues. Each class points at data-grid enum tokens that are
+// derived from the active palette, keeping badges visually close to the theme.
 const ENUM_BADGE_CLASSES: readonly string[] = [
-  "bg-red-500/10 text-red-700 dark:text-red-300",
-  "bg-orange-500/10 text-orange-700 dark:text-orange-300",
-  "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  "bg-green-500/10 text-green-700 dark:text-green-300",
-  "bg-teal-500/10 text-teal-700 dark:text-teal-300",
-  "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  "bg-pink-500/10 text-pink-700 dark:text-pink-300",
+  "enum-value-badge-0",
+  "enum-value-badge-1",
+  "enum-value-badge-2",
+  "enum-value-badge-3",
+  "enum-value-badge-4",
+  "enum-value-badge-5",
+  "enum-value-badge-6",
+  "enum-value-badge-7",
 ];
 
 // djb2 — stable across sessions and rows so the same value always maps to the
