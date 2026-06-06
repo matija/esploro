@@ -252,7 +252,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                     className={cn(
                       'px-3 py-1 text-xs font-medium transition-colors',
                       driver === d
-                        ? 'bg-accent text-white'
+                        ? 'bg-accent text-inverse'
                         : 'text-secondary hover:text-label hover:bg-control',
                     )}
                   >
@@ -332,7 +332,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                       className={cn(
                         'px-3 py-1 text-xs font-medium transition-colors',
                         connType === t
-                          ? 'bg-accent text-white'
+                          ? 'bg-accent text-inverse'
                           : 'text-secondary hover:text-label hover:bg-control',
                       )}
                     >
@@ -445,10 +445,10 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
             {testState !== 'idle' && testState !== 'testing' && (
               <div
                 className={cn(
-                  'text-xs rounded px-3 py-2',
+                  'text-xs rounded px-3 py-2 border',
                   'ms' in testState
-                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                    : 'bg-destructive/10 text-destructive',
+                    ? 'border-success/30 bg-success/10 text-label'
+                    : 'border-destructive/30 bg-destructive/10 text-label',
                 )}
               >
                 {'ms' in testState
@@ -485,7 +485,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 disabled={saving}
                 className={cn(
                   'px-3 py-1.5 rounded-md text-xs font-medium',
-                  'bg-accent text-white hover:bg-accent/90 transition-colors',
+                  'bg-accent text-inverse hover:bg-accent-hover transition-colors',
                   'disabled:opacity-50',
                 )}
               >

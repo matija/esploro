@@ -496,7 +496,7 @@ function SaveDialog({
                 }
               }}
               disabled={!name.trim()}
-              className="px-3 py-1.5 text-sm bg-accent text-white rounded hover:opacity-90 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm bg-accent text-inverse rounded hover:bg-accent-hover disabled:opacity-50"
             >
               Save
             </button>
@@ -523,13 +523,13 @@ function RunButton({
       icon: <Play size={12} />,
       label: "Run",
       hint: "⌘↵",
-      cls: "bg-accent hover:opacity-90 text-white",
+      cls: "bg-accent text-inverse hover:bg-accent-hover",
     },
     pending: {
       icon: <Loader2 size={12} className="animate-spin" />,
       label: "Running",
       hint: null,
-      cls: "bg-accent/70 text-white cursor-wait",
+      cls: "bg-accent text-inverse opacity-80 cursor-wait",
     },
     success: {
       icon: <Check size={12} />,

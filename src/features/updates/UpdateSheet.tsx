@@ -128,8 +128,8 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
                 <button
                   onClick={() => void handleRelaunch()}
                   disabled={phase === 'restarting'}
-                  className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-white
-                    disabled:opacity-40 hover:bg-accent/90 active:bg-accent/80 transition-colors"
+                  className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-inverse
+                    disabled:opacity-40 hover:bg-accent-hover active:opacity-80 transition-colors"
                 >
                   {phase === 'restarting' ? 'Restarting…' : 'Restart to Apply'}
                 </button>
@@ -137,8 +137,8 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
                 <button
                   onClick={() => void handleInstall()}
                   disabled={phase === 'installing'}
-                  className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-white
-                    disabled:opacity-40 hover:bg-accent/90 active:bg-accent/80 transition-colors"
+                  className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-inverse
+                    disabled:opacity-40 hover:bg-accent-hover active:opacity-80 transition-colors"
                 >
                   {phase === 'installing' ? 'Installing…' : 'Download & Install'}
                 </button>

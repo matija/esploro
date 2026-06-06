@@ -28,7 +28,7 @@ export function LicenseSettings() {
       {status?.tier === 'Commercial' ? (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="w-2 h-2 rounded-full bg-success" />
             <span className="text-sm font-medium text-label">Commercial</span>
           </div>
           <button

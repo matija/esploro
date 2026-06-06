@@ -84,7 +84,7 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
 
             {error && <p className="text-xs text-destructive">{error}</p>}
             {activated && (
-              <p className="text-xs text-green-600 dark:text-green-400">
+              <p className="text-xs text-success">
                 License activated successfully!
               </p>
             )}
@@ -92,8 +92,8 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
             <button
               onClick={handleActivate}
               disabled={!key.trim() || loading || activated}
-              className="px-4 py-2 rounded text-sm font-medium bg-accent text-white
-                disabled:opacity-40 hover:bg-accent/90 active:bg-accent/80 transition-colors"
+              className="px-4 py-2 rounded text-sm font-medium bg-accent text-inverse
+                disabled:opacity-40 hover:bg-accent-hover active:opacity-80 transition-colors"
             >
               {loading ? 'Activating…' : 'Activate'}
             </button>

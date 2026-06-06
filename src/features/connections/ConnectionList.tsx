@@ -462,8 +462,8 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
               onClick={onNewConnection}
               className={cn(
                 'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md',
-                'text-xs font-medium bg-accent text-white',
-                'hover:opacity-90 active:opacity-80 transition-opacity',
+                'text-xs font-medium bg-accent text-inverse',
+                'hover:bg-accent-hover active:opacity-80 transition-colors',
               )}
             >
               <Plus size={11} />

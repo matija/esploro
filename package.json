@@ -1,6 +1,6 @@
 {
   "name": "esploro",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "A modern, sleek and fast database client for PostgreSQL, MySQL, and MariaDB.",
   "author": "Matija Munjaković",
   "license": "MIT",

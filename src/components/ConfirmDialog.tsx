@@ -110,8 +110,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                   "px-3 py-1.5 rounded-[var(--radius-control,6px)] text-xs font-medium",
                   "transition-colors",
                   opts?.destructive
-                    ? "bg-destructive text-white hover:opacity-90 active:opacity-80"
-                    : "bg-accent text-white hover:opacity-90 active:opacity-80",
+                    ? "bg-destructive text-inverse hover:opacity-90 active:opacity-80"
+                    : "bg-accent text-inverse hover:bg-accent-hover active:opacity-80",
                 )}
               >
                 {opts?.confirmLabel ?? "Confirm"}
