@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager, State};
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-use crate::{AppState, DriverSession, SessionInfo};
+use crate::{AppError, AppState, DriverSession, SessionInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -89,37 +89,33 @@ fn error_chain(e: impl std::error::Error) -> String {
 // Keychain helpers
 // ---------------------------------------------------------------------------
 
-fn keychain_entry(id: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new("esploro", &format!("connection:{id}")).map_err(|e| e.to_string())
+fn keychain_entry(id: &str) -> Result<keyring::Entry, AppError> {
+    keyring::Entry::new("esploro", &format!("connection:{id}")).map_err(AppError::from)
 }
 
 // ---------------------------------------------------------------------------
 // File-storage helpers
 // ---------------------------------------------------------------------------
 
-fn connections_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+fn connections_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+    let dir = app.path().app_data_dir()?;
+    std::fs::create_dir_all(&dir)?;
     Ok(dir.join("connections.json"))
 }
 
-async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, String> {
+async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
     let path = connections_path(app)?;
     if !path.exists() {
         return Ok(vec![]);
     }
-    let data = tokio::fs::read_to_string(&path)
-        .await
-        .map_err(|e| e.to_string())?;
-    serde_json::from_str(&data).map_err(|e| e.to_string())
+    let data = tokio::fs::read_to_string(&path).await?;
+    serde_json::from_str(&data).map_err(AppError::from)
 }
 
-async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Result<(), String> {
+async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Result<(), AppError> {
     let path = connections_path(app)?;
-    let data = serde_json::to_string_pretty(profiles).map_err(|e| e.to_string())?;
-    tokio::fs::write(&path, data)
-        .await
-        .map_err(|e| e.to_string())
+    let data = serde_json::to_string_pretty(profiles)?;
+    tokio::fs::write(&path, data).await.map_err(AppError::from)
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +125,7 @@ async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Resul
 fn build_pg_pool(
     profile: &ConnectionProfile,
     password: &str,
-) -> Result<deadpool_postgres::Pool, String> {
+) -> Result<deadpool_postgres::Pool, AppError> {
     let mut cfg = PoolConfig::new();
 
     // Unix socket path takes priority; tokio-postgres recognises a host
@@ -149,10 +145,12 @@ fn build_pg_pool(
         max_size: max,
         ..Default::default()
     });
-    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Verified });
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Verified,
+    });
 
     cfg.create_pool(Some(Runtime::Tokio1), NoTls)
-        .map_err(|e| e.to_string())
+        .map_err(AppError::from)
 }
 
 fn pool_max_size(configured: u32) -> usize {
@@ -168,7 +166,7 @@ fn pool_max_size(configured: u32) -> usize {
 fn build_mysql_pool(
     profile: &ConnectionProfile,
     password: &str,
-) -> Result<mysql_async::Pool, String> {
+) -> Result<mysql_async::Pool, AppError> {
     let host = profile.host.as_deref().unwrap_or("localhost");
     let max = pool_max_size(profile.pool_max_connections);
     let constraints = mysql_async::PoolConstraints::new(1, max)
@@ -189,7 +187,7 @@ fn build_mysql_pool(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn list_connections(app: AppHandle) -> Result<Vec<ConnectionProfile>, String> {
+pub async fn list_connections(app: AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
     load_profiles(&app).await
 }
 
@@ -198,14 +196,12 @@ pub async fn create_connection(
     app: AppHandle,
     input: ConnectionInput,
     password: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
     // Store password in Keychain before writing the profile
-    keychain_entry(&id)?
-        .set_password(&password)
-        .map_err(|e| e.to_string())?;
+    keychain_entry(&id)?.set_password(&password)?;
 
     let profile = ConnectionProfile {
         id: id.clone(),
@@ -237,7 +233,7 @@ pub async fn update_connection(
     id: String,
     input: ConnectionInput,
     password: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let mut profiles = load_profiles(&app).await?;
     let profile = profiles
         .iter_mut()
@@ -258,9 +254,7 @@ pub async fn update_connection(
     profile.updated_at = chrono::Utc::now().to_rfc3339();
 
     if let Some(pwd) = password {
-        keychain_entry(&id)?
-            .set_password(&pwd)
-            .map_err(|e| e.to_string())?;
+        keychain_entry(&id)?.set_password(&pwd)?;
     }
 
     save_profiles(&app, &profiles).await
@@ -271,14 +265,14 @@ pub async fn delete_connection(
     app: AppHandle,
     id: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     // Remove from storage
     let mut profiles = load_profiles(&app).await?;
     profiles.retain(|p| p.id != id);
     save_profiles(&app, &profiles).await?;
 
     // Remove Keychain entry (best-effort; entry might not exist)
-    let _ = keychain_entry(&id).and_then(|e| e.delete_password().map_err(|x| x.to_string()));
+    let _ = keychain_entry(&id).and_then(|e| e.delete_password().map_err(AppError::from));
 
     // Close any active sessions for this connection
     let mut sessions = state.sessions.lock().await;
@@ -293,7 +287,7 @@ pub async fn delete_connection(
 }
 
 #[tauri::command]
-pub async fn test_connection(input: ConnectionInput, password: String) -> Result<u64, String> {
+pub async fn test_connection(input: ConnectionInput, password: String) -> Result<u64, AppError> {
     let profile = ConnectionProfile {
         id: String::new(),
         display_name: String::new(),
@@ -315,14 +309,25 @@ pub async fn test_connection(input: ConnectionInput, password: String) -> Result
     match profile.driver {
         DbDriver::Postgres => {
             let pool = build_pg_pool(&profile, &password)?;
-            let client = pool.get().await.map_err(error_chain)?;
-            client.execute("SELECT 1", &[]).await.map_err(error_chain)?;
+            let client = pool
+                .get()
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            client
+                .execute("SELECT 1", &[])
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
         }
         DbDriver::Mysql => {
             use mysql_async::prelude::Queryable;
             let pool = build_mysql_pool(&profile, &password)?;
-            let mut conn = pool.get_conn().await.map_err(error_chain)?;
-            conn.query_drop("SELECT 1").await.map_err(error_chain)?;
+            let mut conn = pool
+                .get_conn()
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            conn.query_drop("SELECT 1")
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
         }
     }
     Ok(start.elapsed().as_millis() as u64)
@@ -333,24 +338,28 @@ pub async fn connect(
     app: AppHandle,
     id: String,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     let profiles = load_profiles(&app).await?;
     let profile = profiles
         .iter()
         .find(|p| p.id == id)
         .ok_or_else(|| format!("Connection {id} not found"))?;
 
-    let password = keychain_entry(&id)?
-        .get_password()
-        .map_err(|e| e.to_string())?;
+    let password = keychain_entry(&id)?.get_password()?;
 
     let session_id = Uuid::new_v4().to_string();
 
     match profile.driver {
         DbDriver::Postgres => {
             let pool = build_pg_pool(profile, &password)?;
-            let client = pool.get().await.map_err(error_chain)?;
-            client.execute("SELECT 1", &[]).await.map_err(error_chain)?;
+            let client = pool
+                .get()
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            client
+                .execute("SELECT 1", &[])
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
             drop(client);
             state.sessions.lock().await.insert(
                 session_id.clone(),
@@ -363,8 +372,13 @@ pub async fn connect(
         DbDriver::Mysql => {
             use mysql_async::prelude::Queryable;
             let pool = build_mysql_pool(profile, &password)?;
-            let mut conn = pool.get_conn().await.map_err(error_chain)?;
-            conn.query_drop("SELECT 1").await.map_err(error_chain)?;
+            let mut conn = pool
+                .get_conn()
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            conn.query_drop("SELECT 1")
+                .await
+                .map_err(|e| AppError::Connection(error_chain(e)))?;
             drop(conn);
             state.sessions.lock().await.insert(
                 session_id.clone(),
@@ -386,7 +400,7 @@ pub async fn connect(
 }
 
 #[tauri::command]
-pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), AppError> {
     state.sessions.lock().await.remove(&session_id);
     eprintln!(
         "[sessions] remove session_id={} ts={}",

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::{AppState, DriverSession};
+use crate::{AppError, AppState, DriverSession};
 
 mod sql_builders;
 
@@ -151,15 +151,13 @@ pub struct TablePrivilegeOp {
 pub async fn list_roles(
     session_id: String,
     state: State<'_, AppState>,
-) -> Result<Vec<RoleSummary>, String> {
+) -> Result<Vec<RoleSummary>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let rows = client
                 .query(
                     "SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, \
@@ -170,8 +168,7 @@ pub async fn list_roles(
                      ORDER BY rolname",
                     &[],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             Ok(rows
                 .iter()
@@ -189,7 +186,7 @@ pub async fn list_roles(
                 })
                 .collect())
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -200,15 +197,13 @@ pub async fn list_role_members(
     session_id: String,
     role_name: String,
     state: State<'_, AppState>,
-) -> Result<RoleMembers, String> {
+) -> Result<RoleMembers, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             let members_rows = client
                 .query(
@@ -220,8 +215,7 @@ pub async fn list_role_members(
                      ORDER BY m.rolname",
                     &[&role_name],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let member_of_rows = client
                 .query(
@@ -233,15 +227,14 @@ pub async fn list_role_members(
                      ORDER BY r.rolname",
                     &[&role_name],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             Ok(RoleMembers {
                 members: members_rows.iter().map(|r| r.get(0)).collect(),
                 member_of: member_of_rows.iter().map(|r| r.get(0)).collect(),
             })
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -252,15 +245,13 @@ pub async fn get_role_dependents(
     session_id: String,
     role_name: String,
     state: State<'_, AppState>,
-) -> Result<Vec<RoleDependent>, String> {
+) -> Result<Vec<RoleDependent>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let rows = client
                 .query(
                     "SELECT kind, name FROM ( \
@@ -292,8 +283,7 @@ pub async fn get_role_dependents(
                      LIMIT 50",
                     &[&role_name],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             Ok(rows
                 .iter()
@@ -303,7 +293,7 @@ pub async fn get_role_dependents(
                 })
                 .collect())
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -314,15 +304,13 @@ pub async fn create_role(
     session_id: String,
     request: CreateRoleRequest,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             let (sql, pass_param) = build_create_role_sql(
                 &request.name,
@@ -341,17 +329,14 @@ pub async fn create_role(
             );
 
             if let Some(pw) = pass_param {
-                client
-                    .execute(&sql, &[&pw])
-                    .await
-                    .map_err(|e| e.to_string())?;
+                client.execute(&sql, &[&pw]).await?;
             } else {
-                client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
+                client.execute(&sql, &[]).await?;
             }
 
             Ok(())
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -363,15 +348,13 @@ pub async fn alter_role(
     role_name: String,
     request: AlterRoleRequest,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             let Some((sql, pass_param)) = build_alter_role_sql(
                 &role_name,
@@ -392,17 +375,14 @@ pub async fn alter_role(
             };
 
             if let Some(pw) = pass_param {
-                client
-                    .execute(&sql, &[&pw])
-                    .await
-                    .map_err(|e| e.to_string())?;
+                client.execute(&sql, &[&pw]).await?;
             } else {
-                client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
+                client.execute(&sql, &[]).await?;
             }
 
             Ok(())
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -413,20 +393,18 @@ pub async fn drop_role(
     session_id: String,
     role_name: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let sql = build_drop_role_sql(&role_name);
-            client.execute(&sql, &[]).await.map_err(|e| e.to_string())?;
+            client.execute(&sql, &[]).await?;
             Ok(())
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -437,17 +415,15 @@ pub async fn list_role_privileges(
     session_id: String,
     role_name: String,
     state: State<'_, AppState>,
-) -> Result<RolePrivileges, String> {
+) -> Result<RolePrivileges, AppError> {
     use std::collections::BTreeMap;
 
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             // Table grants via information_schema
             let table_rows = client
@@ -459,8 +435,7 @@ pub async fn list_role_privileges(
                      ORDER BY table_schema, table_name, privilege_type",
                     &[&role_name],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let mut table_map: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
             for row in &table_rows {
@@ -495,8 +470,7 @@ pub async fn list_role_privileges(
                      ORDER BY n.nspname, a.privilege_type",
                     &[&role_name],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let mut schema_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for row in &schema_rows {
@@ -514,7 +488,7 @@ pub async fn list_role_privileges(
                 schema_grants,
             })
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -526,15 +500,13 @@ pub async fn manage_role_privileges(
     role_name: String,
     ops: Vec<PrivilegeOp>,
     state: State<'_, AppState>,
-) -> Result<Vec<PrivilegeResult>, String> {
+) -> Result<Vec<PrivilegeResult>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
@@ -567,7 +539,7 @@ pub async fn manage_role_privileges(
 
             Ok(results)
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -578,15 +550,13 @@ pub async fn manage_role_membership(
     session_id: String,
     ops: Vec<MembershipOp>,
     state: State<'_, AppState>,
-) -> Result<Vec<MembershipResult>, String> {
+) -> Result<Vec<MembershipResult>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
@@ -614,7 +584,7 @@ pub async fn manage_role_membership(
 
             Ok(results)
         }
-        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".to_string()),
+        DriverSession::Mysql(_) => Err("Roles are not supported for MySQL connections".into()),
     }
 }
 
@@ -626,17 +596,15 @@ pub async fn list_table_privileges(
     schema: String,
     table: String,
     state: State<'_, AppState>,
-) -> Result<Vec<TableGrantee>, String> {
+) -> Result<Vec<TableGrantee>, AppError> {
     use std::collections::BTreeMap;
 
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let rows = client
                 .query(
                     "SELECT grantee, privilege_type \
@@ -647,8 +615,7 @@ pub async fn list_table_privileges(
                      ORDER BY grantee, privilege_type",
                     &[&schema, &table],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for row in &rows {
@@ -665,9 +632,7 @@ pub async fn list_table_privileges(
                 })
                 .collect())
         }
-        DriverSession::Mysql(_) => {
-            Err("Privileges are not supported for MySQL connections".to_string())
-        }
+        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".into()),
     }
 }
 
@@ -680,15 +645,13 @@ pub async fn manage_table_privileges(
     table: String,
     ops: Vec<TablePrivilegeOp>,
     state: State<'_, AppState>,
-) -> Result<Vec<PrivilegeResult>, String> {
+) -> Result<Vec<PrivilegeResult>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
@@ -720,9 +683,7 @@ pub async fn manage_table_privileges(
 
             Ok(results)
         }
-        DriverSession::Mysql(_) => {
-            Err("Privileges are not supported for MySQL connections".to_string())
-        }
+        DriverSession::Mysql(_) => Err("Privileges are not supported for MySQL connections".into()),
     }
 }
 
@@ -755,17 +716,15 @@ pub async fn list_schema_privileges(
     session_id: String,
     schema: String,
     state: State<'_, AppState>,
-) -> Result<SchemaInfo, String> {
+) -> Result<SchemaInfo, AppError> {
     use std::collections::BTreeMap;
 
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             let owner_row = client
                 .query_one(
@@ -775,8 +734,7 @@ pub async fn list_schema_privileges(
                      WHERE n.nspname = $1",
                     &[&schema],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
             let owner: String = owner_row.get(0);
 
             let rows = client
@@ -792,7 +750,7 @@ pub async fn list_schema_privileges(
                     &[&schema],
                 )
                 .await
-                .map_err(|e| e.to_string())?;
+                ?;
 
             let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for row in &rows {
@@ -812,7 +770,7 @@ pub async fn list_schema_privileges(
             Ok(SchemaInfo { owner, grantees })
         }
         DriverSession::Mysql(_) => {
-            Err("Schema privileges are not supported for MySQL connections".to_string())
+            Err("Schema privileges are not supported for MySQL connections".into())
         }
     }
 }
@@ -825,15 +783,13 @@ pub async fn manage_schema_privileges(
     schema: String,
     ops: Vec<SchemaPrivilegeOp>,
     state: State<'_, AppState>,
-) -> Result<Vec<PrivilegeResult>, String> {
+) -> Result<Vec<PrivilegeResult>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let mut results = Vec::with_capacity(ops.len());
 
             for op in ops {
@@ -860,7 +816,7 @@ pub async fn manage_schema_privileges(
             Ok(results)
         }
         DriverSession::Mysql(_) => {
-            Err("Schema privileges are not supported for MySQL connections".to_string())
+            Err("Schema privileges are not supported for MySQL connections".into())
         }
     }
 }

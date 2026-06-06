@@ -1,4 +1,7 @@
 mod commands;
+mod error;
+
+pub use error::AppError;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -43,7 +46,13 @@ pub fn run() {
         .setup(|app| {
             // Native macOS menu bar
             let app_submenu = SubmenuBuilder::new(app, "Esploro")
-                .item(&MenuItem::with_id(app, "about", "About Esploro", true, None::<&str>)?)
+                .item(&MenuItem::with_id(
+                    app,
+                    "about",
+                    "About Esploro",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
                 .item(&MenuItem::with_id(
                     app,

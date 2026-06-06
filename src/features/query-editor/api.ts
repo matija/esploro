@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/ipc";
 import type { QueryResult, SavedQuery } from "./types";
 
 export const queryEditorApi = {

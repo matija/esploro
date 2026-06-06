@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::AppError;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -29,17 +30,13 @@ async fn load(app: &AppHandle) -> Vec<SavedQuery> {
     serde_json::from_str(&data).unwrap_or_default()
 }
 
-async fn persist(app: &AppHandle, queries: &[SavedQuery]) -> Result<(), String> {
+async fn persist(app: &AppHandle, queries: &[SavedQuery]) -> Result<(), AppError> {
     let path = queries_path(app);
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await?;
     }
-    let data = serde_json::to_string_pretty(queries).map_err(|e| e.to_string())?;
-    tokio::fs::write(&path, data)
-        .await
-        .map_err(|e| e.to_string())?;
+    let data = serde_json::to_string_pretty(queries)?;
+    tokio::fs::write(&path, data).await?;
     Ok(())
 }
 
@@ -50,7 +47,7 @@ pub async fn save_query(
     name: String,
     folder: Option<String>,
     sql: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     let mut queries = load(&app).await;
     let now = Utc::now().to_rfc3339();
 
@@ -80,26 +77,26 @@ pub async fn save_query(
 }
 
 #[tauri::command]
-pub async fn list_saved_queries(app: AppHandle) -> Result<Vec<SavedQuery>, String> {
+pub async fn list_saved_queries(app: AppHandle) -> Result<Vec<SavedQuery>, AppError> {
     Ok(load(&app).await)
 }
 
 #[tauri::command]
-pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, String> {
+pub async fn get_saved_query(app: AppHandle, id: String) -> Result<SavedQuery, AppError> {
     load(&app)
         .await
         .into_iter()
         .find(|q| q.id == id)
-        .ok_or_else(|| format!("Query not found: {id}"))
+        .ok_or_else(|| AppError::Internal(format!("Query not found: {id}")))
 }
 
 #[tauri::command]
-pub async fn delete_saved_query(app: AppHandle, id: String) -> Result<(), String> {
+pub async fn delete_saved_query(app: AppHandle, id: String) -> Result<(), AppError> {
     let mut queries = load(&app).await;
     let before = queries.len();
     queries.retain(|q| q.id != id);
     if queries.len() == before {
-        return Err(format!("Query not found: {id}"));
+        return Err(AppError::Internal(format!("Query not found: {id}")));
     }
     persist(&app, &queries).await?;
     Ok(())

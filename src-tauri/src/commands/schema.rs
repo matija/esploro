@@ -2,7 +2,7 @@ use mysql_async::prelude::Queryable;
 use serde::Serialize;
 use tauri::State;
 
-use crate::{AppState, DriverSession};
+use crate::{AppError, AppState, DriverSession};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,15 +47,13 @@ pub async fn list_schemas(
     session_id: String,
     database: String,
     state: State<'_, AppState>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let rows = client
                 .query(
                     "SELECT schema_name \
@@ -68,8 +66,7 @@ pub async fn list_schemas(
                      ORDER BY schema_name",
                     &[],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
             Ok(rows.iter().map(|r| r.get::<_, String>(0)).collect())
         }
         DriverSession::Mysql(_) => {
@@ -88,15 +85,13 @@ pub async fn list_objects(
     _database: String,
     schema: String,
     state: State<'_, AppState>,
-) -> Result<SchemaObjects, String> {
+) -> Result<SchemaObjects, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
 
             let table_rows = client
                 .query(
@@ -111,8 +106,7 @@ pub async fn list_objects(
                      ORDER BY t.table_type, t.table_name",
                     &[&schema],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let mut tables = Vec::new();
             let mut views = Vec::new();
@@ -136,8 +130,7 @@ pub async fn list_objects(
                      WHERE sequence_schema = $1 ORDER BY sequence_name",
                     &[&schema],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
             let sequences: Vec<String> = seq_rows.iter().map(|r| r.get(0)).collect();
 
             let fn_rows = client
@@ -149,8 +142,7 @@ pub async fn list_objects(
                      ORDER BY p.proname",
                     &[&schema],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
             let functions: Vec<FunctionSummary> = fn_rows
                 .iter()
                 .map(|r| FunctionSummary {
@@ -168,7 +160,7 @@ pub async fn list_objects(
         }
         DriverSession::Mysql(pool) => {
             // For MySQL, `schema` is the database name.
-            let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+            let mut conn = pool.get_conn().await?;
             let rows: Vec<mysql_async::Row> = conn
                 .exec(
                     "SELECT TABLE_NAME, TABLE_TYPE \
@@ -177,8 +169,7 @@ pub async fn list_objects(
                      ORDER BY TABLE_TYPE, TABLE_NAME",
                     (&schema,),
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             let mut tables = Vec::new();
             let mut views = Vec::new();
@@ -214,15 +205,13 @@ pub async fn list_columns(
     schema: String,
     table: String,
     state: State<'_, AppState>,
-) -> Result<Vec<ColumnDef>, String> {
+) -> Result<Vec<ColumnDef>, AppError> {
     let sessions = state.sessions.lock().await;
-    let info = sessions
-        .get(&session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
 
     match &info.driver {
         DriverSession::Postgres(pool) => {
-            let client = pool.get().await.map_err(|e| e.to_string())?;
+            let client = pool.get().await?;
             let rows = client
                 .query(
                     "SELECT \
@@ -256,8 +245,7 @@ pub async fn list_columns(
                      ORDER BY a.attnum",
                     &[&schema, &table],
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             Ok(rows
                 .iter()
@@ -275,7 +263,7 @@ pub async fn list_columns(
         }
         DriverSession::Mysql(pool) => {
             // For MySQL, `schema` is the database name.
-            let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+            let mut conn = pool.get_conn().await?;
             let rows: Vec<mysql_async::Row> = conn
                 .exec(
                     "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT \
@@ -284,8 +272,7 @@ pub async fn list_columns(
                      ORDER BY ORDINAL_POSITION",
                     (&schema, &table),
                 )
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
 
             Ok(rows
                 .iter()

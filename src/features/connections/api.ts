@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../../lib/ipc";
 import type { ConnectionInput, ConnectionProfile } from './types';
 
 export const connectionsApi = {

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/ipc";
 import * as Select from "@radix-ui/react-select";
 import {
   Check,

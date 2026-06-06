@@ -10,12 +10,13 @@ use super::table_queries::{
 use super::type_mapping::{mysql_cell_value, mysql_str, pg_cell_value, resolve_pg_cast, CellValue};
 use super::where_clauses::{build_mysql_where_clause, build_pg_where_clause, build_where_sql};
 use super::{ResultColumn, TableCountResult, TableQueryRequest, TableQueryResult};
+use crate::AppError;
 
 pub(super) async fn query_table_pg(
     pool: std::sync::Arc<deadpool_postgres::Pool>,
     request: TableQueryRequest,
-) -> Result<TableQueryResult, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<TableQueryResult, AppError> {
+    let client = pool.get().await?;
 
     let col_rows = client
         .query(
@@ -33,14 +34,13 @@ pub(super) async fn query_table_pg(
              ORDER BY c.ordinal_position",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     if col_rows.is_empty() {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "Table \"{}\".\"{}\" not found or has no columns",
             request.schema, request.table
-        ));
+        )));
     }
 
     let pk_cols: HashSet<String> = client
@@ -137,9 +137,9 @@ pub(super) async fn query_table_pg(
         .await
         .map_err(|e| {
             let param_str = param_values.join(", ");
-            format!(
-                "Filter query failed — SQL: {data_sql}  Params: [{param_str}]  Error(Display): {e}  Error(Debug): {e:?}"
-            )
+            AppError::from(e).context(format!(
+                "Filter query failed — SQL: {data_sql}  Params: [{param_str}]"
+            ))
         })?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
@@ -175,8 +175,8 @@ pub(super) async fn query_table_pg(
 pub(super) async fn count_table_pg(
     pool: std::sync::Arc<deadpool_postgres::Pool>,
     request: TableQueryRequest,
-) -> Result<TableCountResult, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<TableCountResult, AppError> {
+    let client = pool.get().await?;
 
     // Fast path: no filters -> use reltuples estimate without querying information_schema.
     if request.filters.is_empty() {
@@ -187,8 +187,7 @@ pub(super) async fn count_table_pg(
                    AND relname = $2 AND reltuples >= 0",
                 &[&request.schema, &request.table],
             )
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
         if let Some(row) = estimate_row {
             let count: i64 = row.get(0);
             return Ok(TableCountResult {
@@ -207,8 +206,7 @@ pub(super) async fn count_table_pg(
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
         .into_iter()
         .map(|r| {
             let name: String = r.get(0);
@@ -230,7 +228,7 @@ pub(super) async fn count_table_pg(
     let row = client
         .query_one(count_sql.as_str(), params.as_slice())
         .await
-        .map_err(|e| format!("Count query failed — SQL: {count_sql}  Error: {e}"))?;
+        .map_err(|e| AppError::from(e).context(format!("Count query failed — SQL: {count_sql}")))?;
     Ok(TableCountResult {
         count: row.get(0),
         is_estimate: false,
@@ -240,9 +238,9 @@ pub(super) async fn count_table_pg(
 pub(super) async fn query_table_mysql(
     pool: std::sync::Arc<mysql_async::Pool>,
     request: TableQueryRequest,
-) -> Result<TableQueryResult, String> {
+) -> Result<TableQueryResult, AppError> {
     // For MySQL, `schema` is the database name.
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+    let mut conn = pool.get_conn().await?;
 
     // Fetch column metadata from INFORMATION_SCHEMA
     let col_rows: Vec<mysql_async::Row> = conn
@@ -253,14 +251,13 @@ pub(super) async fn query_table_mysql(
              ORDER BY ORDINAL_POSITION",
             (&request.schema, &request.table),
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     if col_rows.is_empty() {
-        return Err(format!(
+        return Err(AppError::Validation(format!(
             "Table `{}`.`{}` not found or has no columns",
             request.schema, request.table
-        ));
+        )));
     }
 
     let result_columns: Vec<ResultColumn> = col_rows
@@ -298,8 +295,7 @@ pub(super) async fn query_table_mysql(
     let start = Instant::now();
     let data_rows = conn
         .exec::<mysql_async::Row, _, _>(data_sql.as_str(), param_values)
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
     let rows: Vec<Vec<CellValue>> = data_rows
@@ -324,16 +320,15 @@ pub(super) async fn query_table_mysql(
 pub(super) async fn count_table_mysql(
     pool: std::sync::Arc<mysql_async::Pool>,
     request: TableQueryRequest,
-) -> Result<TableCountResult, String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+) -> Result<TableCountResult, AppError> {
+    let mut conn = pool.get_conn().await?;
 
     let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
     let where_sql = build_where_sql(&where_clauses, &request.raw_where);
     let count_sql = build_mysql_count_sql(&request.schema, &request.table, &where_sql);
     let count_rows = conn
         .exec::<mysql_async::Row, _, _>(count_sql.as_str(), param_values)
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     let count = count_rows
         .first()
         .and_then(|r| mysql_str(r, 0))

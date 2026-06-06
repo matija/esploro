@@ -1478,6 +1478,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-process",
  "tauri-plugin-updater",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-postgres",
  "uuid",

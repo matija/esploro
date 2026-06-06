@@ -10,12 +10,13 @@ use super::row_mutations::{
 };
 use super::type_mapping::{mysql_str, resolve_pg_cast};
 use super::{validate_column_identifier, DeleteRowResult, DeleteRowsRequest, UpdateRowsRequest};
+use crate::AppError;
 
 pub(super) async fn update_rows_pg(
     pool: Arc<deadpool_postgres::Pool>,
     request: UpdateRowsRequest,
-) -> Result<(), String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let client = pool.get().await?;
 
     let col_rows: Vec<tokio_postgres::Row> = client
         .query(
@@ -23,8 +24,7 @@ pub(super) async fn update_rows_pg(
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     // Keep raw udt_name for array detection (starts with '_').
     let col_type_map: HashMap<String, String> = col_rows
@@ -43,10 +43,7 @@ pub(super) async fn update_rows_pg(
         })
         .collect();
 
-    client
-        .batch_execute("BEGIN")
-        .await
-        .map_err(|e| e.to_string())?;
+    client.batch_execute("BEGIN").await?;
 
     for change in &request.changes {
         if change.column_changes.is_empty() {
@@ -63,7 +60,7 @@ pub(super) async fn update_rows_pg(
             Ok(mutation) => mutation,
             Err(e) => {
                 client.batch_execute("ROLLBACK").await.ok();
-                return Err(e);
+                return Err(e.into());
             }
         };
 
@@ -78,21 +75,18 @@ pub(super) async fn update_rows_pg(
             .await
         {
             client.batch_execute("ROLLBACK").await.ok();
-            return Err(e.to_string());
+            return Err(e.into());
         }
     }
 
-    client
-        .batch_execute("COMMIT")
-        .await
-        .map_err(|e| e.to_string())
+    client.batch_execute("COMMIT").await.map_err(AppError::from)
 }
 
 pub(super) async fn update_rows_mysql(
     pool: Arc<mysql_async::Pool>,
     request: UpdateRowsRequest,
-) -> Result<(), String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let mut conn = pool.get_conn().await?;
 
     // Look up PK columns — required for MySQL (no ctid)
     let pk_cols: HashSet<String> = {
@@ -102,20 +96,19 @@ pub(super) async fn update_rows_mysql(
                  WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI'",
                 (&request.schema, &request.table),
             )
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
         rows.iter().filter_map(|r| mysql_str(r, 0)).collect()
     };
 
     if pk_cols.is_empty() {
-        return Err("Inline editing requires a primary key — this table has none".to_string());
+        return Err(AppError::Validation(
+            "Inline editing requires a primary key — this table has none".to_string(),
+        ));
     }
 
-    conn.exec_drop("START TRANSACTION", ())
-        .await
-        .map_err(|e| e.to_string())?;
+    conn.exec_drop("START TRANSACTION", ()).await?;
 
-    let result: Result<(), String> = (async {
+    let result: Result<(), AppError> = (async {
         for change in &request.changes {
             if change.column_changes.is_empty() {
                 continue;
@@ -124,8 +117,7 @@ pub(super) async fn update_rows_mysql(
             let mutation = build_mysql_update_sql(&request.schema, &request.table, change)?;
 
             conn.exec_drop(mutation.sql.as_str(), mutation.params)
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
         }
         Ok(())
     })
@@ -135,16 +127,14 @@ pub(super) async fn update_rows_mysql(
         conn.exec_drop("ROLLBACK", ()).await.ok();
         return result;
     }
-    conn.exec_drop("COMMIT", ())
-        .await
-        .map_err(|e| e.to_string())
+    conn.exec_drop("COMMIT", ()).await.map_err(AppError::from)
 }
 
 pub(super) async fn preview_update_rows_sql_pg(
     pool: Arc<deadpool_postgres::Pool>,
     request: UpdateRowsRequest,
-) -> Result<String, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<String, AppError> {
+    let client = pool.get().await?;
 
     let col_rows: Vec<tokio_postgres::Row> = client
         .query(
@@ -152,8 +142,7 @@ pub(super) async fn preview_update_rows_sql_pg(
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
         .into_iter()
         .collect();
 
@@ -181,13 +170,14 @@ pub(super) async fn preview_update_rows_sql_pg(
         &col_type_map,
         &col_cast_map,
     )
+    .map_err(AppError::from)
 }
 
 pub(super) async fn preview_update_rows_sql_mysql(
     pool: Arc<mysql_async::Pool>,
     request: UpdateRowsRequest,
-) -> Result<String, String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+) -> Result<String, AppError> {
+    let mut conn = pool.get_conn().await?;
 
     let pk_exists: bool = {
         let rows: Vec<mysql_async::Row> = conn
@@ -196,23 +186,25 @@ pub(super) async fn preview_update_rows_sql_mysql(
                  WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI' LIMIT 1",
                 (&request.schema, &request.table),
             )
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
         !rows.is_empty()
     };
 
     if !pk_exists {
-        return Err("Inline editing requires a primary key — this table has none".to_string());
+        return Err(AppError::Validation(
+            "Inline editing requires a primary key — this table has none".to_string(),
+        ));
     }
 
     build_mysql_update_preview_sql(&request.schema, &request.table, &request.changes)
+        .map_err(AppError::from)
 }
 
 pub(super) async fn delete_rows_pg(
     pool: Arc<deadpool_postgres::Pool>,
     request: DeleteRowsRequest,
-) -> Result<Vec<DeleteRowResult>, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<DeleteRowResult>, AppError> {
+    let client = pool.get().await?;
 
     let col_rows: Vec<tokio_postgres::Row> = client
         .query(
@@ -220,8 +212,7 @@ pub(super) async fn delete_rows_pg(
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     let col_cast_map: HashMap<String, String> = col_rows
         .iter()
@@ -275,8 +266,8 @@ pub(super) async fn delete_rows_pg(
 pub(super) async fn delete_rows_mysql(
     pool: Arc<mysql_async::Pool>,
     request: DeleteRowsRequest,
-) -> Result<Vec<DeleteRowResult>, String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<DeleteRowResult>, AppError> {
+    let mut conn = pool.get_conn().await?;
 
     let mut results = Vec::with_capacity(request.rows.len());
 
@@ -313,8 +304,8 @@ pub(super) async fn delete_rows_mysql(
 pub(super) async fn preview_delete_rows_sql_pg(
     pool: Arc<deadpool_postgres::Pool>,
     request: DeleteRowsRequest,
-) -> Result<String, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<String, AppError> {
+    let client = pool.get().await?;
 
     let col_rows: Vec<tokio_postgres::Row> = client
         .query(
@@ -322,8 +313,7 @@ pub(super) async fn preview_delete_rows_sql_pg(
              WHERE table_schema = $1 AND table_name = $2",
             &[&request.schema, &request.table],
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     let col_cast_map: HashMap<String, String> = col_rows
         .iter()

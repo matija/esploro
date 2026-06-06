@@ -1,9 +1,6 @@
 import { connectionsApi } from "../features/connections/api";
+import { isSessionNotFound } from "./ipc";
 import { useAppStore } from "../store";
-
-// The string is emitted by state.sessions.lock().await.get(&session_id).ok_or_else(...)
-// in src-tauri/src/commands/data.rs (lines 237, 848) and schema.rs (lines 53, 96, 135, 261).
-const SESSION_NOT_FOUND = "Session not found";
 
 // Dedup concurrent reconnect attempts per connectionId.
 const inflight = new Map<string, Promise<string>>();
@@ -36,8 +33,8 @@ export async function withSessionRetry<T>(
   try {
     return await fn(sessionId);
   } catch (err) {
+    if (!isSessionNotFound(err)) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes(SESSION_NOT_FOUND)) throw err;
 
     console.warn("[sessionRetry] Session not found — reconnecting", {
       connectionId,

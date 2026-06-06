@@ -1,3 +1,4 @@
+use crate::AppError;
 use serde::Serialize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -17,9 +18,9 @@ struct ProgressPayload {
 }
 
 #[tauri::command]
-pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = updater.check().await.map_err(|e| e.to_string())?;
+pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, AppError> {
+    let updater = app.updater()?;
+    let update = updater.check().await?;
     Ok(update.map(|u| UpdateInfo {
         version: u.version.clone(),
         notes: u.body.clone(),
@@ -27,9 +28,9 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
 }
 
 #[tauri::command]
-pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+pub async fn install_update(app: tauri::AppHandle) -> Result<(), AppError> {
+    let updater = app.updater()?;
+    let Some(update) = updater.check().await? else {
         return Ok(());
     };
 
@@ -41,12 +42,17 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .download_and_install(
             move |chunk_len, total| {
                 let d = downloaded_ref.fetch_add(chunk_len, Ordering::Relaxed) + chunk_len;
-                let _ = handle.emit("update:progress", ProgressPayload { downloaded: d, total });
+                let _ = handle.emit(
+                    "update:progress",
+                    ProgressPayload {
+                        downloaded: d,
+                        total,
+                    },
+                );
             },
             || {},
         )
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
     Ok(())
 }

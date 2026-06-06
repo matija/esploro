@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../../lib/ipc";
 import type { LicenseStatus } from './types';
 
 export const LICENSE_STATUS_KEY = ['license-status'] as const;

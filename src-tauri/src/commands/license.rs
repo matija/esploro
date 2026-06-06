@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager, State};
 
-use crate::AppState;
+use crate::{AppError, AppState};
 
 mod ui_preferences;
 
@@ -86,11 +86,10 @@ fn read_stored_license() -> Option<StoredLicense> {
     }
 }
 
-fn write_stored_license(stored: &StoredLicense) -> Result<(), String> {
-    let json = serde_json::to_string(stored).map_err(|e| e.to_string())?;
-    let entry =
-        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).map_err(|e| e.to_string())?;
-    entry.set_password(&json).map_err(|e| e.to_string())
+fn write_stored_license(stored: &StoredLicense) -> Result<(), AppError> {
+    let json = serde_json::to_string(stored)?;
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?;
+    entry.set_password(&json).map_err(AppError::from)
 }
 
 fn clear_stored_license() {
@@ -113,27 +112,27 @@ fn prefs_path(app: &AppHandle) -> PathBuf {
 // Prefs helpers
 // ---------------------------------------------------------------------------
 
-fn read_prefs_json(app: &AppHandle) -> Result<Option<Value>, String> {
+fn read_prefs_json(app: &AppHandle) -> Result<Option<Value>, AppError> {
     let path = prefs_path(app);
     if !path.exists() {
         return Ok(None);
     }
 
-    let data = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let data = std::fs::read_to_string(&path)?;
     serde_json::from_str::<Value>(&data)
         .map(Some)
-        .map_err(|e| e.to_string())
+        .map_err(AppError::from)
 }
 
-fn write_json_atomic(path: &Path, value: &Value) -> Result<(), String> {
+fn write_json_atomic(path: &Path, value: &Value) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(parent)?;
     }
 
-    let data = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    let data = serde_json::to_string_pretty(value)?;
     let tmp_path = path.with_extension("json.tmp");
-    std::fs::write(&tmp_path, data).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp_path, path).map_err(|e| e.to_string())
+    std::fs::write(&tmp_path, data)?;
+    std::fs::rename(&tmp_path, path).map_err(AppError::from)
 }
 
 fn load_prefs(app: &AppHandle) -> UserPrefs {
@@ -157,9 +156,9 @@ fn load_prefs(app: &AppHandle) -> UserPrefs {
     }
 }
 
-fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), String> {
+fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), AppError> {
     let path = prefs_path(app);
-    let value = serde_json::to_value(prefs).map_err(|e| e.to_string())?;
+    let value = serde_json::to_value(prefs)?;
     write_json_atomic(&path, &value)
 }
 
@@ -365,7 +364,7 @@ pub async fn revalidate_license_background(app: AppHandle) {
 pub async fn get_license_status(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<LicenseStatus, String> {
+) -> Result<LicenseStatus, AppError> {
     // Best-effort cleanup of legacy file-based license key
     let legacy_path = app
         .path()
@@ -387,7 +386,7 @@ pub async fn activate_license(
     app: AppHandle,
     state: State<'_, AppState>,
     key: String,
-) -> Result<LicenseStatus, String> {
+) -> Result<LicenseStatus, AppError> {
     match call_dodo_validate(key.trim()).await {
         Ok(true) => {
             let stored = StoredLicense {
@@ -398,8 +397,8 @@ pub async fn activate_license(
             let dismissed = *state.banner_dismissed.lock().await;
             Ok(compute_status(&app, dismissed))
         }
-        Ok(false) => Err(dodo_invalid_key_message().to_string()),
-        Err(ref e) => Err(dodo_error_message(e)),
+        Ok(false) => Err(AppError::License(dodo_invalid_key_message().to_string())),
+        Err(ref e) => Err(AppError::License(dodo_error_message(e))),
     }
 }
 
@@ -407,7 +406,7 @@ pub async fn activate_license(
 pub async fn deactivate_license(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<LicenseStatus, String> {
+) -> Result<LicenseStatus, AppError> {
     clear_stored_license();
     let dismissed = *state.banner_dismissed.lock().await;
     Ok(compute_status(&app, dismissed))
@@ -418,7 +417,7 @@ pub async fn answer_usage_dialog(
     app: AppHandle,
     state: State<'_, AppState>,
     answer: String,
-) -> Result<LicenseStatus, String> {
+) -> Result<LicenseStatus, AppError> {
     let mut prefs = load_prefs(&app);
     prefs.usage_type_answered = true;
     prefs.usage_type = Some(answer.clone());
@@ -431,7 +430,7 @@ pub async fn answer_usage_dialog(
 }
 
 #[tauri::command]
-pub async fn dismiss_license_banner(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn dismiss_license_banner(state: State<'_, AppState>) -> Result<(), AppError> {
     *state.banner_dismissed.lock().await = true;
     Ok(())
 }
@@ -441,7 +440,7 @@ pub async fn notify_connection_count(
     app: AppHandle,
     state: State<'_, AppState>,
     count: usize,
-) -> Result<LicenseStatus, String> {
+) -> Result<LicenseStatus, AppError> {
     let mut prefs = load_prefs(&app);
     if count >= 4 && prefs.commercial_detected_at.is_none() {
         prefs.commercial_detected_at = Some(Utc::now().to_rfc3339());
@@ -452,25 +451,25 @@ pub async fn notify_connection_count(
 }
 
 #[tauri::command]
-pub fn open_customer_portal() -> Result<(), String> {
+pub fn open_customer_portal() -> Result<(), AppError> {
     std::process::Command::new("open")
         .arg(CUSTOMER_PORTAL_URL)
         .spawn()
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(AppError::from)
 }
 
 #[tauri::command]
-pub fn open_url(url: String) -> Result<(), String> {
+pub fn open_url(url: String) -> Result<(), AppError> {
     std::process::Command::new("open")
         .arg(&url)
         .spawn()
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(AppError::from)
 }
 
 #[tauri::command]
-pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, String> {
+pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, AppError> {
     match read_prefs_json(&app) {
         Ok(Some(value)) => Ok(preferences_from_json(&value)),
         Ok(None) => Ok(default_ui_preferences()),
@@ -482,7 +481,10 @@ pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, String>
 }
 
 #[tauri::command]
-pub async fn set_ui_preferences(app: AppHandle, preferences: UiPreferences) -> Result<(), String> {
+pub async fn set_ui_preferences(
+    app: AppHandle,
+    preferences: UiPreferences,
+) -> Result<(), AppError> {
     let preferences = normalize_ui_preferences(preferences);
     let mut root = match read_prefs_json(&app) {
         Ok(Some(Value::Object(map))) => map,
@@ -493,13 +495,10 @@ pub async fn set_ui_preferences(app: AppHandle, preferences: UiPreferences) -> R
         }
     };
 
-    root.insert(
-        "ui".to_string(),
-        serde_json::to_value(&preferences.ui).map_err(|e| e.to_string())?,
-    );
+    root.insert("ui".to_string(), serde_json::to_value(&preferences.ui)?);
     root.insert(
         "editor".to_string(),
-        serde_json::to_value(&preferences.editor).map_err(|e| e.to_string())?,
+        serde_json::to_value(&preferences.editor)?,
     );
     root.insert(
         "uiTheme".to_string(),

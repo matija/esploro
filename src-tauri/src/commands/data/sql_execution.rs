@@ -5,6 +5,7 @@ use tokio_postgres::SimpleQueryMessage;
 
 use super::type_mapping::{mysql_cell_value, CellValue};
 use super::{QueryError, QueryResult, ResultColumn};
+use crate::AppError;
 
 fn split_sql_statements(sql: &str) -> Vec<&str> {
     sql.split(';')
@@ -16,8 +17,8 @@ fn split_sql_statements(sql: &str) -> Vec<&str> {
 pub(super) async fn execute_sql_pg(
     pool: std::sync::Arc<deadpool_postgres::Pool>,
     sql: String,
-) -> Result<Vec<QueryResult>, String> {
-    let client = pool.get().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<QueryResult>, AppError> {
+    let client = pool.get().await?;
 
     let statements = split_sql_statements(&sql);
     let mut results: Vec<QueryResult> = vec![];
@@ -102,8 +103,8 @@ pub(super) async fn execute_sql_pg(
 pub(super) async fn execute_sql_mysql(
     pool: std::sync::Arc<mysql_async::Pool>,
     sql: String,
-) -> Result<Vec<QueryResult>, String> {
-    let mut conn = pool.get_conn().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<QueryResult>, AppError> {
+    let mut conn = pool.get_conn().await?;
 
     let statements = split_sql_statements(&sql);
     let mut results: Vec<QueryResult> = vec![];

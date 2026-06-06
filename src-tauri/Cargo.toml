@@ -26,6 +26,7 @@ tokio-postgres = { version = "=0.7.17", features = ["with-serde_json-1"] }
 deadpool-postgres = { version = "=0.12.1", features = ["rt_tokio_1"] }
 mysql_async = { version = "=0.34.2", features = [] }
 keyring = "=2.3.3"
+thiserror = "=2.0.18"
 chrono = { version = "=0.4.44", features = ["serde"] }
 tauri-plugin-updater = "=2.10.1"
 tauri-plugin-process = "=2.3.1"

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::{AppState, DriverSession};
+use crate::{AppError, AppState, DriverSession};
 
 mod row_mutation_execution;
 mod row_mutations;
@@ -21,6 +21,9 @@ use self::table_query_execution::{
 };
 use self::type_mapping::CellValue;
 
+// Returns a plain-`String` error: these validators are shared with the
+// `String`-returning SQL builders; command-level callers convert the message
+// into `AppError::Internal` via `?`/`From<String>`.
 fn validate_identifier(s: &str) -> Result<(), String> {
     if s.is_empty() {
         return Err("Identifier cannot be empty".into());
@@ -93,17 +96,6 @@ pub enum FilterOperator {
 pub enum SortDirection {
     Asc,
     Desc,
-}
-
-fn is_pg_connection_err(e: &str) -> bool {
-    // SQLSTATE: 57P01=admin_shutdown, 57P02=crash_shutdown, 08006=connection_failure
-    e.contains("57P01") || e.contains("57P02") || e.contains("08006") || {
-        let lower = e.to_lowercase();
-        lower.contains("connection closed")
-            || lower.contains("broken pipe")
-            || lower.contains("connection reset")
-            || lower.contains("unexpected eof")
-    }
 }
 
 #[derive(Serialize)]
@@ -197,10 +189,8 @@ enum PoolHandle {
 fn resolve_pool(
     sessions: &std::collections::HashMap<String, crate::SessionInfo>,
     session_id: &str,
-) -> Result<PoolHandle, String> {
-    let info = sessions
-        .get(session_id)
-        .ok_or_else(|| "Session not found".to_string())?;
+) -> Result<PoolHandle, AppError> {
+    let info = sessions.get(session_id).ok_or(AppError::SessionNotFound)?;
     Ok(match &info.driver {
         DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
         DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
@@ -212,7 +202,7 @@ pub async fn query_table_data(
     session_id: String,
     request: TableQueryRequest,
     state: State<'_, AppState>,
-) -> Result<TableQueryResult, String> {
+) -> Result<TableQueryResult, AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -223,7 +213,7 @@ pub async fn query_table_data(
 
     match handle {
         PoolHandle::Pg(pool) => match query_table_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if is_pg_connection_err(e) => query_table_pg(pool, request).await,
+            Err(ref e) if e.is_retryable() => query_table_pg(pool, request).await,
             other => other,
         },
         PoolHandle::Mysql(pool) => query_table_mysql(pool, request).await,
@@ -235,7 +225,7 @@ pub async fn query_table_count(
     session_id: String,
     request: TableQueryRequest,
     state: State<'_, AppState>,
-) -> Result<TableCountResult, String> {
+) -> Result<TableCountResult, AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -246,7 +236,7 @@ pub async fn query_table_count(
 
     match handle {
         PoolHandle::Pg(pool) => match count_table_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if is_pg_connection_err(e) => count_table_pg(pool, request).await,
+            Err(ref e) if e.is_retryable() => count_table_pg(pool, request).await,
             other => other,
         },
         PoolHandle::Mysql(pool) => count_table_mysql(pool, request).await,
@@ -260,7 +250,7 @@ pub async fn update_rows(
     session_id: String,
     request: UpdateRowsRequest,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -271,7 +261,7 @@ pub async fn update_rows(
 
     match handle {
         PoolHandle::Pg(pool) => match update_rows_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if is_pg_connection_err(e) => update_rows_pg(pool, request).await,
+            Err(ref e) if e.is_retryable() => update_rows_pg(pool, request).await,
             other => other,
         },
         PoolHandle::Mysql(pool) => update_rows_mysql(pool, request).await,
@@ -285,7 +275,7 @@ pub async fn preview_update_rows_sql(
     session_id: String,
     request: UpdateRowsRequest,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -307,7 +297,7 @@ pub async fn delete_rows(
     session_id: String,
     request: DeleteRowsRequest,
     state: State<'_, AppState>,
-) -> Result<Vec<DeleteRowResult>, String> {
+) -> Result<Vec<DeleteRowResult>, AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -318,7 +308,7 @@ pub async fn delete_rows(
 
     match handle {
         PoolHandle::Pg(pool) => match delete_rows_pg(pool.clone(), request.clone()).await {
-            Err(ref e) if is_pg_connection_err(e) => delete_rows_pg(pool, request).await,
+            Err(ref e) if e.is_retryable() => delete_rows_pg(pool, request).await,
             other => other,
         },
         PoolHandle::Mysql(pool) => delete_rows_mysql(pool, request).await,
@@ -332,7 +322,7 @@ pub async fn preview_delete_rows_sql(
     session_id: String,
     request: DeleteRowsRequest,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     validate_identifier(&request.schema)?;
     validate_identifier(&request.table)?;
 
@@ -376,12 +366,10 @@ pub async fn execute_sql(
     session_id: String,
     sql: String,
     state: State<'_, AppState>,
-) -> Result<Vec<QueryResult>, String> {
+) -> Result<Vec<QueryResult>, AppError> {
     let handle = {
         let sessions = state.sessions.lock().await;
-        let info = sessions
-            .get(&session_id)
-            .ok_or_else(|| "Session not found".to_string())?;
+        let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
         match &info.driver {
             DriverSession::Postgres(pool) => PoolHandle::Pg(pool.clone()),
             DriverSession::Mysql(pool) => PoolHandle::Mysql(pool.clone()),
@@ -390,7 +378,7 @@ pub async fn execute_sql(
 
     match handle {
         PoolHandle::Pg(pool) => match execute_sql_pg(pool.clone(), sql.clone()).await {
-            Err(ref e) if is_pg_connection_err(e) => execute_sql_pg(pool, sql).await,
+            Err(ref e) if e.is_retryable() => execute_sql_pg(pool, sql).await,
             other => other,
         },
         PoolHandle::Mysql(pool) => execute_sql_mysql(pool, sql).await,

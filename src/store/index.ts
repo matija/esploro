@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/ipc";
 import type { ConnectionProfile } from "../features/connections/types";
 import {
   applyUiPreferencesToDocument,
