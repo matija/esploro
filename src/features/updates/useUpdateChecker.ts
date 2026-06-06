@@ -1,10 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "../../lib/ipc";
-
-export interface UpdateInfo {
-  version: string;
-  notes: string | null;
-}
+import { updatesApi, type UpdateInfo } from "./api";
 
 export const UPDATE_CHECK_KEY = ["update-check"] as const;
 
@@ -22,7 +17,7 @@ export interface UpdateCheckerState {
 
 /**
  * Single source of truth for update availability. Wraps the `check_for_update`
- * Tauri command in a React Query that auto-checks on startup and every ~6h of
+ * Tauri command wrapper in a React Query that auto-checks on startup and every ~6h of
  * uptime, re-checking on window focus only when stale. Background failures are
  * silent (retry: false, never inspected); the manual `checkNow` throws so the
  * About panel can show its error state.
@@ -30,7 +25,7 @@ export interface UpdateCheckerState {
 export function useUpdateChecker(): UpdateCheckerState {
   const { data, isFetching, dataUpdatedAt, refetch } = useQuery({
     queryKey: UPDATE_CHECK_KEY,
-    queryFn: () => invoke<UpdateInfo | null>("check_for_update"),
+    queryFn: updatesApi.checkForUpdate,
     refetchInterval: SIX_HOURS,
     refetchOnWindowFocus: true,
     staleTime: SIX_HOURS,

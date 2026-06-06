@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { invoke } from "../../lib/ipc";
 import { listen } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { updatesApi } from './api';
 
 interface ProgressPayload {
   downloaded: number;
@@ -43,7 +43,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
     });
 
     try {
-      await invoke('install_update');
+      await updatesApi.installUpdate();
       setProgress(100);
       setPhase('done');
     } catch (e) {

@@ -141,10 +141,21 @@ structural hardening effort; every change must be behavior-preserving.
 > regenerated bindings include the generated license/settings command wrappers.
 > `src/features/license/api.ts` and the new `src/features/settings/api.ts` now
 > call generated wrappers while preserving `IpcError` normalization;
-> `license/types.ts` re-exports generated license DTOs. Updater commands remain
-> the only unmigrated frontend IPC slice. Verified: `cargo test` (50 pass),
+> `license/types.ts` re-exports generated license DTOs. Verified: `cargo test` (50 pass),
 > `cargo clippy -- -D warnings`, `tsc --noEmit`, and `eslint` clean apart from
 > the pre-existing `SchemaTree.tsx` hook warning.
+>
+> **Updater slice complete.** `UpdateInfo` and the updater progress event payload
+> now derive `specta::Type`, the two updater commands are annotated and registered
+> with the debug/test Specta builder, and regenerated bindings include
+> `checkForUpdate`, `installUpdate`, and `UpdateInfo`. Added
+> `src/features/updates/api.ts`; `useUpdateChecker.ts` and `UpdateSheet.tsx` now
+> call generated wrappers while preserving `IpcError` normalization for visible
+> updater errors. Runtime command dispatch still uses the existing Tauri
+> `generate_handler!`; switching dispatch to the Specta builder remains a
+> follow-up now that every command is registered. Verified: `cargo test` (50
+> pass), `cargo clippy -- -D warnings`, `tsc --noEmit`, and `eslint` clean apart
+> from the pre-existing `SchemaTree.tsx` hook warning.
 
 **Problem.** Rust structs (`TableQueryRequest`, `CellValue`, `ResultColumn`,
 `UpdateRowsRequest`, …) are hand-mirrored in `src/features/*/types.ts`. Nothing enforces
@@ -310,7 +321,7 @@ trail for field debugging; no secret material in output.
 | Phase | Scope | Depends on |
 |---|---|---|
 | 1 ✅ | **P2** — `AppError` + migrate command signatures + remove string-grep | — |
-| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, `license/settings` ✅, then updater | P2 |
+| 2 ◐ | **P1** — `tauri-specta`, export bindings, migrate `data` ✅, `query-editor`/saved queries ✅, `schema` ✅, `connections` ✅, `roles` ✅, `license/settings` ✅, updater ✅; runtime dispatch switch pending | P2 |
 | 3 ✅ | **P3** — `with_pool` helper, collapse duplication | P2 |
 | 4 ◐ | **P4** — split `license.rs` ✅; continue table-viewer extraction (R4.2) pending | — |
 | 5 | **P5** — structured logging | — |

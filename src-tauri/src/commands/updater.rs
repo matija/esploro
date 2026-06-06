@@ -5,19 +5,22 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri_plugin_updater::UpdaterExt;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
     pub version: String,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, specta::Type, Clone)]
+#[serde(rename_all = "camelCase")]
 struct ProgressPayload {
     downloaded: usize,
     total: Option<u64>,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, AppError> {
     let updater = app.updater()?;
     let update = updater.check().await?;
@@ -28,6 +31,7 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn install_update(app: tauri::AppHandle) -> Result<(), AppError> {
     let updater = app.updater()?;
     let Some(update) = updater.check().await? else {

@@ -48,6 +48,11 @@ export const commands = {
 	openUrl: (url: string) => __TAURI_INVOKE<null>("open_url", { url }),
 	getUiPreferences: () => __TAURI_INVOKE<UiPreferences>("get_ui_preferences"),
 	setUiPreferences: (preferences: UiPreferences) => __TAURI_INVOKE<null>("set_ui_preferences", { preferences }),
+	checkForUpdate: () => __TAURI_INVOKE<{
+	version: string,
+	notes: string | null,
+} | null>("check_for_update"),
+	installUpdate: () => __TAURI_INVOKE<null>("install_update"),
 };
 
 /* Types */
@@ -391,6 +396,11 @@ export type UiPreferences = {
 	ui: UiPreferenceUi,
 	editor: UiPreferenceEditor,
 	grid?: UiGridConfig,
+};
+
+export type UpdateInfo = {
+	version: string,
+	notes: string | null,
 };
 
 export type UpdateRowsRequest = {

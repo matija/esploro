@@ -306,3 +306,28 @@ clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 
 Next: continue P1 with updater commands, then switch runtime command dispatch
 to the Specta builder once every command is registered.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC updater slice
+
+Picked the highest-priority remaining task, P1, and completed only the updater
+slice.
+
+- Added `specta::Type` to the updater DTO surface (`UpdateInfo` and the
+  `update:progress` event payload), annotated `check_for_update` and
+  `install_update` with `#[specta::specta]`, and registered both commands with
+  the debug/test Specta builder. Regenerated `src/lib/bindings.ts`, which now
+  includes generated wrappers for `checkForUpdate` and `installUpdate` plus the
+  generated `UpdateInfo` type.
+- Added `src/features/updates/api.ts` and migrated `useUpdateChecker.ts` and
+  `UpdateSheet.tsx` from raw command-string invokes to generated wrappers while
+  preserving `normalizeError`/`IpcError` behavior for visible updater errors.
+- Runtime command dispatch still uses the existing Tauri `generate_handler!`;
+  switching dispatch to the Specta builder remains the next P1 follow-up now
+  that every command is registered.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy -- -D warnings` clean, `npm run type-check` clean, `npm run lint`
+clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: switch runtime command dispatch to the Specta builder, then P5 logging
+once dependency fetching is available.

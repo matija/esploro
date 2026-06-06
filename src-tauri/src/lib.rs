@@ -85,6 +85,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::license::open_url,
             commands::license::get_ui_preferences,
             commands::license::set_ui_preferences,
+            commands::updater::check_for_update,
+            commands::updater::install_update,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .dangerously_cast_bigints_to_number()
