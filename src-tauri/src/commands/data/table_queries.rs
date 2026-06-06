@@ -67,6 +67,7 @@ pub(super) fn build_pg_data_sql(
     schema: &str,
     table: &str,
     select_list: &str,
+    include_ctid: bool,
     where_sql: &str,
     order_sql: &str,
     page: u32,
@@ -74,8 +75,13 @@ pub(super) fn build_pg_data_sql(
 ) -> String {
     let offset = (page * page_size) as i64;
     let limit = page_size as i64;
+    let ctid_select = if include_ctid {
+        ", ctid::text AS __ctid"
+    } else {
+        ""
+    };
     format!(
-        "SELECT {select_list}, ctid::text AS __ctid FROM \"{schema}\".\"{table}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}"
+        "SELECT {select_list}{ctid_select} FROM \"{schema}\".\"{table}\" {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}"
     )
 }
 
@@ -170,6 +176,7 @@ mod tests {
             "public",
             "users",
             r#""id", "name""#,
+            true,
             r#"WHERE "name"::text LIKE $1"#,
             r#"ORDER BY "id" ASC"#,
             2,
@@ -179,6 +186,25 @@ mod tests {
         assert_eq!(
             sql,
             r#"SELECT "id", "name", ctid::text AS __ctid FROM "public"."users" WHERE "name"::text LIKE $1 ORDER BY "id" ASC LIMIT 50 OFFSET 100"#
+        );
+    }
+
+    #[test]
+    fn pg_data_sql_can_omit_ctid_for_views() {
+        let sql = build_pg_data_sql(
+            "public",
+            "active_users",
+            r#""id", "name""#,
+            false,
+            "",
+            "",
+            0,
+            25,
+        );
+
+        assert_eq!(
+            sql,
+            r#"SELECT "id", "name" FROM "public"."active_users"   LIMIT 25 OFFSET 0"#
         );
     }
 

@@ -88,6 +88,18 @@ pub(super) async fn query_table_pg(
         })
         .collect();
 
+    let include_ctid = client
+        .query_opt(
+            "SELECT c.relkind IN ('r', 'p', 'm') \
+             FROM pg_class c \
+             JOIN pg_namespace n ON n.oid = c.relnamespace \
+             WHERE n.nspname = $1 AND c.relname = $2",
+            &[&request.schema, &request.table],
+        )
+        .await?
+        .map(|row| row.get::<_, bool>(0))
+        .unwrap_or(false);
+
     // Map: column_name -> udt_name (used for native-type detection and cell reading)
     let col_type_map: HashMap<String, String> = col_rows
         .iter()
@@ -113,13 +125,14 @@ pub(super) async fn query_table_pg(
     let order_sql = build_pg_order_sql(&request.sort_column, &request.sort_direction)?;
     let col_select = build_pg_select_list(&result_columns, &col_type_map);
 
-    // ctid_idx is the index of the appended ctid column in each result row
+    // When requested, ctid is appended after the visible result columns.
     let ctid_idx = result_columns.len();
 
     let data_sql = build_pg_data_sql(
         &request.schema,
         &request.table,
         &col_select,
+        include_ctid,
         &where_sql,
         &order_sql,
         request.page,
@@ -159,7 +172,9 @@ pub(super) async fn query_table_pg(
             })
             .collect();
         rows.push(cells);
-        ctids.push(row.try_get::<_, Option<String>>(ctid_idx).ok().flatten());
+        if include_ctid {
+            ctids.push(row.try_get::<_, Option<String>>(ctid_idx).ok().flatten());
+        }
     }
 
     Ok(TableQueryResult {

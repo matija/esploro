@@ -174,13 +174,22 @@ function ConnectionRow({
         <div className="mt-[3px] shrink-0 relative">
           {isConnecting ? (
             <Loader2 size={10} className="text-accent animate-spin" />
+          ) : isActive ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
+              title={`Disconnect from ${profile.displayName}`}
+              aria-label={`Disconnect from ${profile.displayName}`}
+              className="block w-2.5 h-2.5 rounded-full cursor-pointer"
+              style={{
+                backgroundColor: 'var(--ds-success)',
+                boxShadow: `0 0 0 2px ${profile.color ?? 'var(--border-default)'}`,
+              }}
+            />
           ) : (
             <span
               className="block w-2.5 h-2.5 rounded-full"
-              style={isActive ? {
-                backgroundColor: 'var(--ds-success)',
-                boxShadow: `0 0 0 2px ${profile.color ?? 'var(--border-default)'}`,
-              } : {
+              style={{
                 border: '1.5px solid var(--border-default)',
               }}
             />
