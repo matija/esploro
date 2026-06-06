@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { invoke } from "../lib/ipc";
 import type { ConnectionProfile } from "../features/connections/types";
 import {
   applyUiPreferencesToDocument,
@@ -14,6 +13,7 @@ import {
   type RowDensity,
   type GridPageSize,
 } from "../features/settings/preferences";
+import { settingsApi } from "../features/settings/api";
 
 export type TabType = "welcome" | "table" | "query" | "settings" | "role" | "schema";
 
@@ -165,7 +165,7 @@ export const useAppStore = create<AppState>()(
           const next = normalizeUiPreferences({ ...state.uiPreferences, ui: { ...state.uiPreferences.ui, theme: nextTheme } });
           applyUiPreferencesToDocument(next);
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { theme: nextTheme, uiPreferences: next };
         });
       },
@@ -176,7 +176,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const next = normalizeUiPreferences({ ...state.uiPreferences, editor: { ...state.uiPreferences.editor, tabSize } });
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { editorTabSize: tabSize, uiPreferences: next };
         });
       },
@@ -186,7 +186,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const next = normalizeUiPreferences({ ...state.uiPreferences, editor: { ...state.uiPreferences.editor, wordWrap } });
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { editorWordWrap: wordWrap, uiPreferences: next };
         });
       },
@@ -196,7 +196,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, rowDensity } });
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { gridRowDensity: rowDensity, uiPreferences: next };
         });
       },
@@ -206,7 +206,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, pageSize } });
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { gridPageSize: pageSize, uiPreferences: next };
         });
       },
@@ -216,7 +216,7 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const next = normalizeUiPreferences({ ...state.uiPreferences, grid: { ...state.uiPreferences.grid, showTotalCount } });
           cacheUiPreferencesForBootstrap(next);
-          invoke("set_ui_preferences", { preferences: next }).catch(console.error);
+          settingsApi.setUiPreferences(next).catch(console.error);
           return { showTotalCount, uiPreferences: next };
         });
       },

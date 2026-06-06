@@ -1,17 +1,34 @@
-import { invoke } from "../../lib/ipc";
+import { commands } from "../../lib/bindings";
+import { normalizeError } from "../../lib/ipc";
 import type { LicenseStatus } from './types';
 
 export const LICENSE_STATUS_KEY = ['license-status'] as const;
 
+async function normalizeCommandError<T>(promise: Promise<T>): Promise<T> {
+  try {
+    return await promise;
+  } catch (raw) {
+    throw normalizeError(raw);
+  }
+}
+
 export const licenseApi = {
-  getStatus: () => invoke<LicenseStatus>('get_license_status'),
-  activate: (key: string) => invoke<LicenseStatus>('activate_license', { key }),
-  deactivate: () => invoke<LicenseStatus>('deactivate_license'),
+  getStatus: (): Promise<LicenseStatus> =>
+    normalizeCommandError(commands.getLicenseStatus()),
+  activate: (key: string): Promise<LicenseStatus> =>
+    normalizeCommandError(commands.activateLicense(key)),
+  deactivate: (): Promise<LicenseStatus> =>
+    normalizeCommandError(commands.deactivateLicense()),
   answerUsageDialog: (answer: 'personal' | 'commercial') =>
-    invoke<LicenseStatus>('answer_usage_dialog', { answer }),
-  dismissBanner: () => invoke<void>('dismiss_license_banner'),
+    normalizeCommandError(commands.answerUsageDialog(answer)),
+  dismissBanner: () =>
+    normalizeCommandError(commands.dismissLicenseBanner()).then(() => undefined),
   notifyConnectionCount: (count: number) =>
-    invoke<LicenseStatus>('notify_connection_count', { count }),
-  openPricingPage: () => invoke<void>('open_url', { url: 'https://esploro.app/pricing' }),
-  openCustomerPortal: () => invoke<void>('open_customer_portal'),
+    normalizeCommandError(commands.notifyConnectionCount(count)),
+  openUrl: (url: string): Promise<void> =>
+    normalizeCommandError(commands.openUrl(url)).then(() => undefined),
+  openPricingPage: () =>
+    licenseApi.openUrl('https://esploro.app/pricing'),
+  openCustomerPortal: () =>
+    normalizeCommandError(commands.openCustomerPortal()).then(() => undefined),
 };

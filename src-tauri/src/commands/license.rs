@@ -27,14 +27,14 @@ const KEYCHAIN_ACCOUNT: &str = "commercial-license";
 // Domain types
 // ---------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug, PartialEq)]
 pub enum LicenseTier {
     Personal,
     Commercial,
     Unlicensed,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LicenseStatus {
     pub tier: LicenseTier,
@@ -237,6 +237,7 @@ fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_license_status(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -258,6 +259,7 @@ pub async fn get_license_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn activate_license(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -279,6 +281,7 @@ pub async fn activate_license(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn deactivate_license(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -289,6 +292,7 @@ pub async fn deactivate_license(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn answer_usage_dialog(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -306,12 +310,14 @@ pub async fn answer_usage_dialog(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn dismiss_license_banner(state: State<'_, AppState>) -> Result<(), AppError> {
     *state.banner_dismissed.lock().await = true;
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn notify_connection_count(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -327,6 +333,7 @@ pub async fn notify_connection_count(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn open_customer_portal() -> Result<(), AppError> {
     std::process::Command::new("open")
         .arg(CUSTOMER_PORTAL_URL)
@@ -336,6 +343,7 @@ pub fn open_customer_portal() -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn open_url(url: String) -> Result<(), AppError> {
     std::process::Command::new("open")
         .arg(&url)
@@ -345,6 +353,7 @@ pub fn open_url(url: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, AppError> {
     match read_prefs_json(&app) {
         Ok(Some(value)) => Ok(preferences_from_json(&value)),
@@ -357,6 +366,7 @@ pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, AppErro
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn set_ui_preferences(
     app: AppHandle,
     preferences: UiPreferences,

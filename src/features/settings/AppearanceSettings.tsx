@@ -1,4 +1,3 @@
-import { invoke } from "../../lib/ipc";
 import * as Select from "@radix-ui/react-select";
 import {
   Check,
@@ -17,6 +16,7 @@ import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { settingsApi } from "./api";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -140,7 +140,7 @@ export function AppearanceSettings() {
   useEffect(() => {
     let cancelled = false;
 
-    invoke<UiPreferences>("get_ui_preferences")
+    settingsApi.getUiPreferences()
       .catch(() => defaultUiPreferences)
       .then((storedPreferences) => {
         if (cancelled) return;
@@ -168,7 +168,7 @@ export function AppearanceSettings() {
     cacheUiPreferencesForBootstrap(normalized);
     hydrateTheme(normalized.ui.theme);
 
-    invoke("set_ui_preferences", { preferences: normalized })
+    settingsApi.setUiPreferences(normalized)
       .then(() => toast("Preferences saved", "success"))
       .catch((error) => {
         console.error(error);

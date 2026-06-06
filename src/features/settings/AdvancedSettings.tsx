@@ -1,7 +1,7 @@
-import { invoke } from "../../lib/ipc";
 import { RotateCcw } from "lucide-react";
 import { useAppStore } from "../../store";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { settingsApi } from "./api";
 import {
   applyUiPreferencesToDocument,
   cacheUiPreferencesForBootstrap,
@@ -25,7 +25,7 @@ export function AdvancedSettings() {
     hydrateTheme(defaultUiPreferences.ui.theme);
     hydrateEditorAndGridPrefs(defaultUiPreferences);
     try {
-      await invoke("set_ui_preferences", { preferences: defaultUiPreferences });
+      await settingsApi.setUiPreferences(defaultUiPreferences);
     } catch (error) {
       console.error("Failed to reset preferences:", error);
     }

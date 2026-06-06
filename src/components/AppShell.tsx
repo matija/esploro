@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { invoke } from "../lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
@@ -30,8 +29,8 @@ import {
   normalizeTheme,
   normalizeUiPreferences,
   themeToDomAttribute,
-  type UiPreferences,
 } from "../features/settings/preferences";
+import { settingsApi } from "../features/settings/api";
 import { cn } from "../lib/utils";
 import { ToastProvider } from "./Toast";
 import { ConfirmProvider } from "./ConfirmDialog";
@@ -357,7 +356,7 @@ export function AppShell() {
   useEffect(() => {
     let cancelled = false;
 
-    invoke<UiPreferences>("get_ui_preferences")
+    settingsApi.getUiPreferences()
       .catch(() => defaultUiPreferences)
       .then((preferences) => {
         if (cancelled) return;

@@ -38,6 +38,16 @@ export const commands = {
 	manageTablePrivileges: (sessionId: string, schema: string, table: string, ops: TablePrivilegeOp[]) => __TAURI_INVOKE<PrivilegeResult[]>("manage_table_privileges", { sessionId, schema, table, ops }),
 	listSchemaPrivileges: (sessionId: string, schema: string) => __TAURI_INVOKE<SchemaInfo>("list_schema_privileges", { sessionId, schema }),
 	manageSchemaPrivileges: (sessionId: string, schema: string, ops: SchemaPrivilegeOp[]) => __TAURI_INVOKE<PrivilegeResult[]>("manage_schema_privileges", { sessionId, schema, ops }),
+	getLicenseStatus: () => __TAURI_INVOKE<LicenseStatus>("get_license_status"),
+	activateLicense: (key: string) => __TAURI_INVOKE<LicenseStatus>("activate_license", { key }),
+	deactivateLicense: () => __TAURI_INVOKE<LicenseStatus>("deactivate_license"),
+	answerUsageDialog: (answer: string) => __TAURI_INVOKE<LicenseStatus>("answer_usage_dialog", { answer }),
+	dismissLicenseBanner: () => __TAURI_INVOKE<null>("dismiss_license_banner"),
+	notifyConnectionCount: (count: number) => __TAURI_INVOKE<LicenseStatus>("notify_connection_count", { count }),
+	openCustomerPortal: () => __TAURI_INVOKE<null>("open_customer_portal"),
+	openUrl: (url: string) => __TAURI_INVOKE<null>("open_url", { url }),
+	getUiPreferences: () => __TAURI_INVOKE<UiPreferences>("get_ui_preferences"),
+	setUiPreferences: (preferences: UiPreferences) => __TAURI_INVOKE<null>("set_ui_preferences", { preferences }),
 };
 
 /* Types */
@@ -168,6 +178,17 @@ export type FunctionSummary = {
 };
 
 export type JsonValue = "Null" | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
+
+export type LicenseStatus = {
+	tier: LicenseTier,
+	bannerVisible: boolean,
+	gracePeriodEnds: string | null,
+	showUsageDialog: boolean,
+	/**  True when a cached license exists but hasn't been re-validated for >14 days offline. */
+	revalidationRequired: boolean,
+};
+
+export type LicenseTier = "Personal" | "Commercial" | "Unlicensed";
 
 export type MembershipOp = {
 	op: string,
@@ -344,6 +365,32 @@ export type TableQueryResult = {
 export type TableSummary = {
 	name: string,
 	estimatedRowCount: number | null,
+};
+
+export type UiGridConfig = {
+	rowDensity?: string,
+	pageSize?: number,
+	showTotalCount?: boolean,
+};
+
+export type UiPreferenceEditor = {
+	fontFamily: string,
+	fontSize: number,
+	lineHeight: number | null,
+	tabSize?: number,
+	wordWrap?: boolean,
+};
+
+export type UiPreferenceUi = {
+	theme: string,
+	fontFamily: string,
+	fontSize: number,
+};
+
+export type UiPreferences = {
+	ui: UiPreferenceUi,
+	editor: UiPreferenceEditor,
+	grid?: UiGridConfig,
 };
 
 export type UpdateRowsRequest = {

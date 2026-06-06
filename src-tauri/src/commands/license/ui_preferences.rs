@@ -26,7 +26,7 @@ fn default_show_total_count() -> bool {
     true
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPreferences {
     pub ui: UiPreferenceUi,
@@ -35,7 +35,7 @@ pub struct UiPreferences {
     pub grid: UiGridConfig,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPreferenceUi {
     pub theme: String,
@@ -43,7 +43,7 @@ pub struct UiPreferenceUi {
     pub font_size: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPreferenceEditor {
     pub font_family: String,
@@ -55,7 +55,7 @@ pub struct UiPreferenceEditor {
     pub word_wrap: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiGridConfig {
     #[serde(default = "default_grid_row_density")]

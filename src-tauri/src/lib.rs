@@ -75,6 +75,16 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::roles::manage_table_privileges,
             commands::roles::list_schema_privileges,
             commands::roles::manage_schema_privileges,
+            commands::license::get_license_status,
+            commands::license::activate_license,
+            commands::license::deactivate_license,
+            commands::license::answer_usage_dialog,
+            commands::license::dismiss_license_banner,
+            commands::license::notify_connection_count,
+            commands::license::open_customer_portal,
+            commands::license::open_url,
+            commands::license::get_ui_preferences,
+            commands::license::set_ui_preferences,
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .dangerously_cast_bigints_to_number()

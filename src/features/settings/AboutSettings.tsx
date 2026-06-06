@@ -1,4 +1,3 @@
-import { invoke } from "../../lib/ipc";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
@@ -8,7 +7,7 @@ import { useUpdateChecker } from "../updates/useUpdateChecker";
 import { useAppStore } from "../../store";
 
 async function openUrl(url: string) {
-  await invoke("open_url", { url });
+  await licenseApi.openUrl(url);
 }
 
 interface Props {

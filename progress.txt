@@ -275,3 +275,34 @@ clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
 
 Next: continue P1 feature-by-feature (license/updater/settings), then switch
 runtime command dispatch to the Specta builder once every command is registered.
+
+## 2026-06-06 — Phase 2 (P1): typed IPC license/settings slice
+
+Picked the highest-priority remaining task, P1, and completed only the
+license/settings slice.
+
+- Added `specta::Type` to `LicenseTier`, `LicenseStatus`, and the UI preference
+  DTO surface (`UiPreferences`, `UiPreferenceUi`, `UiPreferenceEditor`,
+  `UiGridConfig`). Annotated the ten license/settings commands with
+  `#[specta::specta]` and registered them with the debug/test Specta builder.
+  Regenerated `src/lib/bindings.ts`, which now includes generated wrappers for
+  `getLicenseStatus`, `activateLicense`, `deactivateLicense`,
+  `answerUsageDialog`, `dismissLicenseBanner`, `notifyConnectionCount`,
+  `openCustomerPortal`, `openUrl`, `getUiPreferences`, and
+  `setUiPreferences`.
+- Migrated `src/features/license/api.ts` from raw `invoke(...)` calls to
+  generated `commands.*` wrappers while preserving `normalizeError`/
+  `IpcError` behavior. Replaced the hand-maintained license DTO interfaces with
+  generated type re-exports.
+- Added `src/features/settings/api.ts` and migrated the app shell, Appearance
+  settings, Advanced settings, and Zustand preference setters to the generated
+  UI preference wrappers. The frontend still keeps its UI-local normalized
+  preference type/range helpers; the generated Rust DTO is used at the IPC
+  boundary.
+
+Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
+`cargo clippy -- -D warnings` clean, `npm run type-check` clean, `npm run lint`
+clean except for the pre-existing `SchemaTree.tsx` exhaustive-deps warning.
+
+Next: continue P1 with updater commands, then switch runtime command dispatch
+to the Specta builder once every command is registered.
