@@ -185,12 +185,18 @@ function ResultGrid({
     }
   }, []);
 
+  // Store the handler in a ref so the listener subscribes once
+  // (advanced-event-handler-refs).
+  const onBodyScrollRef = useRef(onBodyScroll);
+  onBodyScrollRef.current = onBodyScroll;
+
   useEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
-    el.addEventListener("scroll", onBodyScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onBodyScroll);
-  }, [onBodyScroll]);
+    const handler = () => onBodyScrollRef.current();
+    el.addEventListener("scroll", handler, { passive: true });
+    return () => el.removeEventListener("scroll", handler);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

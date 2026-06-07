@@ -731,20 +731,32 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     copiedTimerRef.current = setTimeout(() => setCopiedCell(null), 1500);
   }, []);
 
+  // Store latest values in refs so the effect subscribes once
+  // (prefer-useEffectEvent — React 19 useEffectEvent is still experimental;
+  //  the stable ref pattern achieves the same result).
+  const selectedCellRef = useRef(selectedCell);
+  selectedCellRef.current = selectedCell;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const copyCellRef = useRef(copyCell);
+  copyCellRef.current = copyCell;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // Don't hijack copy while the user is editing an input/textarea/contenteditable.
       const target = e.target as HTMLElement | null;
       const isTyping = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
       if (isTyping) return;
-      if ((e.metaKey || e.ctrlKey) && e.key === "c" && selectedCell && data) {
+      const cell = selectedCellRef.current;
+      const d = dataRef.current;
+      if ((e.metaKey || e.ctrlKey) && e.key === "c" && cell && d) {
         e.preventDefault();
-        copyCell(selectedCell.row, selectedCell.col, data.rows);
+        copyCellRef.current(cell.row, cell.col, d.rows);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedCell, data, copyCell]);
+  }, []);
 
   // ── Cell context menu ──────────────────────────────────────────────────────
 

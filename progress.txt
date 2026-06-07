@@ -649,3 +649,31 @@ React Doctor: issues 238→236, bugs 93→91, score 67/100.
 Next: continue Phase 2 — `prefer-useEffectEvent` (×1,
 TableViewerTab.tsx:747), `advanced-event-handler-refs` (×1,
 QueryEditorTab.tsx:188).
+
+## 2026-06-08 — Frontend Health Remediation Phase 2: prefer-useEffectEvent + advanced-event-handler-refs
+
+- `TableViewerTab.tsx:747`: the copy-on-Ctrl+C effect re-subscribed on every
+  change to `selectedCell`, `data`, `copyCell`. Since React 19's `useEffectEvent`
+  is still experimental, used the stable ref pattern instead: store the three
+  values in refs (`selectedCellRef`, `dataRef`, `copyCellRef`), update them
+  each render, and have the effect's handler read `*.current` on each key event.
+  Effect deps now `[]` — subscribes once.
+- `QueryEditorTab.tsx:188`: `onBodyScroll` (useCallback with stable `[]` deps)
+  was used as an effect dependency, causing the rule to flag potential
+  re-subscription. Stored it in `onBodyScrollRef`; the effect's listener calls
+  `onBodyScrollRef.current()` so the subscription is stable regardless of
+  callback identity.
+- Behavior-preserving: keyboard copy still works; table scroll sync still works.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 236→234, bugs 91→90, score 67→68/100.
+`prefer-useEffectEvent`: 1→0 — resolved.
+`advanced-event-handler-refs`: 1→0 — resolved.
+
+**Phase 2 complete.** All correctness-critical bug warnings are resolved.
+Remaining bug warnings are either Phase 3 (button-has-type ×81), Phase 5
+(prefer-useReducer ×8), or intentionally kept (array-index-as-key ×1 → no
+natural id available, never reorders).
+
+Next: Phase 3 — Accessibility (85 findings).

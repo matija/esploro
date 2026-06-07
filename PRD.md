@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 236 warnings remaining (Phases 2–5)
+**Status:** Phase 1 complete, Phase 2 complete — 0 ✖ errors, 234 warnings remaining (Phases 3–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -162,13 +162,13 @@ explicit-check change; behavior is identical.
 
 ---
 
-## 5. Phase 2 — Remaining bug warnings
+## 5. Phase 2 — Remaining bug warnings ✅ **DONE 2026-06-08**
 
-Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
+Grouped by rule; all non-mechanical, non-opportunistic bug warnings are resolved.
 
-- **Array index as key ×4** — `RoleDetailPanel.tsx:65`, `QueryEditorTab.tsx:335`,
-  `SchemaDetailPanel.tsx:39`, `TablePrivilegesTab.tsx:35`. Use a stable id from the item.
-  If no natural id exists, confirm the list never reorders/filters before keeping the index.
+- **Array index as key ×1** (intentionally kept) — `QueryEditorTab.tsx:336`.
+  3 of 4 resolved on 2026-06-08 via stable `r.sql` keys; the remaining QueryEditorTab
+  result list has no natural id and never reorders/filters — index key is acceptable.
 - **Missing effect dependencies ×0** ✅ **DONE 2026-06-08** — All resolved:
   - `Sidebar.tsx:42,50`: wrapped `loadProfiles` and `openCreate` in `useCallback`, added to deps.
   - `SqlEditor.tsx:96`, `MiniSqlEditor.tsx:641`: added `editorInitializedRef` guard so deps
@@ -199,10 +199,15 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
   - `QueryEditorTab.tsx:440-445` (SaveDialog): replaced the `open`→`setName` `useEffect` with
     a render-time `prevOpenRef` guard that resets `name`/`folder` when `open` transitions true
     during render, the same pattern used throughout Phase 1/2.
-- **Effect re-subscribes on a changing callback ×1** — `TableViewerTab.tsx:747`. Wrap with
-  `useEffectEvent` (React 19) so the effect doesn't re-subscribe each parent render.
-- **Listener re-subscribes on handler change ×1** — `QueryEditorTab.tsx:188`. Store the
-  handler in a ref; the listener reads `handlerRef.current()`.
+- **Effect re-subscribes on a changing callback ×0** ✅ **DONE 2026-06-08** —
+  `TableViewerTab.tsx:747`. Since React 19 `useEffectEvent` is still experimental,
+  used the stable ref pattern: store `selectedCell`, `data`, `copyCell` in refs
+  (`selectedCellRef`, `dataRef`, `copyCellRef`), so the effect subscribes once and
+  the handler reads latest values from the refs on each key event.
+- **Listener re-subscribes on handler change ×0** ✅ **DONE 2026-06-08** —
+  `QueryEditorTab.tsx:188`. Stored `onBodyScroll` in `onBodyScrollRef`; the effect's
+  listener calls `onBodyScrollRef.current()` so the subscription is stable regardless
+  of callback identity changes.
 - **Many related useState → useReducer ×8** — `RoleDetailPanel.tsx:99,350`,
   `TableViewerTab.tsx:65`, `SchemaTree.tsx:430`, `ConnectionForm.tsx:63`,
   `QueryEditorTab.tsx:570`, `SchemaDetailPanel.tsx:65`, `TablePrivilegesTab.tsx:61`.
