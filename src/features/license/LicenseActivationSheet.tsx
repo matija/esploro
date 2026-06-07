@@ -54,6 +54,7 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
+                type="button"
                 className="p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors"
                 title="Close"
               >
@@ -90,6 +91,7 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
             )}
 
             <button
+              type="button"
               onClick={handleActivate}
               disabled={!key.trim() || loading || activated}
               className="px-4 py-2 rounded text-sm font-medium bg-accent text-inverse

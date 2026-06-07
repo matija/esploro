@@ -130,6 +130,7 @@ export function ColumnFilterPopover({
           {/* Actions */}
           <div className="flex gap-2 pt-0.5">
             <button
+              type="button"
               onClick={apply}
               className="flex-1 px-2 py-1.5 rounded-[var(--radius-control)] bg-accent text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
             >
@@ -137,6 +138,7 @@ export function ColumnFilterPopover({
             </button>
             {hasExisting && (
               <button
+                type="button"
                 onClick={clear}
                 className="px-2 py-1.5 rounded-[var(--radius-control)] bg-control text-secondary text-xs hover:bg-hover hover:text-destructive transition-colors"
               >

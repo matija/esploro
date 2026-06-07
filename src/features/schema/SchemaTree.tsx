@@ -106,6 +106,7 @@ function ContextMenu({
           <div key={i} className="my-1 border-t border-separator" />
         ) : (
           <button
+            type="button"
             key={item.action}
             onClick={() => onAction(item.action)}
             className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors duration-[var(--motion-fast)] text-left"
@@ -1288,6 +1289,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery("")}
               className="text-secondary hover:text-label transition-colors"
             >

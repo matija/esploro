@@ -89,6 +89,7 @@ export function JsonArrayEditor({
               {validation.ok ? `Valid${validation.msg}` : `Invalid: ${validation.msg}`}
             </span>
             <button
+              type="button"
               onClick={format}
               disabled={!validation.ok || draft.toLowerCase() === "null"}
               className="px-2 py-0.5 rounded text-[10px] text-secondary hover:text-label hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -96,6 +97,7 @@ export function JsonArrayEditor({
               Format
             </button>
             <button
+              type="button"
               onClick={commit}
               disabled={!validation.ok}
               className="px-2 py-0.5 rounded text-[10px] bg-accent text-inverse disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent-hover transition-colors"

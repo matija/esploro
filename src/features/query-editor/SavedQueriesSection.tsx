@@ -126,6 +126,7 @@ function FolderGroup({
   return (
     <div>
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-1.5 px-3 py-1 text-xs text-secondary hover:bg-hover transition-colors duration-[var(--motion-fast)]"
       >
@@ -232,6 +233,7 @@ function QueryRow({
         )}
         <DropdownMenu.Trigger asChild>
           <button
+            type="button"
             onClick={(e) => e.stopPropagation()}
             className={cn(
               'opacity-0 group-hover:opacity-100 p-0.5 rounded transition-opacity duration-[var(--motion-fast)]',

@@ -1111,6 +1111,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           )}
           {activeChips.map((f) => (
             <button
+              type="button"
               key={f.column}
               onClick={(e) => {
                 filterAnchorEl.current = e.currentTarget;
@@ -1134,6 +1135,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           ))}
           {activeChips.length > 0 && (
             <button
+              type="button"
               onClick={clearAllFilters}
               className="text-xs text-secondary hover:text-destructive transition-colors ml-1"
             >
@@ -1171,6 +1173,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               </p>
             </div>
             <button
+              type="button"
               onClick={() => void refetch()}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control)] text-xs",
@@ -1253,6 +1256,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                         : `${apiFilters.length} active filters`}
                     </p>
                     <button
+                      type="button"
                       onClick={clearAllFilters}
                       className="mt-1 text-xs text-accent hover:underline"
                     >
@@ -1393,6 +1397,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               )}
                               {isSelected && !isEditing && (
                                 <button
+                                  type="button"
                                   className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors cursor-default"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1430,6 +1435,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           </span>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={discardEdits}
               disabled={isSaving}
               className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1437,6 +1443,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               <span className="inline-flex items-center gap-1.5"><X size={12} /> Discard</span>
             </button>
             <button
+              type="button"
               onClick={() => void handleOpenAsSql()}
               disabled={isSaving}
               title="Open the generated UPDATE statements in a new query editor tab"
@@ -1445,6 +1452,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               <span className="inline-flex items-center gap-1.5"><FileCode2 size={12} /> Open as SQL</span>
             </button>
             <button
+              type="button"
               onClick={() => void handleSave()}
               disabled={isSaving}
               className="px-3 py-1 rounded-[var(--radius-control)] bg-accent text-inverse font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1540,6 +1548,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
+            type="button"
             onClick={resetColWidths}
             className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
           >

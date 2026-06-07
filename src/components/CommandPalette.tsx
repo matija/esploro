@@ -552,6 +552,7 @@ export function CommandPalette() {
                 const isSelected = idx === selectedIdx;
                 return (
                   <button
+                    type="button"
                     key={cmd.id}
                     ref={(el) => { itemRefs.current[idx] = el; }}
                     onClick={() => handleSelect(cmd)}
@@ -648,6 +649,7 @@ function NoResults({
       </div>
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={onNewQuery}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control,6px)] text-xs",
@@ -659,6 +661,7 @@ function NoResults({
           New Query
         </button>
         <button
+          type="button"
           onClick={onNewConnection}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-control,6px)] text-xs",

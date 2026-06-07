@@ -132,6 +132,7 @@ export function Sidebar() {
             title="Connections"
             action={
               <button
+                type="button"
                 onClick={openCreate}
                 title="New connection"
                 className="p-0.5 rounded text-secondary hover:text-label hover:bg-control transition-colors"

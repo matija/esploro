@@ -64,6 +64,7 @@ export function ColumnHeaderCell({
       )}
       {/* Filter icon: accent when filtered, visible on hover when not */}
       <button
+        type="button"
         onClick={onFilterClick}
         title={`Filter by ${col.name}`}
         className={cn(

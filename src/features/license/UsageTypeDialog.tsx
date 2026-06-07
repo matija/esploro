@@ -82,6 +82,7 @@ export function UsageTypeDialog() {
           </div>
 
           <button
+            type="button"
             onClick={handleContinue}
             disabled={loading}
             className="px-4 py-2 rounded text-sm font-medium bg-accent text-inverse

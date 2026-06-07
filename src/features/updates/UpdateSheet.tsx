@@ -76,6 +76,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
+                type="button"
                 className="p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40"
                 title="Close"
                 disabled={phase === 'installing' || phase === 'restarting'}
@@ -118,6 +119,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
             <div className="flex gap-2 mt-auto">
               {phase === 'done' || phase === 'restarting' ? (
                 <button
+                  type="button"
                   onClick={() => void handleRelaunch()}
                   disabled={phase === 'restarting'}
                   className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-inverse
@@ -127,6 +129,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={() => void handleInstall()}
                   disabled={phase === 'installing'}
                   className="flex-1 px-4 py-2 rounded text-sm font-medium bg-accent text-inverse
@@ -137,6 +140,7 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
               )}
               {phase !== 'done' && (
                 <button
+                  type="button"
                   onClick={onClose}
                   disabled={phase === 'installing'}
                   className="px-4 py-2 rounded text-sm font-medium text-secondary

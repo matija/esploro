@@ -677,3 +677,22 @@ Remaining bug warnings are either Phase 3 (button-has-type ×81), Phase 5
 natural id available, never reorders).
 
 Next: Phase 3 — Accessibility (85 findings).
+
+## 2026-06-08 — Frontend Health Remediation Phase 3: Button missing explicit type (×81)
+
+Added `type="button"` to all 81 `<button>` elements across 21 files that lacked
+an explicit `type` attribute. No `<form>` tags exist in the codebase, so all
+buttons correctly receive `type="button"`.
+
+Approach: Python script that detects `<button` tags without `type=` (checking
+across multi-line tags to avoid false positives on already-typed buttons) and
+inserts `type="button"` — as a new attribute line after `<button` for multi-line
+buttons, or inline for single-line buttons. Preserved existing indentation.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 234→153, bugs 90→9, score 68/100.
+`button-has-type`: 81→0 — resolved.
+
+Next: Phase 3 accessibility — control labels (×26), label-associated-control
+(×13), keyboard handlers (×15), static-element interaction (×16).

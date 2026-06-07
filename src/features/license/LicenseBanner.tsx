@@ -29,6 +29,7 @@ export function LicenseBanner() {
           License re-validation required — connect to the internet to continue using Esploro commercially.
         </span>
         <button
+          type="button"
           onClick={() => setActivationOpen(true)}
           className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
             bg-warning/20 text-label hover:bg-warning/30 transition-colors"
@@ -47,6 +48,7 @@ export function LicenseBanner() {
           Esploro is free for personal use. Commercial use requires a license.
         </span>
         <button
+          type="button"
           onClick={() => licenseApi.openPricingPage()}
           className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
             bg-warning/20 text-label hover:bg-warning/30 transition-colors"
@@ -54,6 +56,7 @@ export function LicenseBanner() {
           Purchase license
         </button>
         <button
+          type="button"
           onClick={() => setActivationOpen(true)}
           className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
             bg-warning/20 text-label hover:bg-warning/30 transition-colors"
@@ -61,6 +64,7 @@ export function LicenseBanner() {
           I have a license key
         </button>
         <button
+          type="button"
           onClick={handleDismiss}
           className="shrink-0 p-1 rounded
             hover:bg-warning/20 transition-colors"

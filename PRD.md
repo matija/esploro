@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete — 0 ✖ errors, 234 warnings remaining (Phases 3–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type done — 0 ✖ errors, 153 warnings remaining (Phases 3–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -224,11 +224,11 @@ handler, timeout cleanup), not five separate edits.
 
 Largest bucket, almost entirely mechanical. Batch per feature folder.
 
-- **Button missing explicit `type` ×81** — add `type="button"` to every non-submit
-  `<button>` (full list in report: `TabBar`, `ConnectionList`, `CellContextMenu`,
-  `QueryEditorTab`, `LicenseSettings`, `UpdateSheet`, `LicenseBanner`, etc.). Use
-  `type="submit"` only inside forms that submit. Highest-count single fix; consider a
-  scripted pass + review.
+- **Button missing explicit `type` ×81** ✅ **DONE 2026-06-08** — added `type="button"`
+  to every non-submit `<button>` across 21 files (no forms found in the codebase).
+  Scripted pass: inserted `type="button"` as an attribute on the line after the
+  opening `<button` tag for multi-line buttons, or inline for single-line buttons.
+  Verified via `tsc --noEmit`, `eslint`, `npm run build` — 81→0 findings.
 - **Control missing accessible label ×26** and **Label missing associated control ×13** —
   add `aria-label` to icon-only controls; tie `<label htmlFor>`/nesting to inputs
   (`RoleDetailPanel`, `ConnectionForm`, `SchemaTree`, `QueryEditorTab`, `AppearanceSettings`,

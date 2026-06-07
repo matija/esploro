@@ -32,6 +32,7 @@ export function LicenseSettings() {
             <span className="text-sm font-medium text-label">Commercial</span>
           </div>
           <button
+            type="button"
             onClick={() => licenseApi.openCustomerPortal()}
             className="self-start text-sm text-accent hover:underline"
           >
@@ -39,6 +40,7 @@ export function LicenseSettings() {
           </button>
           <div className="flex gap-2 mt-1">
             <button
+              type="button"
               onClick={() => setActivationOpen(true)}
               className="px-3 py-1.5 text-xs rounded bg-control text-label
                 hover:bg-control/80 transition-colors"
@@ -46,6 +48,7 @@ export function LicenseSettings() {
               Enter a different key
             </button>
             <button
+              type="button"
               onClick={handleRemove}
               className="px-3 py-1.5 text-xs rounded text-destructive
                 hover:bg-control transition-colors"
@@ -67,12 +70,14 @@ export function LicenseSettings() {
           </p>
           <div className="flex flex-col gap-2 mt-1">
             <button
+              type="button"
               onClick={() => licenseApi.openPricingPage()}
               className="self-start text-sm text-accent hover:underline"
             >
               Purchase license →
             </button>
             <button
+              type="button"
               onClick={() => setActivationOpen(true)}
               className="self-start text-sm text-secondary hover:text-label transition-colors"
             >

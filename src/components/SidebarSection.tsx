@@ -21,6 +21,7 @@ export function SidebarSection({
     <div>
       <div className="flex items-center px-3 py-1">
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
           className={cn(
             "flex flex-1 items-center gap-1",

@@ -41,6 +41,7 @@ export function RefreshButton({
 
   return (
     <button
+      type="button"
       onClick={onRefresh}
       disabled={isLoading || isFetching}
       className={cn(

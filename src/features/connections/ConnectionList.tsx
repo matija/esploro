@@ -72,6 +72,7 @@ function ConnectionContextMenu({
     >
       {menu.isActive ? (
         <button
+          type="button"
           onClick={onDisconnect}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
         >
@@ -80,6 +81,7 @@ function ConnectionContextMenu({
         </button>
       ) : (
         <button
+          type="button"
           onClick={onConnect}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
         >
@@ -88,6 +90,7 @@ function ConnectionContextMenu({
         </button>
       )}
       <button
+        type="button"
         onClick={onEdit}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
       >
@@ -95,6 +98,7 @@ function ConnectionContextMenu({
         Edit…
       </button>
       <button
+        type="button"
         onClick={onDuplicate}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors"
       >
@@ -103,6 +107,7 @@ function ConnectionContextMenu({
       </button>
       <div className="my-1 border-t border-separator" />
       <button
+        type="button"
         onClick={onDelete}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-hover transition-colors"
       >
@@ -216,6 +221,7 @@ function ConnectionRow({
         >
           {isActive ? (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
               title={`Disconnect from ${profile.displayName}`}
               className="p-1 rounded hover:bg-pressed text-secondary hover:text-query-failed transition-colors"
@@ -224,6 +230,7 @@ function ConnectionRow({
             </button>
           ) : (
             <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onConnect(); }}
               disabled={isConnecting}
               title={`Connect to ${profile.displayName}`}
@@ -233,6 +240,7 @@ function ConnectionRow({
             </button>
           )}
           <button
+            type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             title="Edit"
             className="p-1 rounded hover:bg-pressed text-secondary hover:text-label transition-colors"
@@ -459,6 +467,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
         <div className="flex flex-col gap-1.5">
           {onNewConnection && (
             <button
+              type="button"
               onClick={onNewConnection}
               className={cn(
                 'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md',
@@ -472,6 +481,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
           )}
           {onPasteConnectionUrl && (
             <button
+              type="button"
               onClick={onPasteConnectionUrl}
               className={cn(
                 'flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md',
@@ -531,6 +541,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
         return (
           <div key={folder}>
             <button
+              type="button"
               data-nav-key={`folder:${folder}`}
               onClick={() => { toggleFolder(folder); setFocusedKey(`folder:${folder}`); }}
               className={cn(

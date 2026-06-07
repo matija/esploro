@@ -94,6 +94,7 @@ export function CellContextMenu({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <button
+        type="button"
         onClick={copyValue}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -105,6 +106,7 @@ export function CellContextMenu({
         )}
       </button>
       <button
+        type="button"
         onClick={copyColName}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -115,12 +117,14 @@ export function CellContextMenu({
       </button>
       <div className="my-1 border-t border-separator" />
       <button
+        type="button"
         onClick={copyJson}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
         Copy Row as JSON
       </button>
       <button
+        type="button"
         onClick={copyCsv}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -129,6 +133,7 @@ export function CellContextMenu({
       <div className="my-1 border-t border-separator" />
       {cellValue !== null ? (
         <button
+          type="button"
           onClick={filterByValue}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
         >
@@ -140,6 +145,7 @@ export function CellContextMenu({
         </button>
       ) : (
         <button
+          type="button"
           onClick={filterByValue}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
         >
@@ -149,6 +155,7 @@ export function CellContextMenu({
       )}
       <div className="my-1 border-t border-separator" />
       <button
+        type="button"
         onClick={deleteRow}
         disabled={!canDelete}
         title={canDelete ? undefined : "Cannot delete: no primary key or ctid"}

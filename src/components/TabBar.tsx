@@ -45,6 +45,7 @@ function TabContextMenu({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <button
+        type="button"
         onClick={() => {
           closeTab(tab.id);
           onClose();
@@ -54,6 +55,7 @@ function TabContextMenu({
         Close Tab
       </button>
       <button
+        type="button"
         onClick={() => {
           closeOtherTabs(tab.id);
           onClose();
@@ -64,6 +66,7 @@ function TabContextMenu({
         Close Others
       </button>
       <button
+        type="button"
         onClick={() => {
           closeTabsToRight(tab.id);
           onClose();
@@ -75,6 +78,7 @@ function TabContextMenu({
       </button>
       <div className="my-1 border-t border-separator" />
       <button
+        type="button"
         onClick={() => {
           navigator.clipboard.writeText(tab.title);
           onClose();
@@ -151,6 +155,7 @@ function TabItem({
         />
       )}
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           closeTab(tab.id);

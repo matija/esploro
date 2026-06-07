@@ -114,6 +114,7 @@ function ResultCellContextMenu({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <button
+        type="button"
         onClick={copyValue}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -125,6 +126,7 @@ function ResultCellContextMenu({
         )}
       </button>
       <button
+        type="button"
         onClick={copyColName}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -135,12 +137,14 @@ function ResultCellContextMenu({
       </button>
       <div className="my-1 border-t border-separator" />
       <button
+        type="button"
         onClick={copyJson}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
         Copy Row as JSON
       </button>
       <button
+        type="button"
         onClick={copyCsv}
         className="flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
       >
@@ -494,12 +498,14 @@ function SaveDialog({
           </div>
           <div className="flex justify-end gap-2 mt-5">
             <button
+              type="button"
               onClick={onClose}
               className="px-3 py-1.5 text-sm text-secondary rounded hover:bg-control"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={() => {
                 if (name.trim()) {
                   onSave(name.trim(), folder.trim());
@@ -558,6 +564,7 @@ function RunButton({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled || runState === "pending"}
       className={cn(
@@ -827,6 +834,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
 
         {/* Save button */}
         <button
+          type="button"
           onClick={() => setSaveOpen(true)}
           className={cn(
             "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors",

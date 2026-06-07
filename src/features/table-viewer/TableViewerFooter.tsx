@@ -51,6 +51,7 @@ export function TableViewerFooter({
       </span>
       <div className="flex items-center gap-1">
         <button
+          type="button"
           onClick={onPreviousPage}
           disabled={!hasPrev}
           className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -58,6 +59,7 @@ export function TableViewerFooter({
           ← Prev
         </button>
         <button
+          type="button"
           onClick={onNextPage}
           disabled={!hasNext}
           className="px-2 py-0.5 rounded hover:bg-control disabled:opacity-30 disabled:cursor-not-allowed transition-colors"

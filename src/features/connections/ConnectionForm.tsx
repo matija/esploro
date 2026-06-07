@@ -231,6 +231,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               {isEdit ? 'Edit Connection' : 'New Connection'}
             </Dialog.Title>
             <button
+              type="button"
               onClick={onClose}
               className="p-1 rounded hover:bg-control text-secondary hover:text-label transition-colors"
               aria-label="Close"
@@ -247,6 +248,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               <div className="flex rounded-md overflow-hidden border border-separator w-fit">
                 {(['postgres', 'mysql'] as DbDriver[]).map((d) => (
                   <button
+                    type="button"
                     key={d}
                     onClick={() => {
                       setDriver(d);
@@ -275,6 +277,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 className="flex-1"
               />
               <button
+                type="button"
                 onClick={applyUrl}
                 className={cn(
                   'shrink-0 px-3 rounded-md text-xs font-medium',
@@ -302,6 +305,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 <div className="flex gap-1.5 mt-0.5">
                   {DEFAULT_COLORS.map((c) => (
                     <button
+                      type="button"
                       key={c}
                       onClick={() => setColor(c)}
                       style={{ backgroundColor: c }}
@@ -331,6 +335,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 <div className="flex rounded-md overflow-hidden border border-separator w-fit">
                   {(['host', 'socket'] as ConnectionType[]).map((t) => (
                     <button
+                      type="button"
                       key={t}
                       onClick={() => setConnType(t)}
                       className={cn(
@@ -465,6 +470,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
           {/* Footer */}
           <div className="flex items-center justify-between gap-2 px-5 py-4 border-t border-separator shrink-0">
             <button
+              type="button"
               onClick={handleTest}
               disabled={testState === 'testing'}
               className={cn(
@@ -479,12 +485,14 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-3 py-1.5 rounded-md text-xs font-medium text-secondary hover:text-label hover:bg-control transition-colors"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={saving}
                 className={cn(
