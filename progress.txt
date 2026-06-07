@@ -605,3 +605,21 @@ Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
 
 React Doctor: issues 241→240, bugs 96→95, score 65/100.
 `no-derived-useState`: 1→0 — resolved.
+
+## 2026-06-08 — Frontend Health Remediation Phase 2: no-chained-setState (CommandPalette.tsx)
+
+- `CommandPalette.tsx:451`: removed the `useEffect` that watched `filtered.length`
+  and `query` to reset `selectedIdx` and `itemRefs`. Moved the reset into the
+  event handler that triggers it (onChange on the search input) and added a
+  render-time `prevOpenRef` guard that resets selection when the palette opens,
+  avoiding the stale intermediate render. Behavior-preserving.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 239→238, bugs 94→93, score 66→67/100.
+`no-chained-setState`: 1→0 — resolved.
+
+Next: continue Phase 2 — `no-event-handler` (×2, SqlEditor.tsx:113,
+QueryEditorTab.tsx:444), `prefer-useEffectEvent` (×1,
+TableViewerTab.tsx:747), `advanced-event-handler-refs` (×1,
+QueryEditorTab.tsx:188).

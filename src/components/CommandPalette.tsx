@@ -75,6 +75,7 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const queryClient = useQueryClient();
+  const prevOpenRef = useRef(commandPaletteOpen);
 
   // Check if any schema queries are in-flight
   const isSchemaLoading = useMemo(
@@ -92,6 +93,13 @@ export function CommandPalette() {
         ),
     [activeSessions, commandPaletteOpen, queryClient],
   );
+
+  // Reset selection on palette open (render-time, no stale intermediate render)
+  if (commandPaletteOpen && !prevOpenRef.current) {
+    setSelectedIdx(0);
+    itemRefs.current = [];
+  }
+  prevOpenRef.current = commandPaletteOpen;
 
   // Build table commands from React Query cache (loaded schemas only)
   const tableCommands = useMemo(() => {
@@ -446,12 +454,6 @@ export function CommandPalette() {
       : sortedDefaultCommands;
   }, [allCommands, query, sortedDefaultCommands]);
 
-  // Reset selection when results change
-  useEffect(() => {
-    setSelectedIdx(0);
-    itemRefs.current = [];
-  }, [filtered.length, query]);
-
   // Scroll selected item into view
   useEffect(() => {
     itemRefs.current[selectedIdx]?.scrollIntoView({ block: "nearest" });
@@ -508,7 +510,7 @@ export function CommandPalette() {
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); itemRefs.current = []; }}
               onKeyDown={handleKeyDown}
               placeholder="Search commands, tables, connections…"
               className={cn(

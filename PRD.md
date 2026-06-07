@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 244 warnings remaining (Phases 2–5)
+**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 238 warnings remaining (Phases 2–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -186,8 +186,10 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
 - **Prop derived into useState ×1** — `SavedQueriesSection.tsx:180` (`renameValue` init). ✅ **DONE 2026-06-08**
 - **Cascading setState in one effect ×0** ✅ — resolved by the P1.2 `key={String(updateSheetOpen)}`
   remount on `UpdateSheet`, which eliminated the effect entirely.
-- **Chained state updates through effects ×1** — `CommandPalette.tsx:451`.
-  Set related state together in the triggering handler.
+- **Chained state updates through effects ×0** ✅ **DONE 2026-06-08** — `CommandPalette.tsx:451`.
+  Moved `setSelectedIdx(0)` and `itemRefs.current = []` into the `onChange`
+  handler (query change) and a render-time `prevOpenRef` guard (palette open),
+  eliminating the standalone chaining effect.
 - **Event logic in an effect ×2** — `SqlEditor.tsx:111`, `QueryEditorTab.tsx:443`.
 - **Effect re-subscribes on a changing callback ×1** — `TableViewerTab.tsx:747`. Wrap with
   `useEffectEvent` (React 19) so the effect doesn't re-subscribe each parent render.
