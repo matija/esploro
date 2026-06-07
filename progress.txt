@@ -558,6 +558,31 @@ Next: continue Phase 2 — `no-derived-state` (×1, Sidebar.tsx:52), `no-chained
 `prefer-useEffectEvent` (×1, TableViewerTab), `advanced-event-handler-refs`
 (×1, QueryEditorTab), `no-event-handler` (×2, SqlEditor, QueryEditorTab).
 
+## 2026-06-08 — Frontend Health Remediation Phase 2: no-derived-state (Sidebar.tsx:52)
+
+- `Sidebar.tsx:52`: removed the `useEffect` that watched `pendingNewConnection`
+  and triggered `setPendingNewConnection(false) + openCreate()`. Replaced with
+  render-time adjustment using a `prevPendingRef` guard — the same pattern as
+  ConnectionForm and SavedQueriesSection. When `pendingNewConnection` transitions
+  from false to true during render, the guard fires the four state setters inline
+  (Zustand + useState) without deferring to an effect, avoiding the stale
+  intermediate render.
+- `openCreate` (wrapped in `useCallback`) is still used by the "+" button
+  onClick and `ConnectionList`'s `onNewConnection` prop, so it stays. The
+  render-time guard inlines its logic rather than calling it, keeping the guard
+  self-contained.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 240→239, bugs 95→94, score 66/100.
+`no-derived-state`: 1→0 — resolved. `no-cascading-setState` also verified 0
+(resolved by the earlier P1.2 UpdateSheet key remount).
+
+Next: continue Phase 2 — `no-chained-setState` (×1, CommandPalette.tsx:451),
+`no-event-handler` (×2, SqlEditor.tsx:113, QueryEditorTab.tsx:444),
+`prefer-useEffectEvent` (×1, TableViewerTab.tsx:747),
+`advanced-event-handler-refs` (×1, QueryEditorTab.tsx:188).
+
 ## 2026-06-08 — Frontend Health Remediation Phase 2: prop-derived-into-useState
 
 - `SavedQueriesSection.tsx:180-188`: rewrote the rename interaction to use the

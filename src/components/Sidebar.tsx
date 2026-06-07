@@ -46,12 +46,17 @@ export function Sidebar() {
     void loadProfiles();
   }, [loadProfiles]);
 
-  useEffect(() => {
-    if (pendingNewConnection) {
-      setPendingNewConnection(false);
-      openCreate();
-    }
-  }, [pendingNewConnection, openCreate, setPendingNewConnection]);
+  // When pendingNewConnection transitions true, open the create form.
+  // Adjust state during render (with a prevRef guard) instead of in an
+  // effect to avoid the stale intermediate render.
+  const prevPendingRef = useRef(pendingNewConnection);
+  if (pendingNewConnection && !prevPendingRef.current) {
+    setPendingNewConnection(false);
+    setEditingProfile(undefined);
+    setInitialConnectionUrl(undefined);
+    setFormOpen(true);
+  }
+  prevPendingRef.current = pendingNewConnection;
 
   function openEdit(profile: ConnectionProfile) {
     setEditingProfile(profile);

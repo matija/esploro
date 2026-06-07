@@ -179,11 +179,13 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
     conditionally renders the component so it already remounts on each open; also clears
     overlapping `no-reset-all-state-on-prop-change` (1→0), `no-event-handler` (3→2), and
     `no-derived-state` (1→0 at this line) findings.
-- **Derived value copied into state ×1 remaining** (`no-derived-state`) — `Sidebar.tsx:52`. 
-  (ConnectionForm, ColumnFilterPopover, SavedQueriesSection resolved.) Compute during render / `useMemo`.
+- **Derived value copied into state ×0** ✅ (`no-derived-state`) — **DONE 2026-06-08**.
+  `Sidebar.tsx:52`: removed the `useEffect` that watched `pendingNewConnection` and called
+  `setPendingNewConnection(false) + openCreate()`. Replaced with render-time adjustment
+  using a `prevPendingRef` guard — the same pattern as ConnectionForm/SavedQueriesSection.
 - **Prop derived into useState ×1** — `SavedQueriesSection.tsx:180` (`renameValue` init). ✅ **DONE 2026-06-08**
-- **Cascading setState in one effect ×1** — `UpdateSheet.tsx:26`.
-  Consider `useReducer` or keying.
+- **Cascading setState in one effect ×0** ✅ — resolved by the P1.2 `key={String(updateSheetOpen)}`
+  remount on `UpdateSheet`, which eliminated the effect entirely.
 - **Chained state updates through effects ×1** — `CommandPalette.tsx:451`.
   Set related state together in the triggering handler.
 - **Event logic in an effect ×2** — `SqlEditor.tsx:111`, `QueryEditorTab.tsx:443`.
