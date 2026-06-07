@@ -464,3 +464,19 @@ React Doctor: **errors 11→0** ✖, issues 265→254, score 63/100.
 `query-destructure-result`: 11→0 — **P1.3 complete**.
 
 Next: P1.4 mutation-without-cache-invalidation (1 finding).
+
+## 2026-06-07 — Frontend Health Remediation P1.4: mutation cache invalidation
+
+- `QueryEditorTab.tsx:649`: `runMutation` (executes arbitrary SQL) now invalidates
+  `schemas`, `objects`, `columns`, and `roles` caches for the active `sessionId`
+  on success — the four cache groups that user-executed SQL can affect. Guarded
+  behind `if (sessionId)`. Mirrors the SchemaTree manual-refresh invalidation
+  pattern (SchemaTree.tsx:654-657). Behavior-preserving re-fetch; no logic changes.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only pre-existing
+SchemaTree.tsx:981 exhaustive-deps), `npm run build` succeeds.
+
+React Doctor: issues 254→253, score 64/100.
+`mutation-without-cache-invalidation`: 1→0 — **P1.4 complete**.
+
+Next: P1.5 stray-0 render (1 finding).

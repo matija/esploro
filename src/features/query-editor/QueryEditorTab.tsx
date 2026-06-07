@@ -664,6 +664,13 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
         rowCount: totalRows,
         timestamp: Date.now(),
       });
+      // Invalidate caches that the SQL may have affected (DDL/DML)
+      if (sessionId) {
+        void rqClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
+        void rqClient.invalidateQueries({ queryKey: ["objects", sessionId] });
+        void rqClient.invalidateQueries({ queryKey: ["columns", sessionId] });
+        void rqClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+      }
       if (firstError) {
         toast(`Query error: ${firstError.message}`, "error");
       } else {

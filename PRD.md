@@ -141,14 +141,15 @@ component uses (`data`, `isLoading`, `isError`, `error`, `refetch`), with aliase
 two queries in one component expose the same field names. Behavior-preserving re-render
 optimization.
 
-### P1.4 Mutation without cache invalidation — 1 finding
+### P1.4 Mutation without cache invalidation — 1 finding ✅ **DONE 2026-06-07**
 
 - `src/features/query-editor/QueryEditorTab.tsx:649`
 
-A mutation succeeds but doesn't invalidate the cache it affects, so cached lists can go
-stale. **Fix:** add `onSuccess: () => queryClient.invalidateQueries({ queryKey: [...] })`
-with the correct key (likely the saved-queries list). Confirm what the mutation changes
-before picking the key. Verify the dependent view refreshes after the mutation.
+Added cache invalidation in `runMutation.onSuccess` for the caches that executing
+arbitrary SQL can affect: `["schemas", sessionId]`, `["objects", sessionId]`,
+`["columns", sessionId]`, `["roles", sessionId]` — mirroring the refresh pattern
+in `SchemaTree.tsx:654-657`. Guarded behind `if (sessionId)` since the session can
+be null (run button is disabled without a session, but the guard is defensive).
 
 ### P1.5 Stray `0` render — 1 finding
 
