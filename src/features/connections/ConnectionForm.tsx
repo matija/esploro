@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -109,19 +109,27 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     applyParsedUrl(urlInput);
   }
 
-  useEffect(() => {
-    if (!open) return;
-
-    const nextContextKey = profile ? `edit:${profile.id}` : `new:${initialUrl ?? ''}`;
-    if (contextKeyRef.current === nextContextKey) {
-      // Same context as last time the dialog was open — keep the draft
-      // (only clear transient UI state).
+  // Clear transient UI state on open transition (during render, not effect).
+  const prevOpenRef = useRef(open);
+  if (open !== prevOpenRef.current) {
+    prevOpenRef.current = open;
+    if (open) {
       setErrors({});
       setTestState('idle');
       setSaving(false);
-      return;
     }
-    contextKeyRef.current = nextContextKey;
+  }
+
+  // Reset form state when the "context" (profile + seed URL) changes.
+  // Adjusting during render avoids the extra stale-intermediate commit
+  // that an effect-based sync would produce.
+  const nextCtx = open
+    ? profile
+      ? `edit:${profile.id}`
+      : `new:${initialUrl ?? ''}`
+    : null;
+  if (open && nextCtx !== contextKeyRef.current) {
+    contextKeyRef.current = nextCtx;
 
     const d = profile?.driver ?? 'postgres';
     setDriver(d);
@@ -138,15 +146,11 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     setSslMode(profile?.sslMode ?? 'prefer');
     setPoolMaxConnections(String(profile?.poolMaxConnections ?? 5));
     setUrlInput(initialUrl ?? '');
-    setErrors({});
-    setTestState('idle');
-    setSaving(false);
 
     if (!profile && initialUrl) {
       applyParsedUrl(initialUrl);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, profile?.id, initialUrl]);
+  }
 
   function buildInput(): ConnectionInput {
     const maxConn = parseInt(poolMaxConnections);

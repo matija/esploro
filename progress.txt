@@ -412,3 +412,26 @@ Next: P1.2 ConnectionForm (3 remaining findings in the effect at lines ~119-143)
 
 Verification: `tsc --noEmit` clean, `eslint` clean (only the pre-existing
 SchemaTree.tsx:969 exhaustive-deps warning), `npm run build` succeeds.
+
+## 2026-06-07 — Frontend Health Remediation P1.2: ConnectionForm prop→state fix (final 3)
+
+- Removed the `useEffect` that synced ~15 state fields to `profile`/`initialUrl`
+  props. Replaced with **render-time adjustment** using two ref guards:
+  - `prevOpenRef`: clears transient UI state (`errors`, `testState`, `saving`) on
+    the open transition, during render.
+  - `contextKeyRef` comparison: resets form fields only when the "context"
+    (profile ID + seed URL) changes.
+- Draft preservation (re-open "New Connection" → keep typed fields) is unchanged.
+- Also eliminated overlapping Phase 2 findings on the same effect block:
+  `no-cascading-setState` (1), `no-derived-state` (1), `event-in-effect` (1),
+  and the `exhaustive-deps` suppression.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only pre-existing
+SchemaTree.tsx:969 exhaustive-deps), `npm run build` succeeds.
+
+React Doctor: errors 18→11, issues 289→265, score 61→63.
+`no-adjust-state-on-prop-change`: 7→0 — **P1.2 complete**.
+Other rules improved: `no-cascading-setState` 2→1, `event-in-effect` 7→3,
+`no-derived-state` 15→14, missing-exhaustive-deps 7→6.
+
+Next: P1.3 query-destructure-result (11 findings).

@@ -85,26 +85,30 @@ fixes together; see P1.2 / P2.)
 
 **Done 2026-06-07.** Added `const tid = setTimeout(...)` and `return () => clearTimeout(tid)`.
 
-### P1.2 State synced to a prop inside an effect — 11 findings (`no-adjust-state-on-prop-change`)
+### P1.2 State synced to a prop inside an effect — 11 findings (`no-adjust-state-on-prop-change`) ✅ **DONE 2026-06-07**
 
 - `src/features/table-viewer/RefreshButton.tsx:20` ✅
 - `src/features/updates/UpdateSheet.tsx:28-30` ✅
-- `src/features/connections/ConnectionForm.tsx:119-121, 137, 141-143`
-- (remaining occurrences listed in the report — re-grep, the line numbers shift as you edit)
+- `src/features/connections/ConnectionForm.tsx:119-121, 137, 141-143` ✅
+- (remaining occurrences all resolved — 0 findings after final scan)
 
-**Done 2026-06-07 (RefreshButton + UpdateSheet).**
+**All 11 resolved.** Fix pattern per component:
 
 - `RefreshButton.tsx`: moved the clock reset out of the effect and into render via a
   `prevShouldTick` ref guard — when `shouldTick` (data hasn't timed out, not fetching)
   transitions true, `setNow(Date.now())` fires during render. The effect only starts the
-  10 s interval. No stale intermediate render; behavior-preserving.
+  10 s interval. No stale intermediate render.
 - `UpdateSheet.tsx`: removed the `useEffect` that reset `phase/progress/error` on `open`
-  changes. Instead, the parent (`AppShell.tsx`) passes `key={String(updateSheetOpen)}` so
-  React remounts the component when the sheet opens/closes, giving it clean default state
-  without a stale-reset render. This also clears the `no-reset-all-state-on-prop-change`
-  finding on the same block.
-
-Countdown: 11 → 7 remaining.
+  changes. Parent (`AppShell.tsx`) passes `key={String(updateSheetOpen)}` so React
+  remounts the component when the sheet opens/closes, giving it clean default state
+  without a stale-reset render. Also clears `no-reset-all-state-on-prop-change`.
+- `ConnectionForm.tsx`: removed the `useEffect` that synced ~15 state fields to
+  `profile`/`initialUrl` props. Replaced with **render-time adjustment** using a
+  `prevOpenRef` guard (transient UI clear on open transition) and a context-key ref
+  comparison (form reset when the profile/URL context changes). Draft preservation
+  (re-open same context → keep typed fields) is unchanged. Also resolved overlapping
+  Phase 2 findings on the same block: `no-cascading-setState`, `no-derived-state`,
+  `event-in-effect`, and the missing exhaustive-deps annotation. Behavior-preserving.
 
 **Pattern.** State is recomputed from a prop via `useEffect`, forcing an extra render with a
 stale UI between the two commits. Fixes, in order of preference:
