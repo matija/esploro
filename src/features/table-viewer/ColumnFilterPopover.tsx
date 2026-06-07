@@ -38,14 +38,6 @@ export function ColumnFilterPopover({
     entry ?? { operator: ops[0], value: "" },
   );
 
-  // Sync draft when popover opens
-  useEffect(() => {
-    if (open) {
-      setDraft(entry ?? { operator: ops[0], value: "" });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   // Build a stable virtual ref wrapping the live anchor element
   const virtualRef = useRef({ getBoundingClientRect: () => anchorEl?.getBoundingClientRect() ?? new DOMRect() });
   useEffect(() => {

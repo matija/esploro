@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete — 0 ✖ errors, 252 warnings remaining (Phases 2–5)
+**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 244 warnings remaining (Phases 2–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -169,22 +169,25 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
 - **Array index as key ×4** — `RoleDetailPanel.tsx:65`, `QueryEditorTab.tsx:335`,
   `SchemaDetailPanel.tsx:39`, `TablePrivilegesTab.tsx:35`. Use a stable id from the item.
   If no natural id exists, confirm the list never reorders/filters before keeping the index.
-- **Missing effect dependencies ×7** — `SqlEditor.tsx:96`, `Sidebar.tsx:42,50`,
-  `MiniSqlEditor.tsx:641`, `SchemaTree.tsx:969`, `ConnectionForm.tsx:149`,
-  `ColumnFilterPopover.tsx:47`. **Read each callback first** — don't blindly add deps. Prefer
-  functional updaters or moving recreated values inside the effect. (`SchemaTree.tsx` has a
-  long-standing documented exception in the prior PRD — confirm whether it's the same one.)
+- **Missing effect dependencies ×0** ✅ **DONE 2026-06-08** — All resolved:
+  - `Sidebar.tsx:42,50`: wrapped `loadProfiles` and `openCreate` in `useCallback`, added to deps.
+  - `SqlEditor.tsx:96`, `MiniSqlEditor.tsx:641`: added `editorInitializedRef` guard so deps
+    (`extensions`, `value`) are listed but the effect only creates the CodeMirror editor once.
+  - `SchemaTree.tsx:981`: replaced `isExp(rolesGroupKey)` with `expandedNodes[rolesGroupKey]`
+    (`expandedNodes` already in deps; `isExp` function reference was the missing dep).
+  - `ColumnFilterPopover.tsx:47`: removed the redundant draft-sync effect entirely — the parent
+    conditionally renders the component so it already remounts on each open; also clears
+    overlapping `no-reset-all-state-on-prop-change` (1→0), `no-event-handler` (3→2), and
+    `no-derived-state` (1→0 at this line) findings.
 - **Derived value copied into state ×15** (`no-derived-state`) — `ConnectionForm.tsx:127-140`,
   `ColumnFilterPopover.tsx:44`, `SavedQueriesSection.tsx:185`. Compute during render / `useMemo`.
 - **Prop derived into useState ×1** — `SavedQueriesSection.tsx:180` (`renameValue` init).
   Often resolved together with P1.1 by using the prev-prop pattern or keying the rename input.
-- **Cascading setState in one effect ×2** — `UpdateSheet.tsx:26`, `ConnectionForm.tsx:112`.
+- **Cascading setState in one effect ×1** — `UpdateSheet.tsx:26`.
   Consider `useReducer` or keying.
 - **Chained state updates through effects ×2** — `CommandPalette.tsx:451`,
   `SavedQueriesSection.tsx:185`. Set related state together in the triggering handler.
-- **Event logic in an effect ×7** — `UpdateSheet.tsx:27`, `SqlEditor.tsx:111`,
-  `ConnectionForm.tsx:145`, `ColumnFilterPopover.tsx:43`, `SavedQueriesSection.tsx:184`,
-  `QueryEditorTab.tsx:443`. Move the side effect into the event handler.
+- **Event logic in an effect ×2** — `SqlEditor.tsx:111`, `QueryEditorTab.tsx:443`.
 - **Effect re-subscribes on a changing callback ×1** — `TableViewerTab.tsx:747`. Wrap with
   `useEffectEvent` (React 19) so the effect doesn't re-subscribe each parent render.
 - **Listener re-subscribes on handler change ×1** — `QueryEditorTab.tsx:188`. Store the

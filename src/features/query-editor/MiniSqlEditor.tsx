@@ -627,9 +627,12 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
     [schemaCompletions, placeholder, operatorCompletionSource, whereCompletionSource, whereColumns, sqlDriver],
   );
 
-  // Mount once
+  // Mount once (subsequent schema/placeholder/value changes synced by dedicated effects)
+  const editorInitializedRef = useRef(false);
   useEffect(() => {
+    if (editorInitializedRef.current) return;
     if (!containerRef.current) return;
+    editorInitializedRef.current = true;
     const state = EditorState.create({ doc: value, extensions });
     const view = new EditorView({ state, parent: containerRef.current });
     viewRef.current = view;
@@ -637,8 +640,7 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
       view.destroy();
       viewRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [extensions, value]);
 
   // Reconfigure when schema/placeholder change
   useEffect(() => {

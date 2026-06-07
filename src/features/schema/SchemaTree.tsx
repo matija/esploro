@@ -952,7 +952,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     // Roles section — Postgres only, appended below schemas
     if (!isMysql) {
       items.push({ key: rolesGroupKey, node: { kind: "roles-group", sessionId, connectionId } });
-      if (isExp(rolesGroupKey)) {
+      if (expandedNodes[rolesGroupKey]) {
         if (rolesLoading) {
           items.push({ key: `${rolesGroupKey}:loading`, node: { kind: "loading", depth: 2 } });
         } else if (rolesError) {

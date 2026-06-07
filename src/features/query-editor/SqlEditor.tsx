@@ -76,9 +76,12 @@ export function SqlEditor({
     [schemaCompletions, editorTabSize, editorWordWrap],
   );
 
-  // Mount the editor once
+  // Mount the editor once (subsequent value/extensions changes synced by dedicated effects)
+  const editorInitializedRef = useRef(false);
   useEffect(() => {
+    if (editorInitializedRef.current) return;
     if (!containerRef.current) return;
+    editorInitializedRef.current = true;
 
     const state = EditorState.create({
       doc: value,
@@ -92,8 +95,7 @@ export function SqlEditor({
       view.destroy();
       viewRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally mount-only; value/extensions synced by subsequent effects
+  }, [extensions, value]);
 
   // Reconfigure extensions when they change (dark mode / schema completions)
   useEffect(() => {

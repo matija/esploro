@@ -27,33 +27,31 @@ export function Sidebar() {
   const [editingProfile, setEditingProfile] = useState<ConnectionProfile | undefined>();
   const [initialConnectionUrl, setInitialConnectionUrl] = useState<string | undefined>();
 
-  async function loadProfiles() {
+  const openCreate = useCallback(() => {
+    setEditingProfile(undefined);
+    setInitialConnectionUrl(undefined);
+    setFormOpen(true);
+  }, []);
+
+  const loadProfiles = useCallback(async () => {
     try {
       const data = await connectionsApi.list();
       setProfiles(data);
     } catch (e) {
       console.error("Failed to load connections", e);
     }
-  }
+  }, [setProfiles]);
 
   useEffect(() => {
-    loadProfiles();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadProfiles();
+  }, [loadProfiles]);
 
   useEffect(() => {
     if (pendingNewConnection) {
       setPendingNewConnection(false);
       openCreate();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingNewConnection]);
-
-  function openCreate() {
-    setEditingProfile(undefined);
-    setInitialConnectionUrl(undefined);
-    setFormOpen(true);
-  }
+  }, [pendingNewConnection, openCreate, setPendingNewConnection]);
 
   function openEdit(profile: ConnectionProfile) {
     setEditingProfile(profile);

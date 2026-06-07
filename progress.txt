@@ -497,3 +497,39 @@ React Doctor: issues 253→252, score 64/100.
 **Phase 1 (all 5 correctness-critical tasks) is now complete.** 0 error-severity
 (✖) findings remain. The 107 bug warnings, 85 accessibility warnings, 35
 performance warnings, and 25 maintainability warnings are in Phases 2–5.
+
+## 2026-06-08 — Frontend Health Remediation Phase 2: Missing effect dependencies
+
+Resolved all 6 remaining `exhaustive-deps` findings, the highest-priority
+correctness bugs in Phase 2:
+
+- `Sidebar.tsx:42,50`: wrapped `loadProfiles` in `useCallback([setProfiles])`
+  and `openCreate` in `useCallback([])`, added both to their respective effect
+  deps. Also added `setPendingNewConnection` (stable Zustand setter) to the
+  second effect's deps. Removed both `eslint-disable` comments.
+- `SqlEditor.tsx:96`: added an `editorInitializedRef` guard so `extensions` and
+  `value` are listed in deps but the CodeMirror `EditorView` is only created
+  once on mount. Subsequent extension/value changes are handled by the existing
+  dedicated reconfigure and sync effects. Removed `eslint-disable`.
+- `MiniSqlEditor.tsx:641`: same ref-guard pattern; deps now `[extensions, value]`,
+  editor created only once. Removed `eslint-disable`.
+- `SchemaTree.tsx:981`: replaced `isExp(rolesGroupKey)` with
+  `expandedNodes[rolesGroupKey]` directly in the `useMemo`. `expandedNodes` was
+  already in the deps; the missing dep was the `isExp` function reference.
+- `ColumnFilterPopover.tsx:42-47`: removed the redundant draft-sync `useEffect`
+  entirely. The parent already conditionally renders the component (renders
+  `null` when closed), so it remounts with fresh `useState` defaults on each
+  open. This also cleared overlapping Phase 2 findings at the same block:
+  `no-reset-all-state-on-prop-change` (1→0), `no-event-handler` (3→2), and
+  `no-derived-state` (the stale-draft effect line).
+
+Verification: `tsc --noEmit` clean, `eslint` clean (no pre-existing warnings
+remain — SchemaTree.tsx exhaustive-deps is resolved), `npm run build` succeeds.
+
+React Doctor: issues 252→244, bugs 107→99, score 64→65/100.
+`exhaustive-deps`: 6→0 — resolved.
+Side-effects: `no-reset-all-state-on-prop-change` 1→0, `no-event-handler` 3→2.
+
+Next: continue Phase 2 — array-index-as-key (×4), prop-derived-into-useState
+(×1, SavedQueriesSection), chained-state-updates (×1, CommandPalette),
+prefer-useEffectEvent (×1), advanced-event-handler-refs (×1).
