@@ -62,13 +62,18 @@ export function TablePrivilegesTab({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const granteesQuery = useQuery({
+  const {
+    data: granteesData,
+    isLoading: granteesLoading,
+    isError: granteesError,
+    error: granteesErr,
+  } = useQuery({
     queryKey: ["table-privileges", sessionId, schema, table],
     queryFn: () => rolesApi.listTablePrivileges(sessionId, schema, table),
     enabled: !!sessionId,
   });
 
-  const allRolesQuery = useQuery({
+  const { data: allRolesData } = useQuery({
     queryKey: ["roles", sessionId],
     queryFn: () => rolesApi.listRoles(sessionId),
     staleTime: 5 * 60 * 1000,
@@ -82,7 +87,7 @@ export function TablePrivilegesTab({
   const [showAddGrantee, setShowAddGrantee] = useState(false);
   const [addGranteeSearch, setAddGranteeSearch] = useState("");
 
-  const serverGrantees = useMemo(() => granteesQuery.data ?? [], [granteesQuery.data]);
+  const serverGrantees = useMemo(() => granteesData ?? [], [granteesData]);
 
   const allGrantees = useMemo(() => {
     const serverSet = new Set(serverGrantees.map((g) => g.grantee));
@@ -157,21 +162,21 @@ export function TablePrivilegesTab({
 
   const availableGrantees = useMemo(() => {
     const current = new Set(allGrantees);
-    return (allRolesQuery.data ?? [])
+    return (allRolesData ?? [])
       .filter((r) => !current.has(r.name))
       .filter((r) =>
         addGranteeSearch ? r.name.toLowerCase().includes(addGranteeSearch.toLowerCase()) : true,
       );
-  }, [allRolesQuery.data, allGrantees, addGranteeSearch]);
+  }, [allRolesData, allGrantees, addGranteeSearch]);
 
-  if (granteesQuery.isLoading) {
+  if (granteesLoading) {
     return <div className="p-5 text-[13px] text-tertiary">Loading privileges…</div>;
   }
-  if (granteesQuery.isError) {
+  if (granteesError) {
     return (
       <div className="p-5 text-[13px] text-query-failed">
-        {granteesQuery.error instanceof Error
-          ? granteesQuery.error.message
+        {granteesErr instanceof Error
+          ? granteesErr.message
           : "Failed to load privileges"}
       </div>
     );

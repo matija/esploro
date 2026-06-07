@@ -129,20 +129,17 @@ behaves. Treat this one as its own small change.
 error); open the connection form for new + existing profiles and confirm fields populate and
 errors clear correctly; watch the table-viewer refresh label tick.
 
-### P1.3 TanStack Query result assigned whole — 11 findings (`query-destructure-result`)
+### P1.3 TanStack Query result assigned whole — 11 findings (`query-destructure-result`) ✅ **DONE 2026-06-07**
 
 - `RoleDetailPanel.tsx:352, 356, 718, 1009`
 - `SchemaTree.tsx:661, 674`
 - `SchemaDetailPanel.tsx:68, 73, 288`
 - `TablePrivilegesTab.tsx:65, 71`
 
-Assigning the whole `useQuery(...)` object (`const membersQuery = useQuery(...)`) bypasses
-TanStack Query's tracked-property optimization and subscribes the component to *every* field,
-causing extra re-renders. **Fix:** destructure only what's used —
-`const { data: members, isLoading } = useQuery(...)` — and update references. Where two
-queries in one component both expose `data`/`isLoading`, alias them (`data: roles`,
-`data: privs`). Purely a re-render optimization; behavior is unchanged but verify the panels
-still render their loading/empty/error states.
+**All 11 resolved.** Each `useQuery(...)` call now destructures only the fields the
+component uses (`data`, `isLoading`, `isError`, `error`, `refetch`), with aliases where
+two queries in one component expose the same field names. Behavior-preserving re-render
+optimization.
 
 ### P1.4 Mutation without cache invalidation — 1 finding
 

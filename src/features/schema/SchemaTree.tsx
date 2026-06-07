@@ -658,7 +658,13 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   }
 
   // Level 1 — schemas (connection IS the database; MySQL has no schema level)
-  const schemasQuery = useQuery({
+  const {
+    data: schemasData,
+    isLoading: schemasLoading,
+    isError: schemasError,
+    error: schemasErr,
+    refetch: refetchSchemas,
+  } = useQuery({
     queryKey: ["schemas", sessionId, targetDatabase],
     queryFn: () => withSessionRetry(connectionId, (sid) => schemaApi.listSchemas(sid, targetDatabase), toast),
     staleTime: SCHEMA_STALE_MS,
@@ -666,12 +672,18 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   });
   const schemas = useMemo(() => {
     if (isMysql) return [targetDatabase];
-    return sortSchemas(schemasQuery.data ?? []);
-  }, [isMysql, schemasQuery.data, targetDatabase]);
+    return sortSchemas(schemasData ?? []);
+  }, [isMysql, schemasData, targetDatabase]);
 
   // Roles — Postgres only; fetched when the Roles group is expanded
   const rolesGroupKey = `${connectionId}:roles`;
-  const rolesQuery = useQuery({
+  const {
+    data: rolesData,
+    isLoading: rolesLoading,
+    isError: rolesError,
+    error: rolesErr,
+    refetch: refetchRoles,
+  } = useQuery({
     queryKey: ["roles", sessionId],
     queryFn: () => withSessionRetry(connectionId, (sid) => rolesApi.listRoles(sid), toast),
     staleTime: SCHEMA_STALE_MS,
@@ -794,22 +806,22 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   } else {
     // Normal tree mode — schemas are the root level
     if (!isMysql) {
-      if (schemasQuery.isLoading) {
+      if (schemasLoading) {
         items.push({ key: "loading-schemas", node: { kind: "loading", depth: 0 } });
-      } else if (schemasQuery.isError) {
+      } else if (schemasError) {
         items.push({
           key: "error-schemas",
           node: {
             kind: "error",
             depth: 0,
-            message: errorMessage(schemasQuery.error, "Could not load schemas"),
-            onRetry: () => { void schemasQuery.refetch(); },
+            message: errorMessage(schemasErr, "Could not load schemas"),
+            onRetry: () => { void refetchSchemas(); },
           },
         });
       }
     }
 
-    if (!schemasQuery.isLoading && !schemasQuery.isError) {
+    if (!schemasLoading && !schemasError) {
       for (const schema of schemas) {
         const sk = schemaKey(connectionId, targetDatabase, schema);
         // MySQL: skip rendering the schema node (database IS the connection)
@@ -941,20 +953,20 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     if (!isMysql) {
       items.push({ key: rolesGroupKey, node: { kind: "roles-group", sessionId, connectionId } });
       if (isExp(rolesGroupKey)) {
-        if (rolesQuery.isLoading) {
+        if (rolesLoading) {
           items.push({ key: `${rolesGroupKey}:loading`, node: { kind: "loading", depth: 2 } });
-        } else if (rolesQuery.isError) {
+        } else if (rolesError) {
           items.push({
             key: `${rolesGroupKey}:error`,
             node: {
               kind: "error",
               depth: 2,
-              message: errorMessage(rolesQuery.error, "Could not load roles"),
-              onRetry: () => { void rolesQuery.refetch(); },
+              message: errorMessage(rolesErr, "Could not load roles"),
+              onRetry: () => { void refetchRoles(); },
             },
           });
         } else {
-          for (const role of rolesQuery.data ?? []) {
+          for (const role of rolesData ?? []) {
             items.push({
               key: `${connectionId}:role:${role.name}`,
               node: { kind: "role", name: role.name, sessionId, connectionId },
@@ -978,16 +990,16 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     objectQueries,
     objectsMap,
     rolesGroupKey,
-    rolesQuery.data,
-    rolesQuery.error,
-    rolesQuery.isError,
-    rolesQuery.isLoading,
-    rolesQuery.refetch,
+    rolesData,
+    rolesErr,
+    rolesError,
+    rolesLoading,
+    refetchRoles,
     schemas,
-    schemasQuery.error,
-    schemasQuery.isError,
-    schemasQuery.isLoading,
-    schemasQuery.refetch,
+    schemasErr,
+    schemasError,
+    schemasLoading,
+    refetchSchemas,
     sessionId,
     targetDatabase,
   ]);

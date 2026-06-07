@@ -435,3 +435,32 @@ Other rules improved: `no-cascading-setState` 2→1, `event-in-effect` 7→3,
 `no-derived-state` 15→14, missing-exhaustive-deps 7→6.
 
 Next: P1.3 query-destructure-result (11 findings).
+
+## 2026-06-07 — Frontend Health Remediation P1.3: TanStack Query destructure-result (11 findings)
+
+Destructured every `useQuery(...)` result across 4 files so components subscribe only
+to the fields they use, enabling TanStack Query's tracked-property optimization:
+
+- `RoleDetailPanel.tsx` (4 queries): `membersQuery` → `{ data: membersData, refetch: refetchMembers }`,
+  `allRolesQuery` → `{ data: allRolesData }`, `privsQuery` → `{ data: privsData, isLoading: privsLoading,
+  isError: privsError, error: privsErr, refetch: refetchPrivs }`, `roleQuery` → `{ data: rolesData,
+  isLoading: roleLoading }`. Updated all references throughout the MembershipTab, PrivilegesTab,
+  and RoleDetailPanel components.
+- `SchemaTree.tsx` (2 queries): `schemasQuery` → `{ data: schemasData, isLoading, isError, error,
+  refetch }`, `rolesQuery` → `{ data: rolesData, isLoading, isError, error, refetch }`.
+- `SchemaDetailPanel.tsx` (3 queries across 2 components): `SchemaPrivilegesTab`'s `infoQuery` →
+  `{ data: infoData, isLoading, isError, error, refetch }` and `allRolesQuery` → `{ data: allRolesData }`;
+  `SchemaDetailPanel`'s `infoQuery` → `{ data: schemaOwner }` (used only for `infoQuery.data.owner`
+  in the header).
+- `TablePrivilegesTab.tsx` (2 queries): `granteesQuery` → `{ data: granteesData, isLoading,
+  isError, error }`, `allRolesQuery` → `{ data: allRolesData }`.
+
+Behavior-preserving: no logic changes, only re-render optimization.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only pre-existing SchemaTree.tsx:981
+exhaustive-deps), `npm run build` succeeds.
+
+React Doctor: **errors 11→0** ✖, issues 265→254, score 63/100.
+`query-destructure-result`: 11→0 — **P1.3 complete**.
+
+Next: P1.4 mutation-without-cache-invalidation (1 finding).

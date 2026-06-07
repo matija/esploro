@@ -349,11 +349,11 @@ function MembersTab({
   onRefresh: () => void;
 }) {
   const { toast } = useToast();
-  const membersQuery = useQuery({
+  const { data: membersData, refetch: refetchMembers } = useQuery({
     queryKey: ["role-members", sessionId, roleName],
     queryFn: () => rolesApi.listRoleMembers(sessionId, roleName),
   });
-  const allRolesQuery = useQuery({
+  const { data: allRolesData } = useQuery({
     queryKey: ["roles", sessionId],
     queryFn: () => rolesApi.listRoles(sessionId),
     staleTime: 5 * 60 * 1000,
@@ -370,7 +370,7 @@ function MembersTab({
   const [showAddMemberOf, setShowAddMemberOf] = useState(false);
 
   const members = useMemo(() => {
-    const base = membersQuery.data?.members ?? [];
+    const base = membersData?.members ?? [];
     const added = pendingOps
       .filter((op) => op.op === "grant" && op.role === roleName)
       .map((op) => op.member);
@@ -380,10 +380,10 @@ function MembersTab({
         .map((op) => op.member),
     );
     return [...new Set([...base, ...added])].filter((m) => !removed.has(m)).sort();
-  }, [membersQuery.data, pendingOps, roleName]);
+  }, [membersData, pendingOps, roleName]);
 
   const memberOf = useMemo(() => {
-    const base = membersQuery.data?.memberOf ?? [];
+    const base = membersData?.memberOf ?? [];
     const added = pendingOps
       .filter((op) => op.op === "grant" && op.member === roleName)
       .map((op) => op.role);
@@ -393,10 +393,10 @@ function MembersTab({
         .map((op) => op.role),
     );
     return [...new Set([...base, ...added])].filter((r) => !removed.has(r)).sort();
-  }, [membersQuery.data, pendingOps, roleName]);
+  }, [membersData, pendingOps, roleName]);
 
   function addMember(member: string) {
-    const existsInServer = membersQuery.data?.members.includes(member);
+    const existsInServer = membersData?.members.includes(member);
     const existsInPending = pendingOps.some(
       (op) => op.op === "grant" && op.role === roleName && op.member === member,
     );
@@ -412,7 +412,7 @@ function MembersTab({
   }
 
   function removeMember(member: string) {
-    const isFromServer = membersQuery.data?.members.includes(member);
+    const isFromServer = membersData?.members.includes(member);
     if (isFromServer) {
       setPendingOps((ops) => [
         ...ops.filter(
@@ -430,7 +430,7 @@ function MembersTab({
   }
 
   function addMemberOf(parentRole: string) {
-    const existsInServer = membersQuery.data?.memberOf.includes(parentRole);
+    const existsInServer = membersData?.memberOf.includes(parentRole);
     const existsInPending = pendingOps.some(
       (op) => op.op === "grant" && op.member === roleName && op.role === parentRole,
     );
@@ -445,7 +445,7 @@ function MembersTab({
   }
 
   function removeMemberOf(parentRole: string) {
-    const isFromServer = membersQuery.data?.memberOf.includes(parentRole);
+    const isFromServer = membersData?.memberOf.includes(parentRole);
     if (isFromServer) {
       setPendingOps((ops) => [
         ...ops.filter(
@@ -478,7 +478,7 @@ function MembersTab({
       const allOk = results.every((r) => !r.error);
       if (allOk) {
         setPendingOps([]);
-        void membersQuery.refetch();
+        void refetchMembers();
         onRefresh();
       } else {
         const failedOps = new Set(
@@ -489,7 +489,7 @@ function MembersTab({
         setPendingOps((ops) =>
           ops.filter((op) => failedOps.has(`${op.op}:${op.role}:${op.member}`)),
         );
-        void membersQuery.refetch();
+        void refetchMembers();
       }
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
@@ -500,25 +500,25 @@ function MembersTab({
 
   const availableForMembers = useMemo(() => {
     const current = new Set(members);
-    return (allRolesQuery.data ?? [])
+    return (allRolesData ?? [])
       .filter((r) => r.name !== roleName && !current.has(r.name))
       .filter((r) =>
         addMemberSearch
           ? r.name.toLowerCase().includes(addMemberSearch.toLowerCase())
           : true,
       );
-  }, [allRolesQuery.data, members, roleName, addMemberSearch]);
+  }, [allRolesData, members, roleName, addMemberSearch]);
 
   const availableForMemberOf = useMemo(() => {
     const current = new Set(memberOf);
-    return (allRolesQuery.data ?? [])
+    return (allRolesData ?? [])
       .filter((r) => r.name !== roleName && !current.has(r.name))
       .filter((r) =>
         addMemberOfSearch
           ? r.name.toLowerCase().includes(addMemberOfSearch.toLowerCase())
           : true,
       );
-  }, [allRolesQuery.data, memberOf, roleName, addMemberOfSearch]);
+  }, [allRolesData, memberOf, roleName, addMemberOfSearch]);
 
   const isDirty = pendingOps.length > 0;
 
@@ -715,7 +715,13 @@ function PrivilegesTab({
   sessionId: string;
 }) {
   const { toast } = useToast();
-  const privsQuery = useQuery({
+  const {
+    data: privsData,
+    isLoading: privsLoading,
+    isError: privsError,
+    error: privsErr,
+    refetch: refetchPrivs,
+  } = useQuery({
     queryKey: ["role-privileges", sessionId, roleName],
     queryFn: () => rolesApi.listRolePrivileges(sessionId, roleName),
   });
@@ -738,12 +744,12 @@ function PrivilegesTab({
     if (pending) return pending.op === "grant";
 
     if (objectType === "table") {
-      const grant = privsQuery.data?.tableGrants.find(
+      const grant = privsData?.tableGrants.find(
         (g) => g.schema === schema && g.table === name,
       );
       return grant?.privileges.includes(priv) ?? false;
     } else {
-      const grant = privsQuery.data?.schemaGrants.find((g) => g.schema === schema);
+      const grant = privsData?.schemaGrants.find((g) => g.schema === schema);
       return grant?.privileges.includes(priv) ?? false;
     }
   }
@@ -762,8 +768,8 @@ function PrivilegesTab({
     // Check if this is a no-op (reverting to server state)
     const serverHas =
       objectType === "table"
-        ? privsQuery.data?.tableGrants.find((g) => g.schema === schema && g.table === name)?.privileges.includes(priv) ?? false
-        : privsQuery.data?.schemaGrants.find((g) => g.schema === schema)?.privileges.includes(priv) ?? false;
+        ? privsData?.tableGrants.find((g) => g.schema === schema && g.table === name)?.privileges.includes(priv) ?? false
+        : privsData?.schemaGrants.find((g) => g.schema === schema)?.privileges.includes(priv) ?? false;
 
     setPendingOps((prev) => {
       const next = new Map(prev);
@@ -801,7 +807,7 @@ function PrivilegesTab({
         }
         return next;
       });
-      void privsQuery.refetch();
+      void refetchPrivs();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -809,26 +815,26 @@ function PrivilegesTab({
     }
   }
 
-  const tableGrants = privsQuery.data?.tableGrants ?? [];
-  const schemaGrants = privsQuery.data?.schemaGrants ?? [];
+  const tableGrants = privsData?.tableGrants ?? [];
+  const schemaGrants = privsData?.schemaGrants ?? [];
 
   // Group tables by schema — must be called before any conditional returns
   const tablesBySchema = useMemo(() => {
     const map = new Map<string, string[]>();
-    for (const g of privsQuery.data?.tableGrants ?? []) {
+    for (const g of privsData?.tableGrants ?? []) {
       if (!map.has(g.schema)) map.set(g.schema, []);
       map.get(g.schema)!.push(g.table);
     }
     return map;
-  }, [privsQuery.data?.tableGrants]);
+  }, [privsData?.tableGrants]);
 
-  if (privsQuery.isLoading) {
+  if (privsLoading) {
     return <div className="p-5 text-[13px] text-tertiary">Loading privileges…</div>;
   }
-  if (privsQuery.isError) {
+  if (privsError) {
     return (
       <div className="p-5 text-[13px] text-query-failed">
-        {privsQuery.error instanceof Error ? privsQuery.error.message : "Failed to load privileges"}
+        {privsErr instanceof Error ? privsErr.message : "Failed to load privileges"}
       </div>
     );
   }
@@ -1006,7 +1012,7 @@ export function RoleDetailPanel({ tab }: Props) {
 
   const [activeTab, setActiveTab] = useState<PanelTab>("attributes");
 
-  const roleQuery = useQuery({
+  const { data: rolesData, isLoading: roleLoading } = useQuery({
     queryKey: ["roles", sessionId],
     queryFn: () => rolesApi.listRoles(sessionId),
     enabled: !!sessionId && !!ctx,
@@ -1014,8 +1020,8 @@ export function RoleDetailPanel({ tab }: Props) {
   });
 
   const role = useMemo(
-    () => roleQuery.data?.find((r) => r.name === roleName),
-    [roleQuery.data, roleName],
+    () => rolesData?.find((r) => r.name === roleName),
+    [rolesData, roleName],
   );
 
   function handleRefresh() {
@@ -1034,7 +1040,7 @@ export function RoleDetailPanel({ tab }: Props) {
     );
   }
 
-  if (roleQuery.isLoading) {
+  if (roleLoading) {
     return (
       <div className="flex items-center justify-center h-full text-[13px] text-tertiary">
         Loading role…

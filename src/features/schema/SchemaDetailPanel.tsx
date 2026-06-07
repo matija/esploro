@@ -65,12 +65,18 @@ function SchemaPrivilegesTab({
 }) {
   const { toast } = useToast();
 
-  const infoQuery = useQuery({
+  const {
+    data: infoData,
+    isLoading: infoLoading,
+    isError: infoError,
+    error: infoErr,
+    refetch: refetchInfo,
+  } = useQuery({
     queryKey: ["schema-privileges", sessionId, schemaName],
     queryFn: () => rolesApi.listSchemaPrivileges(sessionId, schemaName),
   });
 
-  const allRolesQuery = useQuery({
+  const { data: allRolesData } = useQuery({
     queryKey: ["roles", sessionId],
     queryFn: () => rolesApi.listRoles(sessionId),
     staleTime: 60_000,
@@ -91,13 +97,13 @@ function SchemaPrivilegesTab({
     const key = opKey(grantee, priv);
     const pending = pendingOps.get(key);
     if (pending) return pending.op === "grant";
-    return infoQuery.data?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
+    return infoData?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
   }
 
   function togglePrivilege(grantee: string, priv: string) {
     const current = hasPrivilege(grantee, priv);
     const key = opKey(grantee, priv);
-    const serverHas = infoQuery.data?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
+    const serverHas = infoData?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
 
     setPendingOps((prev) => {
       const next = new Map(prev);
@@ -129,7 +135,7 @@ function SchemaPrivilegesTab({
         return next;
       });
       if (failedSqls.size === 0) setAddedGrantees([]);
-      void infoQuery.refetch();
+      void refetchInfo();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
@@ -137,21 +143,21 @@ function SchemaPrivilegesTab({
     }
   }
 
-  if (infoQuery.isLoading) {
+  if (infoLoading) {
     return <div className="p-5 text-[13px] text-tertiary">Loading privileges…</div>;
   }
-  if (infoQuery.isError) {
+  if (infoError) {
     return (
       <div className="p-5 text-[13px] text-query-failed">
-        {infoQuery.error instanceof Error ? infoQuery.error.message : "Failed to load privileges"}
+        {infoErr instanceof Error ? infoErr.message : "Failed to load privileges"}
       </div>
     );
   }
 
-  const existingGrantees = infoQuery.data?.grantees.map((g) => g.grantee) ?? [];
+  const existingGrantees = infoData?.grantees.map((g) => g.grantee) ?? [];
   const allGrantees = [...existingGrantees, ...addedGrantees.filter((g) => !existingGrantees.includes(g))];
 
-  const availableRoles = (allRolesQuery.data ?? []).filter(
+  const availableRoles = (allRolesData ?? []).filter(
     (r) => !allGrantees.includes(r.name) && r.name.toLowerCase().includes(roleSearch.toLowerCase()),
   );
 
@@ -285,7 +291,7 @@ export function SchemaDetailPanel({ tab }: { tab: Tab }) {
   const connectionId = ctx?.connectionId ?? "";
   const sessionId = activeSessions[connectionId] ?? "";
 
-  const infoQuery = useQuery({
+  const { data: schemaOwner } = useQuery({
     queryKey: ["schema-privileges", sessionId, schemaName],
     queryFn: () => rolesApi.listSchemaPrivileges(sessionId, schemaName),
     enabled: !!sessionId && !!ctx,
@@ -312,7 +318,7 @@ export function SchemaDetailPanel({ tab }: { tab: Tab }) {
         <div className="min-w-0">
           <div className="text-[14px] font-semibold text-label truncate">{schemaName}</div>
           <div className="text-[12px] text-tertiary">
-            {infoQuery.data ? `owner: ${infoQuery.data.owner}` : "schema"}
+            {schemaOwner ? `owner: ${schemaOwner.owner}` : "schema"}
           </div>
         </div>
       </div>
