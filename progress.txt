@@ -377,7 +377,32 @@ exhaustive-deps warning.
 
 PRD complete.
 
-## 2026-06-07 — Frontend Health Remediation P1.1: effect cleanup
+## 2026-06-07 — Frontend Health Remediation P1.2: RefreshButton + UpdateSheet prop→state fixes
+
+- `RefreshButton.tsx`: moved the clock reset (`setNow(Date.now())`) out of the
+  `useEffect` and into render with a `prevShouldTick` ref guard. `shouldTick`
+  (data is valid + not fetching) is computed each render; when it transitions
+  to `true`, `setNow` fires during render — the recommended React pattern for
+  adjusting state when a prop changes (avoids the extra stale intermediate
+  render). The effect now only starts the 10 s interval.
+- `UpdateSheet.tsx`: removed the `useEffect` that reset `phase/progress/error`
+  when the `open` prop changed. The parent (`AppShell.tsx`) now passes
+  `key={String(updateSheetOpen)}` so React remounts the component when the
+  sheet opens or closes — all local state gets its default initial values
+  without a stale-reset intermediate render. This also clears the
+  `no-reset-all-state-on-prop-change` finding on the same block.
+- Behavior-preserving: the age label in RefreshButton still resets immediately
+  when data arrives; the update sheet still shows fresh default state each time
+  it opens.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only pre-existing
+SchemaTree.tsx:969 exhaustive-deps), `npm run build` succeeds.
+
+React Doctor: errors 22→18, issues 296→289, score 61/100.
+`no-adjust-state-on-prop-change`: 11→7; `no-reset-all-state-on-prop-change`:
+also dropped 1.
+
+Next: P1.2 ConnectionForm (3 remaining findings in the effect at lines ~119-143).
 
 - `src/features/query-editor/SavedQueriesSection.tsx:183`: the rename
   `useEffect` scheduled a `setTimeout` to select the input text with no

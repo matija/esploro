@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
@@ -22,14 +22,6 @@ export function UpdateSheet({ open, currentVersion, updateVersion, notes, onClos
   const [phase, setPhase] = useState<'idle' | 'installing' | 'done' | 'restarting' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      setPhase('idle');
-      setProgress(0);
-      setError(null);
-    }
-  }, [open]);
 
   async function handleInstall() {
     setPhase('installing');

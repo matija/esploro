@@ -558,6 +558,7 @@ export function AppShell() {
       <UsageTypeDialog />
       {updateInfo && (
         <UpdateSheet
+          key={String(updateSheetOpen)}
           open={updateSheetOpen}
           currentVersion={__APP_VERSION__}
           updateVersion={updateInfo.version}

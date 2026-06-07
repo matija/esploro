@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -14,13 +14,22 @@ export function RefreshButton({
   onRefresh: () => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const shouldTick = dataUpdatedAt > 0 && !isFetching;
+  const prevShouldTick = useRef(shouldTick);
+
+  // Reset the clock in render when transitioning to the "ticking" state.
+  // Doing this during render avoids the extra stale intermediate render
+  // that a useEffect-based approach would cause.
+  if (shouldTick && !prevShouldTick.current) {
+    setNow(Date.now());
+  }
+  prevShouldTick.current = shouldTick;
 
   useEffect(() => {
-    if (dataUpdatedAt <= 0 || isFetching) return;
-    setNow(Date.now());
+    if (!shouldTick) return;
     const id = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(id);
-  }, [dataUpdatedAt, isFetching]);
+  }, [shouldTick]);
 
   const ageMs = dataUpdatedAt > 0 ? now - dataUpdatedAt : null;
   const isStale = ageMs !== null && ageMs > 30_000;
