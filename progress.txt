@@ -376,3 +376,14 @@ Verification: `cargo test` 50 pass (with `CARGO_HOME=/tmp/cargo-home`),
 exhaustive-deps warning.
 
 PRD complete.
+
+## 2026-06-07 — Frontend Health Remediation P1.1: effect cleanup
+
+- `src/features/query-editor/SavedQueriesSection.tsx:183`: the rename
+  `useEffect` scheduled a `setTimeout` to select the input text with no
+  cleanup. On rapid open/close it could fire against a stale ref.
+  **Fix:** captured the timer id and returned `() => clearTimeout(tid)` in
+  the effect cleanup. Single-line change, behavior-preserving.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only the pre-existing
+SchemaTree.tsx:969 exhaustive-deps warning), `npm run build` succeeds.

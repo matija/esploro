@@ -183,7 +183,8 @@ function QueryRow({
   useEffect(() => {
     if (isRenaming) {
       setRenameValue(query.name);
-      setTimeout(() => inputRef.current?.select(), 0);
+      const tid = setTimeout(() => inputRef.current?.select(), 0);
+      return () => clearTimeout(tid);
     }
   }, [isRenaming, query.name]);
 
