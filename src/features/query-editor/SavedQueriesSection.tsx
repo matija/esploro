@@ -177,16 +177,23 @@ function QueryRow({
   depth: number;
 }) {
   const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(query.name);
+  const [renameValue, setRenameValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevIsRenamingRef = useRef(false);
 
+  // Render-time adjustment: sync rename value when entering rename mode
+  if (isRenaming && !prevIsRenamingRef.current) {
+    setRenameValue(query.name);
+  }
+  prevIsRenamingRef.current = isRenaming;
+
+  // Select text when the rename input appears
   useEffect(() => {
     if (isRenaming) {
-      setRenameValue(query.name);
       const tid = setTimeout(() => inputRef.current?.select(), 0);
       return () => clearTimeout(tid);
     }
-  }, [isRenaming, query.name]);
+  }, [isRenaming]);
 
   function commitRename() {
     const trimmed = renameValue.trim();

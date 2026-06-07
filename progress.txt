@@ -554,7 +554,29 @@ React Doctor: issues 244→241, bugs 99→96, score 65/100.
 `no-array-index-as-key`: 4→1 (remaining 1 is the unresolvable QueryEditorTab
 case).
 
-Next: continue Phase 2 — `no-derived-state` (×14), `prop-derived-into-useState`
-(×1, SavedQueriesSection), `no-chained-setState` (×1, CommandPalette),
+Next: continue Phase 2 — `no-derived-state` (×1, Sidebar.tsx:52), `no-chained-setState` (×1, CommandPalette),
 `prefer-useEffectEvent` (×1, TableViewerTab), `advanced-event-handler-refs`
-(×1, QueryEditorTab).
+(×1, QueryEditorTab), `no-event-handler` (×2, SqlEditor, QueryEditorTab).
+
+## 2026-06-08 — Frontend Health Remediation Phase 2: prop-derived-into-useState
+
+- `SavedQueriesSection.tsx:180-188`: rewrote the rename interaction to use the
+  render-time adjustment pattern instead of an effect for state sync.
+  - Replaced `useState(query.name)` with `useState('')` — no longer copies the
+    prop into initial state (resolves `no-derived-useState`).
+  - Added a `prevIsRenamingRef` guard that sets `renameValue = query.name`
+    during render when `isRenaming` transitions true — the recommended React
+    pattern for adjusting state on prop/trigger change, avoiding the stale
+    intermediate render that an effect would cause.
+  - The `useEffect` now only handles the DOM interaction (`.select()` on the
+    input), depending solely on `[isRenaming]` with proper cleanup.
+  - `commitRename()` works correctly: the render-time adjustment ensures
+    `renameValue` equals `query.name` by the time the user edits it, and
+    `renameValue.trim() !== query.name` guards against no-op renames.
+- Behavior-preserving: the rename input still opens with the query name
+  pre-filled, text still auto-selects, Escape cancels, Enter/blur commits.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 241→240, bugs 96→95, score 65/100.
+`no-derived-useState`: 1→0 — resolved.

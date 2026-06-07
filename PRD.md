@@ -179,14 +179,13 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
     conditionally renders the component so it already remounts on each open; also clears
     overlapping `no-reset-all-state-on-prop-change` (1→0), `no-event-handler` (3→2), and
     `no-derived-state` (1→0 at this line) findings.
-- **Derived value copied into state ×15** (`no-derived-state`) — `ConnectionForm.tsx:127-140`,
-  `ColumnFilterPopover.tsx:44`, `SavedQueriesSection.tsx:185`. Compute during render / `useMemo`.
-- **Prop derived into useState ×1** — `SavedQueriesSection.tsx:180` (`renameValue` init).
-  Often resolved together with P1.1 by using the prev-prop pattern or keying the rename input.
+- **Derived value copied into state ×1 remaining** (`no-derived-state`) — `Sidebar.tsx:52`. 
+  (ConnectionForm, ColumnFilterPopover, SavedQueriesSection resolved.) Compute during render / `useMemo`.
+- **Prop derived into useState ×1** — `SavedQueriesSection.tsx:180` (`renameValue` init). ✅ **DONE 2026-06-08**
 - **Cascading setState in one effect ×1** — `UpdateSheet.tsx:26`.
   Consider `useReducer` or keying.
-- **Chained state updates through effects ×2** — `CommandPalette.tsx:451`,
-  `SavedQueriesSection.tsx:185`. Set related state together in the triggering handler.
+- **Chained state updates through effects ×1** — `CommandPalette.tsx:451`.
+  Set related state together in the triggering handler.
 - **Event logic in an effect ×2** — `SqlEditor.tsx:111`, `QueryEditorTab.tsx:443`.
 - **Effect re-subscribes on a changing callback ×1** — `TableViewerTab.tsx:747`. Wrap with
   `useEffectEvent` (React 19) so the effect doesn't re-subscribe each parent render.
