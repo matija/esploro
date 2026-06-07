@@ -34,9 +34,9 @@ function ApplyResultSummary({
           </button>
         </div>
         <div className="overflow-y-auto flex-1 space-y-1.5">
-          {results.map((r, i) => (
+          {results.map((r) => (
             <div
-              key={i}
+              key={r.sql}
               className={cn(
                 "rounded p-2 text-[12px] font-mono",
                 r.error ? "bg-query-failed/10 text-query-failed" : "bg-success/10 text-success",

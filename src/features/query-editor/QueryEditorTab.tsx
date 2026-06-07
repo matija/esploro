@@ -331,6 +331,7 @@ function ResultPanel({ results }: { results: QueryResult[] }) {
 
   return (
     <div className="flex flex-col h-full overflow-auto divide-y divide-separator">
+      {/* index key is safe — QueryResult has no stable id and results never reorder */}
       {results.map((result, i) => (
         <ResultSection key={i} result={result} index={i} total={results.length} />
       ))}
