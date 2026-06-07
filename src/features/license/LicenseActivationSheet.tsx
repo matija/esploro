@@ -65,8 +65,9 @@ export function LicenseActivationSheet({ open, onClose }: Props) {
 
           <div className="flex flex-col gap-4 p-5 flex-1">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-secondary">License Key</label>
+              <label htmlFor="license-key-input" className="text-xs text-secondary">License Key</label>
               <textarea
+                id="license-key-input"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
                 onKeyDown={(e) => {

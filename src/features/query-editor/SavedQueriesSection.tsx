@@ -220,6 +220,7 @@ function QueryRow({
         <FileText size={11} className="text-secondary shrink-0" />
         {isRenaming ? (
           <input
+            aria-label="Rename query"
             ref={inputRef}
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}

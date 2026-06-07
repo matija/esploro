@@ -65,6 +65,7 @@ export function EditorSettings() {
           <button
             type="button"
             role="switch"
+            aria-label="Word wrap"
             aria-checked={editorWordWrap}
             onClick={() => setEditorWordWrap(!editorWordWrap)}
             className={cn(

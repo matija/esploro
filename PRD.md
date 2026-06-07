@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type done — 0 ✖ errors, 153 warnings remaining (Phases 3–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association done — 0 ✖ errors, 114 warnings remaining (Phases 3–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -224,15 +224,22 @@ handler, timeout cleanup), not five separate edits.
 
 Largest bucket, almost entirely mechanical. Batch per feature folder.
 
-- **Button missing explicit `type` ×81** ✅ **DONE 2026-06-08** — added `type="button"`
-  to every non-submit `<button>` across 21 files (no forms found in the codebase).
-  Scripted pass: inserted `type="button"` as an attribute on the line after the
-  opening `<button` tag for multi-line buttons, or inline for single-line buttons.
-  Verified via `tsc --noEmit`, `eslint`, `npm run build` — 81→0 findings.
-- **Control missing accessible label ×26** and **Label missing associated control ×13** —
-  add `aria-label` to icon-only controls; tie `<label htmlFor>`/nesting to inputs
-  (`RoleDetailPanel`, `ConnectionForm`, `SchemaTree`, `QueryEditorTab`, `AppearanceSettings`,
-  `LicenseActivationSheet`, …).
+### P3.1 Button missing explicit `type` ×81 ✅ **DONE 2026-06-08**
+
+### P3.2 Control missing accessible label ×26 + Label missing associated control ×13 ✅ **DONE 2026-06-08**
+
+Added `aria-label` to 17 standalone controls (search inputs in role pickers, inline-edit
+input, filter/rename inputs, color swatch buttons, editor toggle, textarea, range inputs,
+font input, command palette search, update indicator) across 9 files.
+Added `htmlFor` + `id` to 9 sibling `<label>` + `<input>` pairs in RoleDetailPanel,
+SchemaTree, QueryEditorTab, and LicenseActivationSheet. Converted 4 group labels
+in ConnectionForm (Database, Color, Connection Type, Advanced) to
+`<fieldset>` + `<legend>` for proper accessible grouping.
+
+- **Control missing accessible label ×26** — added `aria-label` to controls without labels
+- **Label missing associated control ×13** — added `htmlFor`/`id` to sibling label+input
+  pairs, or `<fieldset>`/`<legend>` for control groups
+
 - **Click handler missing keyboard handler ×15** + **Interaction on static element ×16** +
   **Interactive element not focusable ×3** — these overlap on the same clickable
   `div`/`span`s (`SchemaTree`, `RoleDetailPanel`, `TableViewerTab`, `ConnectionList`,

@@ -205,8 +205,9 @@ function AttributesTab({
 
       {/* Connection limit */}
       <div className="flex items-center gap-3">
-        <label className="text-[13px] text-secondary w-32 shrink-0">Connection limit</label>
+        <label htmlFor="role-conn-limit" className="text-[13px] text-secondary w-32 shrink-0">Connection limit</label>
         <input
+          id="role-conn-limit"
           type="number"
           min={-1}
           value={draft.connLimit ?? role.connLimit}
@@ -230,8 +231,9 @@ function AttributesTab({
 
       {/* Valid until */}
       <div className="flex items-center gap-3">
-        <label className="text-[13px] text-secondary w-32 shrink-0">Valid until</label>
+        <label htmlFor="role-valid-until" className="text-[13px] text-secondary w-32 shrink-0">Valid until</label>
         <input
+          id="role-valid-until"
           type="date"
           value={
             (draft.validUntil !== undefined
@@ -265,8 +267,9 @@ function AttributesTab({
       {/* Password */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
-          <label className="text-[13px] text-secondary w-32 shrink-0">New password</label>
+          <label htmlFor="role-new-password" className="text-[13px] text-secondary w-32 shrink-0">New password</label>
           <input
+            id="role-new-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -276,8 +279,9 @@ function AttributesTab({
         </div>
         {password && (
           <div className="flex items-center gap-3">
-            <label className="text-[13px] text-secondary w-32 shrink-0">Confirm</label>
+            <label htmlFor="role-confirm-password" className="text-[13px] text-secondary w-32 shrink-0">Confirm</label>
             <input
+              id="role-confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -542,6 +546,7 @@ function MembersTab({
         {showAddMember && (
           <div className="mb-2 p-2 bg-control rounded border border-separator">
             <input
+              aria-label="Search roles to add as member"
               autoFocus
               value={addMemberSearch}
               onChange={(e) => setAddMemberSearch(e.target.value)}
@@ -617,6 +622,7 @@ function MembersTab({
         {showAddMemberOf && (
           <div className="mb-2 p-2 bg-control rounded border border-separator">
             <input
+              aria-label="Search roles to add to member of"
               autoFocus
               value={addMemberOfSearch}
               onChange={(e) => setAddMemberOfSearch(e.target.value)}

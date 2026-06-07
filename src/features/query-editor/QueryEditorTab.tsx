@@ -475,8 +475,9 @@ function SaveDialog({
           </Dialog.Title>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-secondary mb-1 block">Name</label>
+              <label htmlFor="save-query-name" className="text-xs text-secondary mb-1 block">Name</label>
               <input
+                id="save-query-name"
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -485,10 +486,11 @@ function SaveDialog({
               />
             </div>
             <div>
-              <label className="text-xs text-secondary mb-1 block">
+              <label htmlFor="save-query-folder" className="text-xs text-secondary mb-1 block">
                 Folder <span className="text-secondary">(optional)</span>
               </label>
               <input
+                id="save-query-folder"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
                 placeholder="Reports"

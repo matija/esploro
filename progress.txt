@@ -694,5 +694,32 @@ Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
 React Doctor: issues 234→153, bugs 90→9, score 68/100.
 `button-has-type`: 81→0 — resolved.
 
-Next: Phase 3 accessibility — control labels (×26), label-associated-control
-(×13), keyboard handlers (×15), static-element interaction (×16).
+Next: Phase 3 accessibility — keyboard handlers (×15), static-element interaction (×16), interactive element not focusable (×3).
+
+## 2026-06-08 — Frontend Health Remediation Phase 3: Control labels + label association (×39)
+
+Resolved all `control-has-associated-label` (26) and `label-has-associated-control`
+(13) findings:
+
+- Added `aria-label` to 17 standalone controls across 9 files: role-picker search
+  inputs (RoleDetailPanel ×2, SchemaDetailPanel, TablePrivilegesTab), inline-edit
+  cell input (TableViewerTab), rename input (SavedQueriesSection), filter value
+  input (ColumnFilterPopover), table filter search (SchemaTree), JSON editor
+  textarea (JsonArrayEditor), word wrap toggle (EditorSettings), command palette
+  search (CommandPalette), update indicator button (AppShell), font input +
+  range number + range slider (AppearanceSettings), quick-connect URL input +
+  color swatch buttons (ConnectionForm).
+- Added `htmlFor` + `id` to 9 sibling label+input pairs: RoleDetailPanel
+  (Connection limit, Valid until, New password, Confirm), SchemaTree role editor
+  (Name, Password), QueryEditorTab save dialog (Name, Folder),
+  LicenseActivationSheet (License Key).
+- Converted 4 ConnectionForm group labels (Database, Color, Connection Type,
+  Advanced) to `<fieldset>` + `<legend>` for proper accessible control grouping.
+  This also avoided introducing new `prefer-tag-over-role` findings that the
+  initial `role="group"` approach would have created.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 153→114, accessibility 85→46, score 68→70/100.
+`control-has-associated-label`: 26→0 — resolved.
+`label-has-associated-control`: 13→0 — resolved.

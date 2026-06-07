@@ -180,6 +180,7 @@ function SchemaPrivilegesTab({
         {showRolePicker && (
           <div className="mb-3 p-2 bg-control rounded border border-separator">
             <input
+              aria-label="Search roles to add as grantee"
               autoFocus
               value={roleSearch}
               onChange={(e) => setRoleSearch(e.target.value)}

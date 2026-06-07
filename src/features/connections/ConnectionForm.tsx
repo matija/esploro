@@ -243,8 +243,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             {/* Driver selector */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-secondary">Database</label>
+            <fieldset className="flex flex-col gap-1 border-none p-0">
+              <legend className="text-xs font-medium text-secondary">Database</legend>
               <div className="flex rounded-md overflow-hidden border border-separator w-fit">
                 {(['postgres', 'mysql'] as DbDriver[]).map((d) => (
                   <button
@@ -266,11 +266,12 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   </button>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {/* Quick-connect URL */}
             <div className="flex gap-2">
               <Input
+                aria-label="Quick-connect URL"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder={driver === 'mysql' ? 'mysql://user:pass@host:3306/db' : 'postgres://user:pass@host:5432/db'}
@@ -300,13 +301,14 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
             <div className="flex gap-4">
               {/* Color */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-secondary">Color</label>
+              <fieldset className="flex flex-col gap-1 border-none p-0">
+                <legend className="text-xs font-medium text-secondary">Color</legend>
                 <div className="flex gap-1.5 mt-0.5">
                   {DEFAULT_COLORS.map((c) => (
                     <button
                       type="button"
                       key={c}
+                      aria-label={`Color: ${c}`}
                       onClick={() => setColor(c)}
                       style={{ backgroundColor: c }}
                       className={cn(
@@ -316,7 +318,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                     />
                   ))}
                 </div>
-              </div>
+              </fieldset>
 
               {/* Folder */}
               <Field label="Folder (optional)">
@@ -330,8 +332,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
             {/* Connection type toggle — Postgres only */}
             {driver === 'postgres' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-secondary">Connection Type</label>
+              <fieldset className="flex flex-col gap-1 border-none p-0">
+                <legend className="text-xs font-medium text-secondary">Connection Type</legend>
                 <div className="flex rounded-md overflow-hidden border border-separator w-fit">
                   {(['host', 'socket'] as ConnectionType[]).map((t) => (
                     <button
@@ -349,7 +351,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                     </button>
                   ))}
                 </div>
-              </div>
+              </fieldset>
             )}
 
             {driver === 'postgres' && connType === 'socket' ? (
@@ -430,8 +432,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
             <div className="border-t border-separator" />
 
-            <div className="flex flex-col gap-3">
-              <label className="text-xs font-medium text-secondary uppercase tracking-wide">Advanced</label>
+            <fieldset className="flex flex-col gap-3 border-none p-0">
+              <legend className="text-xs font-medium text-secondary uppercase tracking-wide">Advanced</legend>
               <Field label="Max connections (1–10, default 5)">
                 <Input
                   value={poolMaxConnections}
@@ -442,7 +444,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   className="w-24"
                 />
               </Field>
-            </div>
+            </fieldset>
 
             {errors._form && (
               <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">

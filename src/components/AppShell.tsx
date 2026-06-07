@@ -227,6 +227,7 @@ function UpdateIndicator() {
   return (
     <button
       type="button"
+      aria-label={`Update available — ${updateInfo.version}`}
       title={`Update available — ${updateInfo.version}`}
       onClick={() => setUpdateSheetOpen(true)}
       className="flex items-center justify-center h-[22px] w-[22px] rounded-full hover:bg-hover transition-colors duration-[var(--motion-fast)]"

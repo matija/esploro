@@ -509,6 +509,7 @@ export function CommandPalette() {
             <Search size={15} className="text-[var(--text-secondary,var(--color-text-secondary))] shrink-0" />
             <input
               ref={inputRef}
+              aria-label="Search commands, tables, connections"
               value={query}
               onChange={(e) => { setQuery(e.target.value); setSelectedIdx(0); itemRefs.current = []; }}
               onKeyDown={handleKeyDown}

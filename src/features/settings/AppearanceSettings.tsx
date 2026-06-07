@@ -416,6 +416,7 @@ function FontSection({
     <div className="space-y-2">
       <SettingLabel icon={icon} label={title} />
       <input
+        aria-label={title}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}
@@ -467,6 +468,7 @@ function RangeControl({
         <span className="text-[12px] font-medium text-secondary">{label}</span>
         <div className="flex items-center gap-1">
           <input
+            aria-label={label}
             type="number"
             value={value}
             min={min}
@@ -484,6 +486,7 @@ function RangeControl({
         </div>
       </div>
       <input
+        aria-label={label}
         type="range"
         value={Number.isFinite(value) ? value : min}
         min={min}

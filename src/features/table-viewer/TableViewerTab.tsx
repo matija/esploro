@@ -1360,6 +1360,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                             >
                               {isEditing ? (
                                 <input
+                                  aria-label="Edit cell value"
                                   ref={editInputRef}
                                   type="text"
                                   value={editDraft}

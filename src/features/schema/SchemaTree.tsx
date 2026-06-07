@@ -503,8 +503,9 @@ function CreateRoleModal({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] text-secondary">Name</label>
+          <label htmlFor="schema-create-role-name" className="text-[12px] text-secondary">Name</label>
           <input
+            id="schema-create-role-name"
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -532,8 +533,9 @@ function CreateRoleModal({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[12px] text-secondary">Password (optional)</label>
+          <label htmlFor="schema-create-role-password" className="text-[12px] text-secondary">Password (optional)</label>
           <input
+            id="schema-create-role-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -542,6 +544,7 @@ function CreateRoleModal({
           />
           {password && (
             <input
+              aria-label="Confirm password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -1282,6 +1285,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-control flex-1 min-w-0">
           <Search size={10} className="text-secondary shrink-0" />
           <input
+            aria-label="Filter tables"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter tables…"

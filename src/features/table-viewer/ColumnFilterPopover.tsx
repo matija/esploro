@@ -115,6 +115,7 @@ export function ColumnFilterPopover({
           {/* Value input */}
           {!noValue && (
             <input
+              aria-label="Filter value"
               type="text"
               value={draft.value}
               onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}

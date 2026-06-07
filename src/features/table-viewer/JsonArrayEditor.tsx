@@ -68,6 +68,7 @@ export function JsonArrayEditor({
           className="z-50 w-80 rounded-[var(--radius-popover)] border-2 border-[var(--ds-warning)] bg-raised shadow-[var(--shadow-popover)] flex flex-col gap-2 p-2"
         >
           <textarea
+            aria-label="JSON array editor"
             ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
