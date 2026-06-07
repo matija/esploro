@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 238 warnings remaining (Phases 2–5)
+**Status:** Phase 1 complete, Phase 2 in progress — 0 ✖ errors, 236 warnings remaining (Phases 2–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -178,7 +178,8 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
   - `ColumnFilterPopover.tsx:47`: removed the redundant draft-sync effect entirely — the parent
     conditionally renders the component so it already remounts on each open; also clears
     overlapping `no-reset-all-state-on-prop-change` (1→0), `no-event-handler` (3→2), and
-    `no-derived-state` (1→0 at this line) findings.
+    `no-derived-state` (1→0 at this line) findings. The remaining 2 `no-event-handler` findings from
+    that original 3 were resolved on 2026-06-08 (SqlEditor.tsx, QueryEditorTab.tsx SaveDialog).
 - **Derived value copied into state ×0** ✅ (`no-derived-state`) — **DONE 2026-06-08**.
   `Sidebar.tsx:52`: removed the `useEffect` that watched `pendingNewConnection` and called
   `setPendingNewConnection(false) + openCreate()`. Replaced with render-time adjustment
@@ -190,7 +191,14 @@ Grouped by rule; line numbers per `react-summary.txt` (re-grep before editing).
   Moved `setSelectedIdx(0)` and `itemRefs.current = []` into the `onChange`
   handler (query change) and a render-time `prevOpenRef` guard (palette open),
   eliminating the standalone chaining effect.
-- **Event logic in an effect ×2** — `SqlEditor.tsx:111`, `QueryEditorTab.tsx:443`.
+- **Event logic in an effect ×0** ✅ **DONE 2026-06-08** — `SqlEditor.tsx:113`, `QueryEditorTab.tsx:444`.
+  - `SqlEditor.tsx:108-118`: removed the value-sync `useEffect` entirely. It was dead code —
+    external value changes only happen via tab switches (which remount the component with
+    fresh `doc: value` in the creation effect), and user edits go through CodeMirror→`onChange`
+    →`setSql`, so the editor state already matches `value` on re-render.
+  - `QueryEditorTab.tsx:440-445` (SaveDialog): replaced the `open`→`setName` `useEffect` with
+    a render-time `prevOpenRef` guard that resets `name`/`folder` when `open` transitions true
+    during render, the same pattern used throughout Phase 1/2.
 - **Effect re-subscribes on a changing callback ×1** — `TableViewerTab.tsx:747`. Wrap with
   `useEffectEvent` (React 19) so the effect doesn't re-subscribe each parent render.
 - **Listener re-subscribes on handler change ×1** — `QueryEditorTab.tsx:188`. Store the

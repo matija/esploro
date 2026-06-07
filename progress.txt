@@ -623,3 +623,29 @@ Next: continue Phase 2 — `no-event-handler` (×2, SqlEditor.tsx:113,
 QueryEditorTab.tsx:444), `prefer-useEffectEvent` (×1,
 TableViewerTab.tsx:747), `advanced-event-handler-refs` (×1,
 QueryEditorTab.tsx:188).
+
+## 2026-06-08 — Frontend Health Remediation Phase 2: no-event-handler (SqlEditor + SaveDialog)
+
+- `SqlEditor.tsx:108-118`: removed the value-sync `useEffect` entirely. It was
+  dead code — external `value` changes only happen via tab switches (which
+  remount the component with fresh `doc: value` in the creation effect), and
+  user edits go through CodeMirror → `onChange` → `setSql`, so the editor state
+  already matches `value` on re-render. Updated the creation-effect comment to
+  no longer reference it.
+- `QueryEditorTab.tsx:440-445` (SaveDialog): replaced the `open`→`setName`
+  `useEffect` with a render-time `prevOpenRef` guard that resets `name` and
+  `folder` when `open` transitions true during render — the same pattern used
+  throughout Phase 1/2. The effect was already practically a no-op (initialName
+  is always `""`, same as useState default), but the guard pattern correctly
+  moves event-triggered state logic out of the effect.
+- Behavior-preserving: editor still syncs on mount; save dialog still opens
+  with empty fields.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 238→236, bugs 93→91, score 67/100.
+`no-event-handler`: 2→0 — resolved.
+
+Next: continue Phase 2 — `prefer-useEffectEvent` (×1,
+TableViewerTab.tsx:747), `advanced-event-handler-refs` (×1,
+QueryEditorTab.tsx:188).

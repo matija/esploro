@@ -440,9 +440,13 @@ function SaveDialog({
   const [name, setName] = useState(initialName);
   const [folder, setFolder] = useState("");
 
-  useEffect(() => {
-    if (open) setName(initialName);
-  }, [open, initialName]);
+  // Reset form fields when the dialog opens (render-time adjustment, not an effect)
+  const prevOpenRef = useRef(open);
+  if (open && !prevOpenRef.current) {
+    setName(initialName);
+    setFolder("");
+  }
+  prevOpenRef.current = open;
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>

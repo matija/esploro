@@ -76,7 +76,7 @@ export function SqlEditor({
     [schemaCompletions, editorTabSize, editorWordWrap],
   );
 
-  // Mount the editor once (subsequent value/extensions changes synced by dedicated effects)
+  // Mount the editor once (extension changes synced by the dedicated reconfigure effect below)
   const editorInitializedRef = useRef(false);
   useEffect(() => {
     if (editorInitializedRef.current) return;
@@ -104,18 +104,6 @@ export function SqlEditor({
       effects: StateEffect.reconfigure.of(extensions),
     });
   }, [extensions]);
-
-  // Sync external value changes into the editor (e.g. opening a saved query)
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-    const current = view.state.doc.toString();
-    if (current !== value) {
-      view.dispatch({
-        changes: { from: 0, to: current.length, insert: value },
-      });
-    }
-  }, [value]);
 
   // Show/clear error diagnostics
   useEffect(() => {
