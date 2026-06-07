@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** In progress
+**Status:** Phase 1 complete — 0 ✖ errors, 252 warnings remaining (Phases 2–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -151,12 +151,14 @@ arbitrary SQL can affect: `["schemas", sessionId]`, `["objects", sessionId]`,
 in `SchemaTree.tsx:654-657`. Guarded behind `if (sessionId)` since the session can
 be null (run button is disabled without a session, but the guard is defensive).
 
-### P1.5 Stray `0` render — 1 finding
+### P1.5 Stray `0` render — 1 finding ✅ **DONE 2026-06-08**
 
 - `src/features/settings/DataGridSettings.tsx:173`
 
-`{someNumber && <X/>}` renders a literal `0` when the number is falsy-zero. **Fix:** make the
-test explicit — `{count > 0 && <X/>}` or a ternary. Verify nothing renders a stray "0".
+`{showTotalCount && <X/>}` renders a literal `0` when the value is falsy-zero. **Fix:**
+converted to an explicit ternary — `{showTotalCount ? <X/> : null}`.
+`showTotalCount` is already a `boolean` in the Zustand store, so this is a defensive
+explicit-check change; behavior is identical.
 
 ---
 

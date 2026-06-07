@@ -170,7 +170,7 @@ export function DataGridSettings() {
             "inline-block h-4 w-4 rounded border-2 flex items-center justify-center",
             showTotalCount ? "border-accent bg-accent" : "border-separator bg-transparent",
           )}>
-            {showTotalCount && <span className="block w-2 h-2 rounded-sm bg-content" />}
+            {showTotalCount ? <span className="block w-2 h-2 rounded-sm bg-content" /> : null}
           </span>
           Show total row count
         </button>

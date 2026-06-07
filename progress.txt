@@ -480,3 +480,20 @@ React Doctor: issues 254→253, score 64/100.
 `mutation-without-cache-invalidation`: 1→0 — **P1.4 complete**.
 
 Next: P1.5 stray-0 render (1 finding).
+
+## 2026-06-08 — Frontend Health Remediation P1.5: stray 0 render
+
+- `DataGridSettings.tsx:173`: converted `{showTotalCount && <X/>}` to an explicit
+  ternary `{showTotalCount ? <X/> : null}`. `showTotalCount` is already typed as
+  `boolean` in the Zustand store, so this is a defensive explicit-check change;
+  behavior is identical.
+
+Verification: `tsc --noEmit` clean, `eslint` clean (only pre-existing
+SchemaTree.tsx:981 exhaustive-deps), `npm run build` succeeds.
+
+React Doctor: issues 253→252, score 64/100.
+`stray-0-render`: 1→0 — **P1.5 complete**.
+
+**Phase 1 (all 5 correctness-critical tasks) is now complete.** 0 error-severity
+(✖) findings remain. The 107 bug warnings, 85 accessibility warnings, 35
+performance warnings, and 25 maintainability warnings are in Phases 2–5.
