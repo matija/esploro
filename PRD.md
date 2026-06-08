@@ -287,6 +287,12 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 
 ## 7. Phase 4 — Performance (35 findings)
 
+- **New object passed as a prop ×1** ✅ **DONE 2026-06-08** — `TableViewerTab.tsx:1001`.
+  Wrapped the inline `{ [ctx.table]: data.columns.map(...) }` object passed to
+  `MiniSqlEditor`'s `schemaCompletions` prop in `useMemo([data?.columns, ctx])`.
+  Added `ctx &&` guard since `ctx` is possibly undefined; the query is only
+  enabled when `ctx` is truthy, so `data?.columns` is always false when `ctx`
+  is undefined — the guard satisfies TypeScript without changing behavior.
 - **Heavy library loaded eagerly ×5** ✅ **DONE 2026-06-08** — `tairikiTheme.ts:1`, `SqlEditor.tsx:2-3`,
   `MiniSqlEditor.tsx:2-3` (CodeMirror/editor stack). Lazy-loaded via `React.lazy()`:
   - `QueryEditorTab.tsx`: replaced static `SqlEditor` import with `lazy(() => import("./SqlEditor"))`,

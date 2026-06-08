@@ -386,6 +386,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const rows = useMemo(() => data?.rows ?? [], [data?.rows]);
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const ctids = useMemo(() => data?.ctids ?? [], [data?.ctids]);
+  const schemaCompletions = useMemo(
+    () => (ctx && data?.columns) ? { [ctx.table]: data.columns.map((c) => c.name) } : undefined,
+    [data?.columns, ctx],
+  );
   const enumCols = useMemo(() => detectEnumColumns(columns), [columns]);
   const displayColumnIndexes = useMemo(
     () => getIdentifierFirstColumnIndexes(columns),
@@ -998,9 +1002,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 });
                 setPage(0);
               }}
-              schemaCompletions={
-                data?.columns ? { [ctx.table]: data.columns.map((c) => c.name) } : undefined
-              }
+              schemaCompletions={schemaCompletions}
               whereColumns={columns}
               sqlDriver={driver}
               placeholder="WHERE …"

@@ -1,3 +1,28 @@
+## 2026-06-08 — Frontend Health Remediation Phase 4: jsx-no-new-object-as-prop (×1)
+
+Resolved the 1 remaining `jsx-no-new-object-as-prop` finding:
+
+- `TableViewerTab.tsx:1001`: the inline object literal
+  `{ [ctx.table]: data.columns.map((c) => c.name) }` passed to
+  `MiniSqlEditor`'s `schemaCompletions` prop was recreated every render.
+  Wrapped in `useMemo(() => (ctx && data?.columns) ? { [ctx.table]:
+  data.columns.map((c) => c.name) } : undefined, [data?.columns, ctx])`.
+  Added `ctx &&` guard since `ctx` is possibly undefined by the type
+  system; at runtime the query is only enabled when `ctx` is truthy (line
+  271), so `data` is always undefined when `ctx` is undefined, making the
+  guard a pure type-safety check.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build`
+succeeds.
+
+React Doctor: issues 57→56, performance warnings 11→10, score 79→80/100.
+`jsx-no-new-object-as-prop`: 1→0 — resolved.
+
+Next: Phase 5 maintainability — React 19 deprecated APIs (×3), unused
+  exports (×9), static values/pure functions (×6), giant components (×7),
+  useReducer grouping (×8). Phase 3 `prefer-tag-over-role` ×12 structurally
+  infeasible (roles on div-based grids, trees, listboxes).
+
 ## 2026-06-08 — Frontend Health Remediation Phase 4: js-set-map-lookups (×3)
 
 Resolved all 3 `js-set-map-lookups` findings:
