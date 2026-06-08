@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations + index-maps + set-map-lookups + toSorted done — 0 ✖ errors, 57 warnings remaining (Phase 3 prefer-tag-over-role + Phase 4 jsx-no-new-object-as-prop + Phase 5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis done — 0 ✖ errors, 53 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 unused-exports + static-values + pure-functions + giant-components + useReducer)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -342,9 +342,10 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 - **Static value / pure function rebuilt every render ×6** — `RoleDetailPanel:162,731`,
   `SchemaTree:176`, `QueryEditorTab:590`, `SchemaDetailPanel:86`, `TablePrivilegesTab:95`.
   Hoist to module scope.
-- **React 19 deprecated APIs ×3** — `ConfirmDialog.tsx:4`, `MiniSqlEditor.tsx:1`,
-  `Toast.tsx:5`. Pass `ref` as a normal prop (drop `forwardRef`); replace `useContext(X)`
-  with `use(X)`.
+- **React 19 deprecated APIs ×3** ✅ **DONE 2026-06-08** — `ConfirmDialog.tsx:4`, `MiniSqlEditor.tsx:1`,
+  `Toast.tsx:5`. Replaced `forwardRef` with `ref` as a normal prop in MiniSqlEditor
+  (React 19 no longer requires `forwardRef` for ref forwarding). Replaced `useContext(X)`
+  with `use(X)` in ConfirmDialog's `useConfirm` and Toast's `useToast` hooks.
 - **Giant components ×7** — `CommandPalette`, `RoleDetailPanel`, `TableViewerTab`,
   `SchemaTree`, `ConnectionForm`, `QueryEditorTab`, `ConnectionList`. **Opportunistic only.**
   The prior architecture-hardening PRD (now in `prds/`) already split `TableViewerTab` and

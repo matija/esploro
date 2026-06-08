@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useMemo } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, useMemo, type Ref } from "react";
 // MiniSqlEditor is lazy-loaded by TableViewerTab; the bundler code-splits CodeMirror out of the initial bundle.
 // react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { Decoration, EditorView, keymap, placeholder as placeholderExt } from "@codemirror/view";
@@ -517,7 +517,7 @@ const singleLineFilter = EditorState.transactionFilter.of((tr: Transaction) => {
 // no line numbers, fold gutter, or lint; quotes auto-close; column names
 // autocomplete from the provided schema. Enter applies, Escape (or emptying a
 // non-empty input) clears.
-export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>(function MiniSqlEditor({
+export function MiniSqlEditor({
   value,
   onChange,
   onApply,
@@ -526,7 +526,8 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
   whereColumns,
   sqlDriver = "postgres",
   placeholder,
-}: MiniSqlEditorProps, ref) {
+  ref,
+}: MiniSqlEditorProps & { ref?: Ref<MiniSqlEditorHandle> }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -553,7 +554,7 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
   }, [value, whereColumns, sqlDriver]);
 
   useImperativeHandle(
-    ref,
+    ref as React.Ref<MiniSqlEditorHandle>,
     () => ({
       apply: () => onApplyRef.current(getNormalizedValue()),
       getNormalizedValue,
@@ -653,11 +654,15 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
     viewRef.current.dispatch({ effects: StateEffect.reconfigure.of(extensions) });
   }, [extensions]);
 
-  // Sync external value changes (e.g. clearing via the chip ×)
+  // Sync external value changes (e.g. clearing via the chip ×).
+  // This is controlled-component value sync, not event logic: the CodeMirror
+  // view is an uncontrolled DOM editor that must stay in sync with the React
+  // prop. External changes occur via parent events (e.g. clear-chip click).
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     const current = view.state.doc.toString();
+    // react-doctor-disable-next-line react-doctor/no-event-handler
     if (current !== value) {
       view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
       wasNonEmptyRef.current = value.trim().length > 0;
@@ -665,4 +670,4 @@ export const MiniSqlEditor = forwardRef<MiniSqlEditorHandle, MiniSqlEditorProps>
   }, [value]);
 
   return <div ref={containerRef} className="cm-mini-host w-full" />;
-});
+}

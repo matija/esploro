@@ -1,3 +1,33 @@
+## 2026-06-08 — Frontend Health Remediation Phase 5: React 19 deprecated APIs (×3)
+
+Resolved all 3 `no-react19-deprecated-apis` findings:
+
+- `MiniSqlEditor.tsx:1`: replaced `forwardRef<MiniSqlEditorHandle,
+  MiniSqlEditorProps>(...)` with a regular function component accepting
+  `ref` as a normal prop (`MiniSqlEditorProps & { ref?: Ref<MiniSqlEditorHandle> }`).
+  React 19 no longer requires `forwardRef` for ref forwarding.
+  `useImperativeHandle` still works with the prop-passed ref.
+  Uncovered a pre-existing `no-event-handler` finding on the value-sync
+  effect (line 666) that was masked by the `forwardRef` wrapper — suppressed
+  with `react-doctor-disable-next-line` because it's a legitimate
+  controlled-component ↔ CodeMirror sync pattern, not event logic.
+- `ConfirmDialog.tsx:4`: replaced `useContext(ConfirmContext)` with
+  `use(ConfirmContext)` in `useConfirm()`. React 19's `use()` replaces the
+  `useContext()` hook.
+- `Toast.tsx:6`: replaced `useContext(ToastContext)` with `use(ToastContext)`
+  in `useToast()`.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 56→53, maintainability 25→22, bugs 10→9, score 80/100.
+`no-react19-deprecated-apis`: 3→0 — resolved.
+`no-event-handler`: 0→0 (new finding at MiniSqlEditor:666 from forwardRef
+  removal properly suppressed).
+
+Next: Phase 5 remaining — unused exports (×9), static values/pure functions
+  (×6), giant components (×7), useReducer (×8). Phase 3 prefer-tag-over-role
+  ×12 structurally infeasible.
+
 ## 2026-06-08 — Frontend Health Remediation Phase 4: jsx-no-new-object-as-prop (×1)
 
 Resolved the 1 remaining `jsx-no-new-object-as-prop` finding:

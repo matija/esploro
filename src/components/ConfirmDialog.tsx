@@ -1,7 +1,7 @@
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useMemo,
   useRef,
   useState,
@@ -28,7 +28,7 @@ const ConfirmContext = createContext<ConfirmContextValue | null>(null);
 // so any code path gated on it would silently no-op. Use this hook instead.
 // eslint-disable-next-line react-refresh/only-export-components
 export function useConfirm() {
-  const ctx = useContext(ConfirmContext);
+  const ctx = use(ConfirmContext);
   if (!ctx) throw new Error("useConfirm must be used within ConfirmProvider");
   return ctx.confirm;
 }
