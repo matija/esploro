@@ -303,8 +303,9 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
   activeFilters, TablePrivilegesTab/RoleDetailPanel role-list double-filters). 10 remaining
   intentionally kept per PRD guidance (batch results, member ops, column lists — all tiny
   static lists where clarity wins).
-- **array.find() in a loop ×3** — `CommandPalette:104`, `SchemaTree:825,880`. Build a `Map`
-  once before the loop.
+- **array.find() in a loop ×3** ✅ **DONE 2026-06-08** — `CommandPalette:104`, `SchemaTree:867,922`. Built
+  `Map<string, Profile>` / `Map<string, number>` once before each loop instead of calling
+  `.find()` / `.findIndex()` per iteration.
 - **Array lookup in a loop ×3** — `fuzzy.ts:9`, `MiniSqlEditor:406`, `SchemaTree:755`. Use a
   `Set`/`Map` for repeated membership checks.
 - **Unstable context provider value ×2** ✅ **DONE 2026-06-08** — `ConfirmDialog.tsx:61`,

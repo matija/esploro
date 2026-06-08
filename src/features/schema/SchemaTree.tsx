@@ -852,6 +852,12 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     }
 
     if (!schemasLoading && !schemasError) {
+      const schemaEntryIndex = new Map(
+        expandedSchemaEntries.map((e, i) => [`${e.db}:${e.schema}`, i] as const),
+      );
+      const tableEntryIndex = new Map(
+        expandedTableEntries.map((e, i) => [`${e.db}:${e.schema}:${e.table}`, i] as const),
+      );
       for (const schema of schemas) {
         const sk = schemaKey(connectionId, targetDatabase, schema);
         // MySQL: skip rendering the schema node (database IS the connection)
@@ -864,9 +870,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
           if (!sExpanded) continue;
         }
 
-        const oki = expandedSchemaEntries.findIndex(
-          (e) => e.db === targetDatabase && e.schema === schema,
-        );
+        const oki = schemaEntryIndex.get(`${targetDatabase}:${schema}`) ?? -1;
         const oq = objectQueries[oki];
         const objLoadingDepth = isMysql ? 0 : 1;
         if (!oq || oq.isLoading) {
@@ -919,12 +923,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               });
               if (!tExpanded) continue;
 
-              const ci = expandedTableEntries.findIndex(
-                (e) =>
-                  e.db === targetDatabase &&
-                  e.schema === schema &&
-                  e.table === t.name,
-              );
+              const ci = tableEntryIndex.get(`${targetDatabase}:${schema}:${t.name}`) ?? -1;
               const cq = columnQueries[ci];
               const colLoadingDepth = isMysql ? 2 : 3;
               if (!cq || cq.isLoading) {

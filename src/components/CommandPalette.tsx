@@ -107,9 +107,10 @@ export function CommandPalette() {
 
     const commands: CommandResult[] = [];
     const cache = queryClient.getQueryCache();
+    const idToProfile = new Map(profiles.map((p) => [p.id, p]));
 
     for (const [connectionId, sessionId] of Object.entries(activeSessions)) {
-      const profile = profiles.find((p) => p.id === connectionId);
+      const profile = idToProfile.get(connectionId);
       const profileName = profile?.displayName ?? connectionId;
       const host = profile ? `${profile.host ?? "localhost"}:${profile.port}` : "";
 

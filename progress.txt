@@ -915,3 +915,24 @@ Next: Phase 4 remaining — `js-index-maps` ×3, `js-set-map-lookups` ×3,
 `js-tosorted-immutable` ×2, `jsx-no-new-object-as-prop` ×1.
 Phase 5 — React 19 deprecated APIs ×3, unused exports ×9, static
 value/pure-function ×6, giant components ×7, useReducer ×8.
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: Index maps (×3)
+
+- `CommandPalette.tsx:104`: replaced `profiles.find((p) => p.id === connectionId)`
+  inside the `for (const [connectionId, sessionId] of Object.entries(activeSessions))`
+  loop with `idToProfile.get(connectionId)` using a `new Map(profiles.map(p => [p.id, p]))`
+  built once before the loop.
+- `SchemaTree.tsx:867`: replaced `expandedSchemaEntries.findIndex(...)` inside
+  `for (const schema of schemas)` with `schemaEntryIndex.get(...)` using a
+  `Map<"db:schema", index>` built once before the loop.
+- `SchemaTree.tsx:922`: replaced `expandedTableEntries.findIndex(...)` inside nested
+  loops with `tableEntryIndex.get(...)` using a `Map<"db:schema:table", index>` built
+  once before the outer loop.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 65→62, score 77→79/100.
+`js-index-maps`: 3→0 — resolved.
+
+Next: Phase 4 remaining — `js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
+`jsx-no-new-object-as-prop` ×1.
