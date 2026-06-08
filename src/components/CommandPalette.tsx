@@ -434,7 +434,7 @@ export function CommandPalette() {
   // Sort default commands by GROUP_ORDER
   const sortedDefaultCommands = useMemo(
     () =>
-      [...defaultCommands].sort(
+      defaultCommands.toSorted(
         (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group),
       ),
     [defaultCommands],

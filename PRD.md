@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations + index-maps + set-map-lookups done — 0 ✖ errors, 59 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations + index-maps + set-map-lookups + toSorted done — 0 ✖ errors, 57 warnings remaining (Phase 3 prefer-tag-over-role + Phase 4 jsx-no-new-object-as-prop + Phase 5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -318,7 +318,7 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
   already `useCallback`-stabilized; the `useMemo` prevents the context value object
   itself from being recreated on every render, avoiding unnecessary re-renders in
   consuming components.
-- **Spread-copy before sort ×2** — `CommandPalette:428`, `SchemaTree:598`. Use `toSorted()`.
+- **Spread-copy before sort ×2** ✅ **DONE 2026-06-08** — `CommandPalette:428`, `SchemaTree:598`. Replaced `[...arr].sort()` with `arr.toSorted()`. Bumped `tsconfig.app.json` lib from `ES2020` to `ES2023` to support `toSorted`.
 - **Barrel imports ×4** ✅ **DONE 2026-06-08**. Replaced all barrel imports with direct
   file imports in Sidebar.tsx, AppShell.tsx, SettingsView.tsx, and CommandPalette.tsx.
   Deleted 6 now-unused barrel index files (connections, license, query-editor, schema,

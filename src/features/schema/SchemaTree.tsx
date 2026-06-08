@@ -625,7 +625,7 @@ function errorMessage(error: unknown, fallback: string) {
 // has many schemas (system extensions, per-tenant schemas, etc.) it's annoying
 // to scroll to find it, so we always pin it to the top.
 function sortSchemas(schemas: string[]): string[] {
-  return [...schemas].sort((a, b) => {
+  return schemas.toSorted((a, b) => {
     if (a === b) return 0;
     if (a === "public") return -1;
     if (b === "public") return 1;

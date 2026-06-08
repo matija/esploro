@@ -964,3 +964,21 @@ React Doctor: issues 65→62, score 77→79/100.
 
 Next: Phase 4 remaining — `js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
 `jsx-no-new-object-as-prop` ×1.
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: toSorted (×2)
+
+Resolved both `js-tosorted-immutable` findings:
+
+- `CommandPalette.tsx:437`: replaced `[...defaultCommands].sort(...)` with
+  `defaultCommands.toSorted(...)` — no more unnecessary spread-copy.
+- `SchemaTree.tsx:628` (`sortSchemas`): replaced `[...schemas].sort(...)`
+  with `schemas.toSorted(...)`.
+- Bumped `tsconfig.app.json` lib from `ES2020` to `ES2023` — `toSorted` is
+  ES2023, and the app targets a modern Vite-bundled Tauri runtime.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 59→57, performance warnings 13→11, score 79/100.
+`js-tosorted-immutable`: 2→0 — resolved.
+
+Next: Phase 4 remaining — `jsx-no-new-object-as-prop` ×1, then Phase 5.
