@@ -549,7 +549,7 @@ function MembersTab({
           <div className="mb-2 p-2 bg-control rounded border border-separator">
             <input
               aria-label="Search roles to add as member"
-              autoFocus
+              ref={(el) => { el?.focus(); }}
               value={addMemberSearch}
               onChange={(e) => setAddMemberSearch(e.target.value)}
               placeholder="Search roles…"
@@ -625,7 +625,7 @@ function MembersTab({
           <div className="mb-2 p-2 bg-control rounded border border-separator">
             <input
               aria-label="Search roles to add to member of"
-              autoFocus
+              ref={(el) => { el?.focus(); }}
               value={addMemberOfSearch}
               onChange={(e) => setAddMemberOfSearch(e.target.value)}
               placeholder="Search roles…"

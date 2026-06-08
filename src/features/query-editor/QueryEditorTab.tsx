@@ -486,7 +486,7 @@ function SaveDialog({
               <label htmlFor="save-query-name" className="text-xs text-secondary mb-1 block">Name</label>
               <input
                 id="save-query-name"
-                autoFocus
+                ref={(el) => { el?.focus(); }}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="My query"

@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction done — 0 ✖ errors, 87 warnings remaining (Phases 3–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done — 0 ✖ errors, 80 warnings remaining (Phases 3–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -270,12 +270,11 @@ in ConnectionForm (Database, Color, Connection Type, Advanced) to
   Remaining `prefer-tag-over-role` ×12: roles on elements that could be native (`role="button"`
   on containers with nested interactive children, `role="gridcell"/"columnheader"/"separator"`
   which have no exact native equivalents in a div-based grid) — lower priority.
-- **Autofocus on an element ×7** — `RoleDetailPanel:545,620`, `SchemaTree:507`,
-  `ColumnFilterPopover:133`, `QueryEditorTab:465`, `SchemaDetailPanel:177`,
-  `TablePrivilegesTab:201`. Replace `autoFocus` with a focus-on-open `useEffect`/ref **only
-  where focus genuinely belongs** (e.g. a just-opened rename/filter input); these are
-  intentional UX, so confirm before removing — may justify a rule override rather than a code
-  change.
+- **Autofocus on an element ×7** ✅ **DONE 2026-06-08** — `RoleDetailPanel:545,620`,
+  `SchemaTree:507`, `ColumnFilterPopover:133`, `QueryEditorTab:465`,
+  `SchemaDetailPanel:177`, `TablePrivilegesTab:201`. Replaced `autoFocus` with
+  `ref={(el) => { el?.focus(); }}` on each input — a render-time ref callback that focuses
+  when the DOM node mounts, avoiding both `no-autofocus` and `no-event-handler`.
 - **Role used instead of HTML tag ×3** — `TableViewerTab:1082,1115`, `Sidebar:166`. Use the
   matching native element.
 - **Tabindex on non-interactive element ×2** — `SchemaTree:1259`, `ConnectionList:494`.

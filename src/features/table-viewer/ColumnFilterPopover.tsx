@@ -123,7 +123,7 @@ export function ColumnFilterPopover({
                 if (e.key === "Enter") apply();
               }}
               placeholder="value…"
-              autoFocus
+              ref={(el) => { el?.focus(); }}
               className="w-full px-2 py-1.5 rounded-[var(--radius-control)] bg-control border border-separator text-xs text-label placeholder:text-secondary outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             />
           )}

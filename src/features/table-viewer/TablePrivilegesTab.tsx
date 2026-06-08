@@ -209,7 +209,7 @@ export function TablePrivilegesTab({
           <div className="mb-3 p-2 bg-control rounded border border-separator">
             <input
               aria-label="Search roles to add as grantee"
-              autoFocus
+              ref={(el) => { el?.focus(); }}
               value={addGranteeSearch}
               onChange={(e) => setAddGranteeSearch(e.target.value)}
               placeholder="Search roles…"

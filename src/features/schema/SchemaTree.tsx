@@ -532,7 +532,7 @@ function CreateRoleModal({
           <label htmlFor="schema-create-role-name" className="text-[12px] text-secondary">Name</label>
           <input
             id="schema-create-role-name"
-            autoFocus
+            ref={(el) => { el?.focus(); }}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="role_name"

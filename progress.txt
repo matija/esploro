@@ -774,3 +774,27 @@ legitimate — gridcell/columnheader/separator/tree/listbox have no exact
 div-grid-native equivalents).
 
 Remaining Phase 3 findings: `prefer-tag-over-role` ×12, `no-autofocus` ×7.
+
+## 2026-06-08 — Frontend Health Remediation Phase 3: no-autofocus (×7)
+
+Resolved all 7 `no-autofocus` findings across 6 files. Replace `autoFocus` with a
+`ref={(el) => { el?.focus(); }}` callback on each input — a render-time ref callback
+that focuses the element when the DOM node mounts.
+
+This pattern avoids both the `no-autofocus` finding (no `autoFocus` prop) and the
+`no-event-handler` finding (no `useEffect` watching a state variable), since the
+focus happens as a direct side effect of the DOM node being created during render.
+
+- TablePrivilegesTab.tsx:212 — grantee picker search input
+- ColumnFilterPopover.tsx:126 — filter value input
+- RoleDetailPanel.tsx:552,628 — member + member-of search inputs
+- QueryEditorTab.tsx:489 — save dialog name input
+- SchemaTree.tsx:535 — create role name input
+- SchemaDetailPanel.tsx:189 — role picker grantee search input
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 87→80, accessibility 19→12, score 72→74.
+`no-autofocus`: 7→0 — resolved.
+
+Next: Phase 3 remaining — `prefer-tag-over-role` ×12, then Phase 4 performance.
