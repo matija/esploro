@@ -20,6 +20,8 @@ import {
 import { sql, type SQLConfig } from "@codemirror/lang-sql";
 import { tairikiTheme } from "./tairikiTheme";
 
+const SQL_SPECIAL_CHARS = new Set(["'", '"', "`", "=", ">", "<", "(", ")"]);
+
 type SqlDriver = "postgres" | "mysql";
 
 interface WhereColumn {
@@ -406,7 +408,7 @@ function tokenizeWhereClause(input: string): SqlToken[] {
     while (
       end < input.length &&
       !/\s/.test(input[end]) &&
-      !["'", "\"", "`", "=", ">", "<", "(", ")"].includes(input[end])
+      !SQL_SPECIAL_CHARS.has(input[end])
     ) {
       if (input[end] === "!" && input[end + 1] === "=") break;
       end++;

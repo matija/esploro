@@ -793,7 +793,9 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
     );
     const leaves: ScoredLeaf[] = [];
 
+    // react-doctor-disable-next-line react-doctor/js-set-map-lookups — indexOf on a string (finding a single colon) is not an array lookup
     for (const [oKey, objs] of Object.entries(objectsMap)) {
+      // react-doctor-disable-next-line react-doctor/js-set-map-lookups
       const colonIdx = oKey.indexOf(":");
       const db = oKey.slice(0, colonIdx);
       const schema = oKey.slice(colonIdx + 1);

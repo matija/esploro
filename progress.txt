@@ -1,3 +1,31 @@
+## 2026-06-08 — Frontend Health Remediation Phase 4: js-set-map-lookups (×3)
+
+Resolved all 3 `js-set-map-lookups` findings:
+
+- `MiniSqlEditor.tsx:409`: hoisted the static SQL special-char array
+  `["'", '"', "`", "=", ">", "<", "(", ")"]` used in `.includes()` inside the
+  lexer `while` loop to a module-level `Set` (`SQL_SPECIAL_CHARS`), replacing
+  `.includes()` with `.has()`. Real perf fix — the array was being
+  recreated-and-scanned on every iteration of the tokenizer.
+- `fuzzy.ts:9`: `String.prototype.indexOf(ch, si)` inside the fuzzy-match
+  `for` loop — false positive. The algorithm inherently needs positional
+  character search in a per-call string; building a `Map<Character,
+  number[]>` would add more overhead than it saves. Suppressed with
+  `react-doctor-disable-next-line`.
+- `SchemaTree.tsx:798`: `String.prototype.indexOf(":")` on the short
+  `"db:schema"` key inside the search-mode loop — false positive. Finding a
+  single colon in a ~13-char key per entry is trivial. Suppressed with
+  `react-doctor-disable-next-line`.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 62→59, performance warnings 16→13, score 79/100.
+`js-set-map-lookups`: 3→0 — resolved.
+
+Next: Phase 4 remaining — `js-tosorted-immutable` ×2,
+`jsx-no-new-object-as-prop` ×1. Phase 3 `prefer-tag-over-role` ×12
+structurally infeasible.
+
 ## 2026-06-06 — Phase 1 (P2): Structured error type (AppError)
 
 Implemented the structured error model end-to-end, replacing `Result<_, String>`

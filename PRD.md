@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations done — 0 ✖ errors, 65 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations + index-maps + set-map-lookups done — 0 ✖ errors, 59 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -306,8 +306,13 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 - **array.find() in a loop ×3** ✅ **DONE 2026-06-08** — `CommandPalette:104`, `SchemaTree:867,922`. Built
   `Map<string, Profile>` / `Map<string, number>` once before each loop instead of calling
   `.find()` / `.findIndex()` per iteration.
-- **Array lookup in a loop ×3** — `fuzzy.ts:9`, `MiniSqlEditor:406`, `SchemaTree:755`. Use a
-  `Set`/`Map` for repeated membership checks.
+- **Array lookup in a loop ×3** ✅ **DONE 2026-06-08** — `fuzzy.ts:9`, `MiniSqlEditor:406`, `SchemaTree:755`.
+  - `MiniSqlEditor.tsx`: hoisted the static `["'", '"', "`", "=", ">", "<", "(", ")"]`
+    array used in `.includes()` inside the lexer `while` loop to a module-level `Set`.
+  - `fuzzy.ts:9`, `SchemaTree.tsx:798`: `String.prototype.indexOf()` on short strings
+    in a loop — false positives (fuzzy-match algorithm needs positional character
+    search on a per-call string; finding a single colon in a ~13-char key is
+    trivial). Suppressed with `react-doctor-disable-next-line`.
 - **Unstable context provider value ×2** ✅ **DONE 2026-06-08** — `ConfirmDialog.tsx:61`,
   `Toast.tsx:95`. Wrapped the provider `value` objects in `useMemo`. Both callbacks were
   already `useCallback`-stabilized; the `useMemo` prevents the context value object
