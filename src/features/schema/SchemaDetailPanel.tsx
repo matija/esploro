@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useReducer } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { CheckSquare, Square, Layers, User, Plus, X } from "lucide-react";
@@ -65,6 +65,80 @@ function ApplyResultSummary({
 
 // ── Schema Privileges Tab ──────────────────────────────────────────────────────
 
+type PrivsState = {
+  pendingOps: Map<string, SchemaPrivilegeOp>;
+  addedGrantees: string[];
+  applying: boolean;
+  applyResults: { sql: string; error: string | null }[] | null;
+  showRolePicker: boolean;
+  roleSearch: string;
+};
+
+type PrivsAction =
+  | { type: "TOGGLE"; key: string; serverHas: boolean; current: boolean; grantee: string; priv: string }
+  | { type: "ADD_GRANTEE"; name: string }
+  | { type: "TOGGLE_PICKER" }
+  | { type: "SET_SEARCH"; value: string }
+  | { type: "APPLY_START" }
+  | { type: "APPLY_DONE"; results: { sql: string; error: string | null }[]; schemaName: string }
+  | { type: "APPLY_END" }
+  | { type: "DISCARD" }
+  | { type: "CLOSE_RESULTS" };
+
+function privsReducer(state: PrivsState, action: PrivsAction): PrivsState {
+  switch (action.type) {
+    case "TOGGLE": {
+      const next = new Map(state.pendingOps);
+      if (action.serverHas === !action.current) {
+        next.delete(action.key);
+      } else {
+        next.set(action.key, {
+          op: action.current ? "revoke" : "grant",
+          grantee: action.grantee,
+          privilege: action.priv,
+        });
+      }
+      return { ...state, pendingOps: next };
+    }
+    case "ADD_GRANTEE":
+      return {
+        ...state,
+        addedGrantees: [...state.addedGrantees, action.name],
+        showRolePicker: false,
+        roleSearch: "",
+      };
+    case "TOGGLE_PICKER":
+      return { ...state, showRolePicker: !state.showRolePicker };
+    case "SET_SEARCH":
+      return { ...state, roleSearch: action.value };
+    case "APPLY_START":
+      return { ...state, applying: true };
+    case "APPLY_DONE": {
+      const failedSqls = new Set(action.results.filter((r) => r.error).map((r) => r.sql));
+      const remaining = new Map<string, SchemaPrivilegeOp>();
+      for (const [k, op] of state.pendingOps) {
+        const sql =
+          op.op === "grant"
+            ? `GRANT ${op.privilege} ON SCHEMA "${action.schemaName}" TO "${op.grantee}"`
+            : `REVOKE ${op.privilege} ON SCHEMA "${action.schemaName}" FROM "${op.grantee}"`;
+        if (failedSqls.has(sql)) remaining.set(k, op);
+      }
+      return {
+        ...state,
+        applyResults: action.results,
+        pendingOps: remaining,
+        addedGrantees: failedSqls.size === 0 ? [] : state.addedGrantees,
+      };
+    }
+    case "APPLY_END":
+      return { ...state, applying: false };
+    case "DISCARD":
+      return { ...state, pendingOps: new Map(), addedGrantees: [] };
+    case "CLOSE_RESULTS":
+      return { ...state, applyResults: null };
+  }
+}
+
 function SchemaPrivilegesTab({
   schemaName,
   sessionId,
@@ -91,12 +165,15 @@ function SchemaPrivilegesTab({
     staleTime: 60_000,
   });
 
-  const [pendingOps, setPendingOps] = useState<Map<string, SchemaPrivilegeOp>>(new Map());
-  const [addedGrantees, setAddedGrantees] = useState<string[]>([]);
-  const [applying, setApplying] = useState(false);
-  const [applyResults, setApplyResults] = useState<{ sql: string; error: string | null }[] | null>(null);
-  const [showRolePicker, setShowRolePicker] = useState(false);
-  const [roleSearch, setRoleSearch] = useState("");
+  const [state, dispatch] = useReducer(privsReducer, {
+    pendingOps: new Map<string, SchemaPrivilegeOp>(),
+    addedGrantees: [] as string[],
+    applying: false,
+    applyResults: null as { sql: string; error: string | null }[] | null,
+    showRolePicker: false,
+    roleSearch: "",
+  });
+  const { pendingOps, addedGrantees, applying, applyResults, showRolePicker, roleSearch } = state;
 
   function hasPrivilege(grantee: string, priv: string): boolean {
     const key = schemaPrivOpKey(grantee, priv);
@@ -110,41 +187,22 @@ function SchemaPrivilegesTab({
     const key = schemaPrivOpKey(grantee, priv);
     const serverHas = infoData?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
 
-    setPendingOps((prev) => {
-      const next = new Map(prev);
-      if (serverHas === !current) {
-        next.delete(key);
-      } else {
-        next.set(key, { op: current ? "revoke" : "grant", grantee, privilege: priv });
-      }
-      return next;
-    });
+    dispatch({ type: "TOGGLE", key, serverHas, current, grantee, priv });
   }
 
   async function handleApply() {
     const ops = Array.from(pendingOps.values());
     if (ops.length === 0) return;
-    setApplying(true);
+    dispatch({ type: "APPLY_START" });
     try {
       const results = await rolesApi.manageSchemaPrivileges(sessionId, schemaName, ops);
-      setApplyResults(results.map((r) => ({ sql: r.sql, error: r.error })));
-      const failedSqls = new Set(results.filter((r) => r.error).map((r) => r.sql));
-      setPendingOps((prev) => {
-        const next = new Map<string, SchemaPrivilegeOp>();
-        for (const [k, op] of prev) {
-          const sql = op.op === "grant"
-            ? `GRANT ${op.privilege} ON SCHEMA "${schemaName}" TO "${op.grantee}"`
-            : `REVOKE ${op.privilege} ON SCHEMA "${schemaName}" FROM "${op.grantee}"`;
-          if (failedSqls.has(sql)) next.set(k, op);
-        }
-        return next;
-      });
-      if (failedSqls.size === 0) setAddedGrantees([]);
+      const resultItems = results.map((r) => ({ sql: r.sql, error: r.error }));
+      dispatch({ type: "APPLY_DONE", results: resultItems, schemaName });
       void refetchInfo();
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), "error");
     } finally {
-      setApplying(false);
+      dispatch({ type: "APPLY_END" });
     }
   }
 
@@ -175,7 +233,7 @@ function SchemaPrivilegesTab({
           <span className="text-[11px] uppercase tracking-wide text-tertiary font-medium">Grantees</span>
           <button
             type="button"
-            onClick={() => setShowRolePicker((v) => !v)}
+            onClick={() => dispatch({ type: "TOGGLE_PICKER" })}
             className="flex items-center gap-1 text-[12px] text-accent hover:text-accent/80 transition-colors"
           >
             <Plus size={12} /> Add grantee
@@ -188,7 +246,7 @@ function SchemaPrivilegesTab({
               aria-label="Search roles to add as grantee"
               ref={(el) => { el?.focus(); }}
               value={roleSearch}
-              onChange={(e) => setRoleSearch(e.target.value)}
+              onChange={(e) => dispatch({ type: "SET_SEARCH", value: e.target.value })}
               placeholder="Search roles…"
               className="w-full px-2 py-1 text-[12px] bg-transparent outline-none"
             />
@@ -201,9 +259,7 @@ function SchemaPrivilegesTab({
                     key={r.name}
                     type="button"
                     onClick={() => {
-                      setAddedGrantees((prev) => [...prev, r.name]);
-                      setShowRolePicker(false);
-                      setRoleSearch("");
+                      dispatch({ type: "ADD_GRANTEE", name: r.name });
                     }}
                     className="flex w-full items-center gap-2 px-2 py-1 text-[12px] text-label rounded hover:bg-hover transition-colors"
                   >
@@ -262,7 +318,7 @@ function SchemaPrivilegesTab({
         <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-t border-separator bg-content">
           <button
             type="button"
-            onClick={() => { setPendingOps(new Map()); setAddedGrantees([]); }}
+            onClick={() => dispatch({ type: "DISCARD" })}
             className="px-3 py-1.5 rounded text-[13px] text-secondary hover:bg-hover hover:text-label transition-colors"
           >
             Discard
@@ -279,7 +335,7 @@ function SchemaPrivilegesTab({
       )}
 
       {applyResults && (
-        <ApplyResultSummary results={applyResults} onClose={() => setApplyResults(null)} />
+        <ApplyResultSummary results={applyResults} onClose={() => dispatch({ type: "CLOSE_RESULTS" })} />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis + unused-exports + static-values + pure-functions done — 0 ✖ errors, 38 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 giant-components + useReducer + Phase 4 combine-iterations intentionally kept)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis + unused-exports + static-values + pure-functions + SchemaDetailPanel-useReducer done — 0 ✖ errors, 37 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 giant-components + useReducer ×7 + Phase 4 combine-iterations intentionally kept)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -208,11 +208,14 @@ Grouped by rule; all non-mechanical, non-opportunistic bug warnings are resolved
   `QueryEditorTab.tsx:188`. Stored `onBodyScroll` in `onBodyScrollRef`; the effect's
   listener calls `onBodyScrollRef.current()` so the subscription is stable regardless
   of callback identity changes.
-- **Many related useState → useReducer ×8** — `RoleDetailPanel.tsx:99,350`,
-  `TableViewerTab.tsx:65`, `SchemaTree.tsx:430`, `ConnectionForm.tsx:63`,
-  `QueryEditorTab.tsx:570`, `SchemaDetailPanel.tsx:65`, `TablePrivilegesTab.tsx:61`.
+- **Many related useState → useReducer ×7** — `RoleDetailPanel.tsx:115,360`,
+  `TableViewerTab.tsx:71`, `SchemaTree.tsx:453`, `ConnectionForm.tsx:63`,
+  `QueryEditorTab.tsx:606`, `TablePrivilegesTab.tsx:70`.
   **Optional / opportunistic** — only convert where the state cluster is genuinely a single
-  machine; don't force it. Overlaps with P5 giant-component work.
+  machine; don't force it. `SchemaDetailPanel.tsx` (SchemaPrivilegesTab) converted to
+  `useReducer` on 2026-06-08 — it was a genuine privilege-editing state machine with
+  pendingOps/addedGrantees/applying/applyResults/showRolePicker/roleSearch all
+  transitioning through the same workflow. Overlaps with P5 giant-component work.
 
 `SavedQueriesSection.tsx:180-188` is flagged by five different rules at once — fix it as one
 coherent rewrite of the rename interaction (prev-prop init or keyed input, side effect in the

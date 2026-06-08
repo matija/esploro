@@ -1,3 +1,31 @@
+## 2026-06-08 — Frontend Health Remediation Phase 5: SchemaDetailPanel useReducer conversion (×1 of 8)
+
+Converted SchemaPrivilegesTab's 6 related useState calls to a single useReducer.
+This was the clearest privilege-editing state machine — pendingOps, addedGrantees,
+applying, applyResults, showRolePicker, and roleSearch all transition through
+the same add-grantee → toggle-privilege → apply workflow.
+
+- Added `PrivsState` type, `PrivsAction` discriminated union (9 actions:
+  TOGGLE, ADD_GRANTEE, TOGGLE_PICKER, SET_SEARCH, APPLY_START, APPLY_DONE,
+  APPLY_END, DISCARD, CLOSE_RESULTS), and `privsReducer` pure function before
+  the component.
+- Replaced all `setPendingOps`/`setAddedGrantees`/`setApplying`/`setApplyResults`/
+  `setShowRolePicker`/`setRoleSearch` calls with `dispatch({ type, ... })`.
+- Destructured `state` after `useReducer` so component code still reads
+  `pendingOps`/`addedGrantees`/etc. — no JSX changes needed.
+- Behavior-preserving; all privilege toggle/add/apply/discard logic unchanged.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 38→37, bugs 9→8, score 82/100.
+`prefer-useReducer`: 8→7 — 1 resolved (SchemaDetailPanel.tsx).
+
+Remaining `prefer-useReducer` (×7): RoleDetailPanel ×2 (AttributesTab, MembersTab),
+TableViewerTab, TablePrivilegesTab, QueryEditorTab, ConnectionForm, SchemaTree
+(CreateRoleModal). TablePrivilegesTab and MembersTab are genuine state machines
+(privilege/membership editing workflows); the other 5 are independent form fields
+or independent state variables — not good candidates per PRD guidance.
+
 ## 2026-06-08 — Frontend Health Remediation Phase 5: Static values + pure functions (×6)
 
 Resolved all 6 `prefer-module-scope-static-value` and
