@@ -42,8 +42,10 @@ function ApplyResultSummary({
   const failed = results.filter((r) => r.error).length;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/40"
+      <button
+        type="button"
+        aria-label="Close"
+        className="absolute inset-0 bg-black/40 border-0 p-0 cursor-default"
         onClick={onClose}
       />
       <div className="relative z-10 bg-raised rounded-[var(--radius-popover)] border border-separator shadow-[var(--shadow-popover)] p-5 w-[480px] max-h-[60vh] flex flex-col gap-3">

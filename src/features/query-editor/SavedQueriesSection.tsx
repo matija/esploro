@@ -212,10 +212,18 @@ function QueryRow({
   return (
     <DropdownMenu.Root>
       <div
+        role="button"
+        tabIndex={-1}
         className="group flex items-center gap-1.5 py-1 text-xs text-label hover:bg-hover transition-colors duration-[var(--motion-fast)] cursor-default select-none"
         style={{ paddingLeft: 12 + depth * 12, paddingRight: 8 }}
         onDoubleClick={() => { if (!isRenaming) onOpen(); }}
         onClick={() => { if (!isRenaming) onOpen(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (!isRenaming) onOpen();
+          }
+        }}
       >
         <FileText size={11} className="text-secondary shrink-0" />
         {isRenaming ? (

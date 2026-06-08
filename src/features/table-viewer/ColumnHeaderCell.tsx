@@ -29,12 +29,20 @@ export function ColumnHeaderCell({
 }) {
   return (
     <div
+      role="columnheader"
+      tabIndex={-1}
       className={cn(
         "relative flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
         isFiltered && "bg-accent/5",
       )}
       style={{ width, minWidth: width, height: HEADER_HEIGHT }}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       onContextMenu={onContextMenu}
     >
       {col.isPrimaryKey && (
@@ -92,9 +100,17 @@ export function ColumnHeaderCell({
       )}
       {/* Resize handle */}
       <div
+        role="separator"
+        aria-label="Resize column"
+        tabIndex={-1}
         className="absolute right-0 top-1 bottom-1 w-1 rounded-full opacity-0 group-hover:opacity-100 bg-separator hover:bg-accent/60 cursor-col-resize transition-opacity"
         onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e); }}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+          }
+        }}
       />
     </div>
   );

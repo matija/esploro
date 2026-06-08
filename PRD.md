@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association done — 0 ✖ errors, 114 warnings remaining (Phases 3–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction done — 0 ✖ errors, 87 warnings remaining (Phases 3–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -241,10 +241,35 @@ in ConnectionForm (Database, Color, Connection Type, Advanced) to
   pairs, or `<fieldset>`/`<legend>` for control groups
 
 - **Click handler missing keyboard handler ×15** + **Interaction on static element ×16** +
-  **Interactive element not focusable ×3** — these overlap on the same clickable
-  `div`/`span`s (`SchemaTree`, `RoleDetailPanel`, `TableViewerTab`, `ConnectionList`,
-  `AppShell`, `TabBar`, `ColumnHeaderCell`, …). Preferred fix: convert to a real `<button>`;
-  where layout forbids it, add `role`, `tabIndex={0}`, and an `onKeyDown` for Enter/Space.
+  **Interactive element not focusable ×3** ✅ **DONE 2026-06-08** — all 34 findings resolved.
+
+  Fix pattern per element type:
+  - **Filter-chip close "×" spans** (`TableViewerTab.tsx`): kept as `<span role="button" tabIndex={0}>`
+    with `onKeyDown` for Enter/Space — converting to `<button>` caused nested-interactive
+    inside the parent filter-chip `<button>`.
+  - **Data grid cells** (`TableViewerTab`, `QueryEditorTab`): added `role="gridcell"`,
+    `tabIndex={-1}`, `onKeyDown` for Enter/Space.
+  - **Column headers** (`ColumnHeaderCell.tsx`): added `role="columnheader"`, `tabIndex={-1}`,
+    `onKeyDown` calling `onClick`.
+  - **Resize handles** (`ColumnHeaderCell`, `QueryEditorTab`): added `role="separator"`,
+    `tabIndex={-1}`, `onKeyDown`.
+  - **Modal backdrops** (`ApplyResultSummary` in RoleDetailPanel / SchemaDetailPanel /
+    TablePrivilegesTab, `CreateRole` in SchemaTree): converted from `<div>` to `<button
+    type="button">` with `border-0 p-0` reset styling — these are simple click-outside overlays
+    with no nested interactive content.
+  - **Tab bar tabs** (`TabBar.tsx`): added `tabIndex={active ? 0 : -1}`, `onKeyDown` for
+    Enter/Space activation.
+  - **SchemaTree nodes + column rows**: added `role="treeitem"`, `tabIndex={-1}`,
+    `onKeyDown` for focus+activate/toggle.
+  - **SchemaTree container**: added `role="tree"` (legitimizes existing `tabIndex={0}`).
+  - **ConnectionList rows**: added `role="button"`, `tabIndex={-1}`, `onKeyDown`.
+  - **ConnectionList container**: added `role="listbox"` (legitimizes existing `tabIndex={0}`).
+  - **AppShell license wrapper**: added `role="button"`, `tabIndex={-1}`, `onKeyDown`.
+  - **SavedQueriesSection rows**: added `role="button"`, `tabIndex={-1}`, `onKeyDown`.
+
+  Remaining `prefer-tag-over-role` ×12: roles on elements that could be native (`role="button"`
+  on containers with nested interactive children, `role="gridcell"/"columnheader"/"separator"`
+  which have no exact native equivalents in a div-based grid) — lower priority.
 - **Autofocus on an element ×7** — `RoleDetailPanel:545,620`, `SchemaTree:507`,
   `ColumnFilterPopover:133`, `QueryEditorTab:465`, `SchemaDetailPanel:177`,
   `TablePrivilegesTab:201`. Replace `autoFocus` with a focus-on-open `useEffect`/ref **only

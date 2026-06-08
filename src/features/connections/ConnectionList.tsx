@@ -160,8 +160,16 @@ function ConnectionRow({
   return (
     <>
       <div
+        role="button"
         data-nav-key={`conn:${profile.id}`}
+        tabIndex={-1}
         onClick={onFocus}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onFocus();
+          }
+        }}
         onDoubleClick={() => {
           if (!isActive && !isConnecting) onConnect();
         }}
@@ -501,6 +509,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
   return (
     <div
       ref={containerRef}
+      role="listbox"
       tabIndex={0}
       className="outline-none"
       onKeyDown={handleKeyDown}

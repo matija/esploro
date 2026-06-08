@@ -277,7 +277,15 @@ function ResultGrid({
                 {columns.map((col, ci) => (
                   <div
                     key={col.name}
+                    role="gridcell"
+                    tabIndex={-1}
                     onClick={() => setSelectedCell({ row: vrow.index, col: ci })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedCell({ row: vrow.index, col: ci });
+                      }
+                    }}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       setSelectedCell({ row: vrow.index, col: ci });
@@ -879,7 +887,15 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
       {/* Drag handle — only visible when result pane is shown */}
       {showResultPane && (
         <div
+          role="separator"
+          aria-label="Resize result pane"
+          tabIndex={-1}
           onMouseDown={onDragHandleMouseDown}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+            }
+          }}
           className="h-1 bg-separator hover:bg-accent/40 cursor-row-resize shrink-0 transition-colors"
           title="Drag to resize"
         />

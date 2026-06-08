@@ -1092,6 +1092,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               <span className="font-mono truncate max-w-[280px]">{appliedRawWhere}</span>
               <span
                 role="button"
+                tabIndex={0}
                 onClick={async () => {
                   if (!await guardNavigation()) return;
                   discardEdits();
@@ -1102,6 +1103,12 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     appliedRawWhere: "",
                   });
                   setPage(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.currentTarget.click();
+                  }
                 }}
                 className="hover:text-destructive transition-colors ml-0.5 cursor-default"
               >
@@ -1126,7 +1133,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               )}
               <span
                 role="button"
+                tabIndex={0}
                 onClick={(e) => { e.stopPropagation(); removeFilter(f.column); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault(); e.stopPropagation(); removeFilter(f.column);
+                  }
+                }}
                 className="hover:text-destructive transition-colors ml-0.5 cursor-default"
               >
                 ×
@@ -1325,6 +1338,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           return (
                             <div
                               key={col.name}
+                              role="gridcell"
+                              tabIndex={-1}
                               className={cn(
                                 "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
                                 isSelected &&
@@ -1342,6 +1357,12 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               onClick={() =>
                                 setSelectedCell({ row: vr.index, col: ci })
                               }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelectedCell({ row: vr.index, col: ci });
+                                }
+                              }}
                               onDoubleClick={(e) => {
                                 if (editable) startEdit(vr.index, ci, e.currentTarget);
                               }}

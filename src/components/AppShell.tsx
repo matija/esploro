@@ -171,7 +171,18 @@ function LicenseBadge() {
 
   if (!isLicensed) {
     return (
-      <div onClick={openLicenseSettings} className="contents cursor-default">
+      <div
+        role="button"
+        tabIndex={-1}
+        onClick={openLicenseSettings}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openLicenseSettings();
+          }
+        }}
+        className="contents cursor-default"
+      >
         {badgeButton}
       </div>
     );

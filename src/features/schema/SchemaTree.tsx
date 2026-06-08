@@ -227,12 +227,20 @@ function TreeRow({
     const { def } = node;
     return (
       <div
+        role="treeitem"
+        tabIndex={-1}
         className={cn(
           "flex items-center gap-1 py-[3px] hover:bg-control transition-colors cursor-default",
           isFocused && "bg-accent/10 ring-1 ring-inset ring-accent/30 rounded",
         )}
         style={{ paddingLeft: (4 + depthAdj) * 10 + 8, paddingRight: 8 }}
         onClick={onFocus}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onFocus();
+          }
+        }}
         onContextMenu={handleContextMenu}
       >
         <span className="w-[10px] shrink-0" />
@@ -306,6 +314,8 @@ function TreeRow({
 
   return (
     <div
+      role="treeitem"
+      tabIndex={-1}
       className={cn(
         "group flex items-center gap-1 py-[3px] select-none transition-colors",
         "hover:bg-control",
@@ -319,6 +329,17 @@ function TreeRow({
           onActivate();
         } else if (expandable) {
           onToggle();
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onFocus();
+          if (isDataNode) {
+            onActivate();
+          } else if (expandable) {
+            onToggle();
+          }
         }
       }}
       onContextMenu={handleContextMenu}
@@ -490,7 +511,12 @@ function CreateRoleModal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close"
+        className="absolute inset-0 bg-black/40 border-0 p-0 cursor-default"
+        onClick={onClose}
+      />
       <form
         onSubmit={handleSubmit}
         className="relative z-10 bg-raised rounded-[var(--radius-popover)] border border-separator shadow-[var(--shadow-popover)] p-5 w-[380px] flex flex-col gap-4"
@@ -1271,6 +1297,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
   return (
     <div
+      role="tree"
       className="flex flex-col outline-none"
       tabIndex={0}
       onKeyDown={handleKeyDown}

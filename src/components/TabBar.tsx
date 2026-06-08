@@ -127,7 +127,14 @@ function TabItem({
     <div
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       onClick={() => setActiveTab(tab.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setActiveTab(tab.id);
+        }
+      }}
       onContextMenu={onContextMenu}
       className={cn(
         "group flex items-center gap-1 px-3 h-full",
