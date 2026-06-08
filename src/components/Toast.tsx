@@ -1,6 +1,7 @@
 import {
   useState,
   useCallback,
+  useMemo,
   createContext,
   useContext,
   useEffect,
@@ -91,8 +92,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const value = useMemo(() => ({ toast }), [toast]);
+
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div className="fixed bottom-10 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
         {items.map((item) => (

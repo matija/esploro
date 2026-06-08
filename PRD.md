@@ -305,8 +305,11 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
   once before the loop.
 - **Array lookup in a loop ×3** — `fuzzy.ts:9`, `MiniSqlEditor:406`, `SchemaTree:755`. Use a
   `Set`/`Map` for repeated membership checks.
-- **Unstable context provider value ×2** — `ConfirmDialog.tsx:61`, `Toast.tsx:95`. Wrap the
-  provider `value` in `useMemo`.
+- **Unstable context provider value ×2** ✅ **DONE 2026-06-08** — `ConfirmDialog.tsx:61`,
+  `Toast.tsx:95`. Wrapped the provider `value` objects in `useMemo`. Both callbacks were
+  already `useCallback`-stabilized; the `useMemo` prevents the context value object
+  itself from being recreated on every render, avoiding unnecessary re-renders in
+  consuming components.
 - **Spread-copy before sort ×2** — `CommandPalette:428`, `SchemaTree:598`. Use `toSorted()`.
 - **Barrel imports ×4** ✅ **DONE 2026-06-08**. Replaced all barrel imports with direct
   file imports in Sidebar.tsx, AppShell.tsx, SettingsView.tsx, and CommandPalette.tsx.

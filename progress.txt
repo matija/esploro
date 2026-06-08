@@ -862,3 +862,26 @@ Next: Phase 4 remaining — `js-combine-iterations` ×15, `js-index-maps` ×3,
 `js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
 `jsx-no-constructed-context-values` ×2, `jsx-no-new-object-as-prop` ×1.
 Phase 3 `prefer-tag-over-role` ×12 structurally infeasible.
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: Unstable context provider values (×2)
+
+Wrapped the context provider `value` objects in `useMemo` to prevent consumer
+re-renders:
+
+- `ConfirmDialog.tsx:61`: `useMemo(() => ({ confirm }), [confirm])` — `confirm`
+  is already `useCallback`-stabilized; the memo prevents the `{ confirm }`
+  object literal from being recreated on every render.
+- `Toast.tsx:95`: `useMemo(() => ({ toast }), [toast])` — `toast` is already
+  `useCallback`-stabilized; same pattern.
+
+Behavior-preserving; consumers (every component using `useConfirm()` or
+`useToast()`) benefit from stable context references.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 72→70, performance 24→22, score 75→77/100.
+`jsx-no-constructed-context-values`: 2→0 — resolved.
+
+Next: Phase 4 remaining — `js-combine-iterations` ×15, `js-index-maps` ×3,
+`js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
+`jsx-no-new-object-as-prop` ×1.

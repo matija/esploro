@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -57,8 +58,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   const opts = pending?.options;
 
+  const value = useMemo(() => ({ confirm }), [confirm]);
+
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={value}>
       {children}
       <Dialog.Root
         open={pending !== null}
