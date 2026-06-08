@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports done — 0 ✖ errors, 76 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports done — 0 ✖ errors, 72 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -308,8 +308,10 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 - **Unstable context provider value ×2** — `ConfirmDialog.tsx:61`, `Toast.tsx:95`. Wrap the
   provider `value` in `useMemo`.
 - **Spread-copy before sort ×2** — `CommandPalette:428`, `SchemaTree:598`. Use `toSorted()`.
-- **Barrel imports ×4** — `CommandPalette:10`, `SettingsView:9`, `Sidebar:5`, `AppShell:11`.
-  Import from direct paths.
+- **Barrel imports ×4** ✅ **DONE 2026-06-08**. Replaced all barrel imports with direct
+  file imports in Sidebar.tsx, AppShell.tsx, SettingsView.tsx, and CommandPalette.tsx.
+  Deleted 6 now-unused barrel index files (connections, license, query-editor, schema,
+  settings, table-viewer).
 
 ---
 

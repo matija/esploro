@@ -8,15 +8,13 @@ import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { CommandPalette } from "./CommandPalette";
-import { TableViewerTab } from "../features/table-viewer";
-import { QueryEditorTab } from "../features/query-editor";
-import {
-  LicenseBanner,
-  UsageTypeDialog,
-  licenseApi,
-  LICENSE_STATUS_KEY,
-} from "../features/license";
-import { SettingsView, NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings";
+import { TableViewerTab } from "../features/table-viewer/TableViewerTab";
+import { QueryEditorTab } from "../features/query-editor/QueryEditorTab";
+import { LicenseBanner } from "../features/license/LicenseBanner";
+import { UsageTypeDialog } from "../features/license/UsageTypeDialog";
+import { licenseApi, LICENSE_STATUS_KEY } from "../features/license/api";
+import { SettingsView } from "../features/settings/SettingsView";
+import { NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings/settingsNav";
 import { UpdateSheet } from "../features/updates/UpdateSheet";
 import { useUpdateChecker } from "../features/updates/useUpdateChecker";
 import { WelcomeView } from "../features/welcome/WelcomeView";

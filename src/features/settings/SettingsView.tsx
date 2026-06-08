@@ -6,7 +6,7 @@ import { DataGridSettings } from "./DataGridSettings";
 import { ConnectionsSettings } from "./ConnectionsSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { AboutSettings } from "./AboutSettings";
-import { LicenseSettings } from "../license";
+import { LicenseSettings } from "../license/LicenseSettings";
 import { NAV_ITEMS, type SettingsSection } from "./settingsNav";
 
 const SECTION_ICON: Record<SettingsSection, LucideIcon> = {

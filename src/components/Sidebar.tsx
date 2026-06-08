@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useAppStore } from "../store";
 import { SidebarSection } from "./SidebarSection";
-import { ConnectionForm, ConnectionList } from "../features/connections";
-import { connectionsApi } from "../features/connections";
-import type { ConnectionProfile } from "../features/connections";
-import { SchemaTree } from "../features/schema";
-import { SavedQueriesSection } from "../features/query-editor";
+import { ConnectionForm } from "../features/connections/ConnectionForm";
+import { ConnectionList } from "../features/connections/ConnectionList";
+import { connectionsApi } from "../features/connections/api";
+import type { ConnectionProfile } from "../lib/bindings";
+import { SchemaTree } from "../features/schema/SchemaTree";
+import { SavedQueriesSection } from "../features/query-editor/SavedQueriesSection";
 import { RecentObjectsSection } from "../features/sidebar/RecentObjectsSection";
 import { cn } from "../lib/utils";
 

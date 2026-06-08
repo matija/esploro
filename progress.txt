@@ -832,3 +832,33 @@ Next: Phase 4 remaining — `js-combine-iterations` ×15, `no-barrel-import` ×4
 `prefer-module-scope-static-value` ×2. Phase 3 `prefer-tag-over-role` ×12
 structurally infeasible (div-based grid, nested interactive, interactive
 resize handles).
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: Barrel imports (×4)
+
+Replaced all barrel (index.ts) imports with direct file imports across the
+4 flagged files:
+
+- `Sidebar.tsx:5-9`: replaced `../features/connections`, `../features/schema`,
+  `../features/query-editor` barrel imports with direct file imports.
+- `AppShell.tsx:11-19`: replaced `../features/table-viewer`,
+  `../features/query-editor`, `../features/license`, `../features/settings`
+  barrel imports with direct file imports.
+- `SettingsView.tsx:9`: replaced `../license` barrel import with
+  `../license/LicenseSettings`.
+- `CommandPalette.tsx:9-14`: replaced `../features/connections`,
+  `../features/schema`, `../features/query-editor` barrel imports with
+  direct file imports.
+
+Deleted 6 now-unused barrel index files:
+`features/{connections,license,query-editor,schema,settings,table-viewer}/index.ts`.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 76→72, score 74→75/100.
+`no-barrel-import`: 4→0 — resolved.
+`deslop/unused-file`: 6 new → 0 (deleted).
+
+Next: Phase 4 remaining — `js-combine-iterations` ×15, `js-index-maps` ×3,
+`js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
+`jsx-no-constructed-context-values` ×2, `jsx-no-new-object-as-prop` ×1.
+Phase 3 `prefer-tag-over-role` ×12 structurally infeasible.

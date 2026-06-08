@@ -7,11 +7,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
-import { connectionsApi } from "../features/connections";
+import { connectionsApi } from "../features/connections/api";
 import { cn } from "../lib/utils";
 import { fuzzyScore } from "../lib/fuzzy";
-import type { SchemaObjects } from "../features/schema";
-import type { SavedQuery } from "../features/query-editor";
+import type { SchemaObjects } from "../features/schema/types";
+import type { SavedQuery } from "../features/query-editor/types";
 
 type CommandGroup = "Connections" | "Schema" | "Queries" | "Commands" | "Settings";
 
