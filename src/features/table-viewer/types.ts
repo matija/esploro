@@ -50,11 +50,7 @@ export function editableKind(udt: string, driver: "postgres" | "mysql"): Editabl
   return "none";
 }
 
-export function isEditableType(udt: string): boolean {
-  if (udt.endsWith("[]")) return false;
-  const t = udt.toLowerCase();
-  return t !== "json" && t !== "jsonb" && t !== "bytea";
-}
+
 
 export type TypeFamily = "text" | "numeric" | "date" | "boolean" | "json" | "other";
 

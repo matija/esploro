@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis done — 0 ✖ errors, 53 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 unused-exports + static-values + pure-functions + giant-components + useReducer)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis + unused-exports done — 0 ✖ errors, 44 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 static-values + pure-functions + giant-components + useReducer)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -334,11 +334,10 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 
 ## 8. Phase 5 — Maintainability (25 findings)
 
-- **Unused exports ×9** (`deslop`) — `connections/api.ts:41`, `schema/types.ts:25,46`,
-  `settings/preferences.ts:79,218`, `table-viewer/types.ts:53`, `useUpdateChecker.ts:4`,
-  `lib/ipc.ts:20,69`. Drop the `export` (or the declaration). **Caveat:** some
-  `types.ts`/`ipc.ts` exports may be re-exported generated bindings from the prior typed-IPC
-  work — confirm nothing external consumes them before deleting. Cross-check with `knip`.
+- **Unused exports ×9** (`deslop`) ✅ **DONE 2026-06-08** — `parsePostgresUrl`, `nodeKey`,
+  `nodeDepth`, `uiPreferencesBootstrapKey`, `themeToPaletteAttribute`, `isEditableType`,
+  `UPDATE_CHECK_KEY`, `IpcError`, `invoke`. Removed 4 completely dead functions and 3
+  dead imports. Verified no external consumers via grep / cross-checked with knip.
 - **Static value / pure function rebuilt every render ×6** — `RoleDetailPanel:162,731`,
   `SchemaTree:176`, `QueryEditorTab:590`, `SchemaDetailPanel:86`, `TablePrivilegesTab:95`.
   Hoist to module scope.

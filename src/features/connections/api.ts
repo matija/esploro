@@ -37,9 +37,6 @@ export type ParsedConnectionUrl = Partial<ConnectionInput> & {
   password?: string;
 };
 
-/** @deprecated use parseConnectionUrl */
-export const parsePostgresUrl = parseConnectionUrl;
-
 export function parseConnectionUrl(url: string): ParsedConnectionUrl {
   try {
     const u = new URL(url);

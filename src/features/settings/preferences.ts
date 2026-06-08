@@ -76,7 +76,7 @@ export const defaultUiPreferences: UiPreferences = {
   },
 };
 
-export const uiPreferencesBootstrapKey = "esploro-ui-preferences";
+const uiPreferencesBootstrapKey = "esploro-ui-preferences";
 
 type LegacyTheme = "light" | "dark";
 
@@ -215,7 +215,7 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
   }
 }
 
-export function themeToPaletteAttribute(theme: unknown): string | null {
+function themeToPaletteAttribute(theme: unknown): string | null {
   switch (normalizeTheme(theme)) {
     case "tokyo-night":
       return "tokyo-night";

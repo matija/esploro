@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { updatesApi, type UpdateInfo } from "./api";
 
-export const UPDATE_CHECK_KEY = ["update-check"] as const;
+const UPDATE_CHECK_KEY = ["update-check"] as const;
 
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 

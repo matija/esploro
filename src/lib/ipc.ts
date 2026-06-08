@@ -1,6 +1,3 @@
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
-import type { InvokeArgs, InvokeOptions } from "@tauri-apps/api/core";
-
 /**
  * The structured error shape returned by every Rust command (`AppError`,
  * serialized as `{ kind, message, code, position }`). The backend is the source
@@ -17,7 +14,7 @@ export type AppErrorKind =
 
 /** A normalized command error: a real `Error` (so `.message` keeps working in
  *  existing `catch` sites) that also carries the structured `kind`/`code`. */
-export class IpcError extends Error {
+class IpcError extends Error {
   kind: AppErrorKind | string;
   code: string | null;
   position: number | null;
@@ -60,20 +57,4 @@ export function isSessionNotFound(err: unknown): boolean {
   return err instanceof IpcError && err.kind === "SessionNotFound";
 }
 
-/**
- * Drop-in replacement for `@tauri-apps/api/core`'s `invoke` that normalizes the
- * structured error returned by Rust commands into an `IpcError`. Import this
- * instead of the raw `invoke` so error consumers get both a readable `.message`
- * and a branchable `.kind`.
- */
-export async function invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T> {
-  try {
-    return await tauriInvoke<T>(cmd, args, options);
-  } catch (raw) {
-    throw normalizeError(raw);
-  }
-}
+

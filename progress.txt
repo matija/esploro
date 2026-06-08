@@ -1037,3 +1037,40 @@ React Doctor: issues 59→57, performance warnings 13→11, score 79/100.
 `js-tosorted-immutable`: 2→0 — resolved.
 
 Next: Phase 4 remaining — `jsx-no-new-object-as-prop` ×1, then Phase 5.
+
+## 2026-06-08 — Frontend Health Remediation Phase 5: Unused exports (×9)
+
+Resolved all 9 `deslop/unused-export` findings. Cross-checked every
+symbol with grep across `src/`; none had external consumers.
+
+- `connections/api.ts:41` — `parsePostgresUrl`: deprecated alias for
+  `parseConnectionUrl`, never imported. Removed declaration + comment.
+- `schema/types.ts:25` — `nodeKey`: dead code, never used (even
+  internally). Removed 20-line function.
+- `schema/types.ts:46` — `nodeDepth`: SchemaTree.tsx has its own local
+  copy. Removed 14-line function.
+- `settings/preferences.ts:79` — `uiPreferencesBootstrapKey`: only used
+  internally in `cacheUiPreferencesForBootstrap`. Dropped `export`.
+- `settings/preferences.ts:218` — `themeToPaletteAttribute`: only used
+  internally in `applyUiPreferencesToDocument`. Dropped `export`.
+- `table-viewer/types.ts:53` — `isEditableType`: dead code, never used
+  anywhere. Removed function entirely.
+- `useUpdateChecker.ts:4` — `UPDATE_CHECK_KEY`: only used internally
+  in `useQuery`. Dropped `export`.
+- `lib/ipc.ts:20` — `IpcError`: only used internally by `normalizeError`
+  and `isSessionNotFound`. Dropped `export`.
+- `lib/ipc.ts:69` — `invoke` wrapper: all consumers use generated Specta
+  bindings directly. Removed function + 3 now-dead imports (tauriInvoke,
+  InvokeArgs, InvokeOptions).
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build`
+succeeds.
+
+React Doctor: issues 53→44, maintainability 22→13, score 80→82/100.
+`deslop/unused-export`: 9→0 — resolved.
+3 dead imports from removed invoke function also cleaned up.
+
+Next: Phase 5 remaining — static values rebuilt every render (×2),
+  pure functions rebuilt every render (×4), giant components (×7),
+  prefer-useReducer (×8). Phase 3 `prefer-tag-over-role` ×12
+  structurally infeasible.
