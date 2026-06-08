@@ -4,6 +4,8 @@ import {
   useMemo,
   useRef,
   useCallback,
+  lazy,
+  Suspense,
 } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -31,7 +33,11 @@ import {
 } from "./types";
 import { cn } from "../../lib/utils";
 import { CellRenderer } from "../data-grid/CellRenderer";
-import { MiniSqlEditor, type MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
+import type { MiniSqlEditorHandle } from "../query-editor/MiniSqlEditor";
+
+const MiniSqlEditor = lazy(() =>
+  import("../query-editor/MiniSqlEditor").then((m) => ({ default: m.MiniSqlEditor })),
+);
 import { COL_WIDTH, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 import { CellContextMenu } from "./CellContextMenu";
 import { ColumnHeaderCell } from "./ColumnHeaderCell";
@@ -973,6 +979,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         {/* Raw WHERE query bar (replaces the database badge) */}
         <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
           <div className="flex-1 min-w-0">
+            <Suspense fallback={<span className="text-secondary text-xs">…</span>}>
             <MiniSqlEditor
               ref={rawWhereEditorRef}
               value={rawWhereInput}
@@ -996,6 +1003,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               sqlDriver={driver}
               placeholder="WHERE …"
             />
+            </Suspense>
           </div>
           <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-separator/60 pl-1">
             <button

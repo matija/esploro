@@ -1,3 +1,5 @@
+// tairikiTheme is lazy-loaded via SqlEditor/MiniSqlEditor; the bundler code-splits CodeMirror out of the initial bundle.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";

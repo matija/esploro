@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done — 0 ✖ errors, 80 warnings remaining (Phases 3–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports done — 0 ✖ errors, 76 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -287,10 +287,16 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
 
 ## 7. Phase 4 — Performance (35 findings)
 
-- **Heavy library loaded eagerly ×5** — `tairikiTheme.ts:1`, `SqlEditor.tsx:2-3`,
-  `MiniSqlEditor.tsx:2-3` (CodeMirror/editor stack). Lazy-load via `React.lazy()` /
-  dynamic `import()` so the editor bundle isn't in the initial load. **Biggest perf win.**
-  Verify the SQL editors still mount and the app's first paint is unaffected.
+- **Heavy library loaded eagerly ×5** ✅ **DONE 2026-06-08** — `tairikiTheme.ts:1`, `SqlEditor.tsx:2-3`,
+  `MiniSqlEditor.tsx:2-3` (CodeMirror/editor stack). Lazy-loaded via `React.lazy()`:
+  - `QueryEditorTab.tsx`: replaced static `SqlEditor` import with `lazy(() => import("./SqlEditor"))`,
+    wrapped in `<Suspense>` with a "Loading editor…" fallback.
+  - `TableViewerTab.tsx`: replaced static `MiniSqlEditor` import with `lazy(() => import(...))`,
+    wrapped in `<Suspense>`; `MiniSqlEditorHandle` kept as type-only import.
+  - Added `react-doctor-disable-next-line` suppressions on the CodeMirror static imports in
+    `SqlEditor.tsx`, `MiniSqlEditor.tsx`, and `tairikiTheme.ts` — the files are lazy-loaded by
+    their consumers so the bundler correctly code-splits CodeMirror out of the initial bundle
+    (verified: `codemirror-DcoinOpp.js` 383 kB separate chunk, not in `index-*.js`).
 - **Chained array iterations ×15** — `CommandPalette`, `RoleDetailPanel` (several),
   `TableViewerTab`, `SchemaDetailPanel`, `TablePrivilegesTab`. Collapse `.map().filter()`
   chains into one pass only where the lists are large/hot (table data, command palette);

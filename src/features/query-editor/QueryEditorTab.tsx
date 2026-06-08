@@ -4,6 +4,8 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  lazy,
+  Suspense,
 } from "react";
 import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -24,7 +26,7 @@ import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
 import { withSessionRetry } from "../../lib/sessionRetry";
 import { queryEditorApi, savedQueriesApi } from "./api";
-import { SqlEditor } from "./SqlEditor";
+const SqlEditor = lazy(() => import("./SqlEditor").then((m) => ({ default: m.SqlEditor })));
 import type { QueryResult, ResultColumn } from "./types";
 import {
   type CellValue,
@@ -870,13 +872,23 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
 
       {/* Editor area */}
       <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-        <SqlEditor
-          value={sql}
-          onChange={setSql}
-          onRun={handleRun}
-          error={error}
-          schemaCompletions={schemaCompletions}
-        />
+        <Suspense
+          fallback={
+            <div className="flex-1 overflow-hidden bg-control" style={{ minHeight: 0 }}>
+              <div className="flex items-center justify-center h-full text-secondary text-sm">
+                Loading editor…
+              </div>
+            </div>
+          }
+        >
+          <SqlEditor
+            value={sql}
+            onChange={setSql}
+            onRun={handleRun}
+            error={error}
+            schemaCompletions={schemaCompletions}
+          />
+        </Suspense>
       </div>
 
       {/* Error summary (shown above result pane when query errored) */}

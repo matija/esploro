@@ -798,3 +798,37 @@ React Doctor: issues 87→80, accessibility 19→12, score 72→74.
 `no-autofocus`: 7→0 — resolved.
 
 Next: Phase 3 remaining — `prefer-tag-over-role` ×12, then Phase 4 performance.
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: Dynamic imports (×5)
+
+Lazy-loaded the CodeMirror editor stack via `React.lazy()` — the PRD's
+"biggest perf win":
+
+- `QueryEditorTab.tsx`: replaced static `import { SqlEditor }` with
+  `const SqlEditor = lazy(() => import("./SqlEditor"))`, wrapped in
+  `<Suspense fallback={Loading editor…}>`.
+- `TableViewerTab.tsx`: replaced static `import { MiniSqlEditor }` with
+  `lazy(() => import(...))`, wrapped in `<Suspense fallback={…}>`;
+  `MiniSqlEditorHandle` kept as type-only import (zero runtime cost).
+- Added `react-doctor-disable-next-line react-doctor/prefer-dynamic-import`
+  suppressions on the CodeMirror static imports in `SqlEditor.tsx`,
+  `MiniSqlEditor.tsx`, and `tairikiTheme.ts`. The files are lazy-loaded by
+  their consumers so the bundler correctly code-splits CodeMirror out of
+  the initial bundle — verified in build output:
+  `codemirror-DcoinOpp.js` 383 kB separate chunk, not in `index-*.js`.
+- The react-doctor rule can't track lazy-loading context from consumers
+  (it sees the static imports in the source), so suppressions with a brief
+  comment are appropriate here.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+CodeMirror split into separate chunk, confirmed.
+
+React Doctor: issues 81→76, score 72→74.
+`prefer-dynamic-import`: 5→0 — resolved.
+
+Next: Phase 4 remaining — `js-combine-iterations` ×15, `no-barrel-import` ×4,
+`js-index-maps` ×3, `js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
+`jsx-no-constructed-context-values` ×2, `prefer-module-scope-pure-function` ×2,
+`prefer-module-scope-static-value` ×2. Phase 3 `prefer-tag-over-role` ×12
+structurally infeasible (div-based grid, nested interactive, interactive
+resize handles).

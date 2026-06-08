@@ -1,5 +1,8 @@
 import { useEffect, useRef, useMemo } from "react";
+// SqlEditor is lazy-loaded by QueryEditorTab; the bundler code-splits CodeMirror out of the initial bundle.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { EditorState, StateEffect } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { bracketMatching, foldGutter, indentUnit } from "@codemirror/language";

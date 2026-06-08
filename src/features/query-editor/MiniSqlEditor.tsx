@@ -1,5 +1,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useMemo } from "react";
+// MiniSqlEditor is lazy-loaded by TableViewerTab; the bundler code-splits CodeMirror out of the initial bundle.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { Decoration, EditorView, keymap, placeholder as placeholderExt } from "@codemirror/view";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { EditorState, StateEffect, type Transaction } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
