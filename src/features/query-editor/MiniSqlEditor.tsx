@@ -633,20 +633,23 @@ export function MiniSqlEditor({
     [schemaCompletions, placeholder, operatorCompletionSource, whereCompletionSource, whereColumns, sqlDriver],
   );
 
-  // Mount once (subsequent schema/placeholder/value changes synced by dedicated effects)
-  const editorInitializedRef = useRef(false);
+  // Mount once (subsequent schema/placeholder/value changes synced by dedicated effects).
+  // Initial doc/extensions are read through refs so this effect can have empty deps:
+  // re-running it would destroy the view on cleanup without recreating it, leaving the
+  // editor non-editable when `extensions` changes after the table's columns load.
+  const initialValueRef = useRef(value);
+  const extensionsRef = useRef(extensions);
+  extensionsRef.current = extensions;
   useEffect(() => {
-    if (editorInitializedRef.current) return;
     if (!containerRef.current) return;
-    editorInitializedRef.current = true;
-    const state = EditorState.create({ doc: value, extensions });
+    const state = EditorState.create({ doc: initialValueRef.current, extensions: extensionsRef.current });
     const view = new EditorView({ state, parent: containerRef.current });
     viewRef.current = view;
     return () => {
       view.destroy();
       viewRef.current = null;
     };
-  }, [extensions, value]);
+  }, []);
 
   // Reconfigure when schema/placeholder change
   useEffect(() => {

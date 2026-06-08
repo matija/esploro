@@ -79,16 +79,19 @@ export function SqlEditor({
     [schemaCompletions, editorTabSize, editorWordWrap],
   );
 
-  // Mount the editor once (extension changes synced by the dedicated reconfigure effect below)
-  const editorInitializedRef = useRef(false);
+  // Mount the editor once (extension changes synced by the dedicated reconfigure effect below).
+  // Initial doc/extensions are read through refs so this effect can have empty deps: re-running
+  // it would destroy the view on cleanup without recreating it, leaving the editor non-editable
+  // once `extensions` changes (e.g. schema completions load or editor settings change).
+  const initialValueRef = useRef(value);
+  const extensionsRef = useRef(extensions);
+  extensionsRef.current = extensions;
   useEffect(() => {
-    if (editorInitializedRef.current) return;
     if (!containerRef.current) return;
-    editorInitializedRef.current = true;
 
     const state = EditorState.create({
-      doc: value,
-      extensions,
+      doc: initialValueRef.current,
+      extensions: extensionsRef.current,
     });
 
     const view = new EditorView({ state, parent: containerRef.current });
@@ -98,7 +101,7 @@ export function SqlEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [extensions, value]);
+  }, []);
 
   // Reconfigure extensions when they change (dark mode / schema completions)
   useEffect(() => {
