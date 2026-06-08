@@ -23,6 +23,20 @@ import type {
 const TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES", "TRIGGER"] as const;
 const SCHEMA_PRIVILEGES = ["USAGE", "CREATE"] as const;
 
+const BOOL_ATTRS: { key: keyof AlterRoleRequest; label: string }[] = [
+  { key: "canLogin", label: "Login" },
+  { key: "isSuperuser", label: "Superuser" },
+  { key: "createDb", label: "Create DB" },
+  { key: "createRole", label: "Create Role" },
+  { key: "replication", label: "Replication" },
+  { key: "bypassRls", label: "Bypass RLS" },
+  { key: "inherit", label: "Inherit" },
+];
+
+function privilegeOpKey(op: PrivilegeOp) {
+  return `${op.objectType}:${op.schema}:${op.name}:${op.privilege}`;
+}
+
 interface Props {
   tab: Tab;
 }
@@ -160,16 +174,6 @@ function AttributesTab({
       setApplying(false);
     }
   }
-
-  const BOOL_ATTRS: { key: keyof AlterRoleRequest; label: string }[] = [
-    { key: "canLogin", label: "Login" },
-    { key: "isSuperuser", label: "Superuser" },
-    { key: "createDb", label: "Create DB" },
-    { key: "createRole", label: "Create Role" },
-    { key: "replication", label: "Replication" },
-    { key: "bypassRls", label: "Bypass RLS" },
-    { key: "inherit", label: "Inherit" },
-  ];
 
   return (
     <div className="flex flex-col gap-5 p-5 max-w-lg">
@@ -740,10 +744,6 @@ function PrivilegesTab({
   >(null);
   const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(new Set());
 
-  function opKey(op: PrivilegeOp) {
-    return `${op.objectType}:${op.schema}:${op.name}:${op.privilege}`;
-  }
-
   function hasPrivilege(objectType: "table" | "schema", schema: string, name: string, priv: string): boolean {
     const key = `${objectType}:${schema}:${name}:${priv}`;
     const pending = pendingOps.get(key);
@@ -769,7 +769,7 @@ function PrivilegesTab({
       name,
       privilege: priv,
     };
-    const key = opKey(op);
+    const key = privilegeOpKey(op);
 
     // Check if this is a no-op (reverting to server state)
     const serverHas =

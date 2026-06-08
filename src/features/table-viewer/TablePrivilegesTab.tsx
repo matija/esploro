@@ -8,6 +8,10 @@ import { cn } from "../../lib/utils";
 
 const TABLE_GRANT_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES", "TRIGGER"] as const;
 
+function tablePrivOpKey(grantee: string, priv: string) {
+  return `${grantee}:${priv}`;
+}
+
 export function PrivApplyResultSummary({
   results,
   onClose,
@@ -102,12 +106,8 @@ export function TablePrivilegesTab({
     ].sort();
   }, [serverGrantees, addedGrantees]);
 
-  function opKey(grantee: string, priv: string) {
-    return `${grantee}:${priv}`;
-  }
-
   function hasPrivilege(grantee: string, priv: string): boolean {
-    const pending = pendingOps.get(opKey(grantee, priv));
+    const pending = pendingOps.get(tablePrivOpKey(grantee, priv));
     if (pending) return pending.op === "grant";
     return serverGrantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
   }
@@ -116,7 +116,7 @@ export function TablePrivilegesTab({
     const current = hasPrivilege(grantee, priv);
     const serverHas =
       serverGrantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
-    const key = opKey(grantee, priv);
+    const key = tablePrivOpKey(grantee, priv);
     setPendingOps((prev) => {
       const next = new Map(prev);
       if (current === serverHas) {
@@ -267,7 +267,7 @@ export function TablePrivilegesTab({
                   </td>
                   {TABLE_GRANT_PRIVILEGES.map((priv) => {
                     const checked = hasPrivilege(grantee, priv);
-                    const pending = pendingOps.has(opKey(grantee, priv));
+                    const pending = pendingOps.has(tablePrivOpKey(grantee, priv));
                     return (
                       <td key={priv} className="text-center py-1.5 px-1">
                         <button

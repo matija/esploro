@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis + unused-exports done — 0 ✖ errors, 44 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 static-values + pure-functions + giant-components + useReducer)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 complete, Phase 5 react-19-deprecated-apis + unused-exports + static-values + pure-functions done — 0 ✖ errors, 38 warnings remaining (Phase 3 prefer-tag-over-role + Phase 5 giant-components + useReducer + Phase 4 combine-iterations intentionally kept)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -338,9 +338,17 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
   `nodeDepth`, `uiPreferencesBootstrapKey`, `themeToPaletteAttribute`, `isEditableType`,
   `UPDATE_CHECK_KEY`, `IpcError`, `invoke`. Removed 4 completely dead functions and 3
   dead imports. Verified no external consumers via grep / cross-checked with knip.
-- **Static value / pure function rebuilt every render ×6** — `RoleDetailPanel:162,731`,
-  `SchemaTree:176`, `QueryEditorTab:590`, `SchemaDetailPanel:86`, `TablePrivilegesTab:95`.
-  Hoist to module scope.
+- **Static value / pure function rebuilt every render ×0** ✅ **DONE 2026-06-08** — Hoisted to module scope:
+  - `SchemaTree.tsx:177`: `SKELETON_WIDTHS` array (moved out of `TreeRow`).
+  - `RoleDetailPanel.tsx:164,743`: `BOOL_ATTRS` array + `privilegeOpKey()` function (moved
+    out of `AttributesTab` and `PrivilegesTab`).
+  - `TablePrivilegesTab.tsx:105`: `tablePrivOpKey()` function (moved out of
+    `TablePrivilegesTab` component).
+  - `SchemaDetailPanel.tsx:97`: `schemaPrivOpKey()` function (moved out of
+    `SchemaPrivilegesTab` component).
+  - `QueryEditorTab.tsx:620`: `persistedResultHeight()` function (moved out of
+    `QueryEditorTab` component).
+  All six were pure (no closure over component state/props) — safe to hoist to module scope.
 - **React 19 deprecated APIs ×3** ✅ **DONE 2026-06-08** — `ConfirmDialog.tsx:4`, `MiniSqlEditor.tsx:1`,
   `Toast.tsx:5`. Replaced `forwardRef` with `ref` as a normal prop in MiniSqlEditor
   (React 19 no longer requires `forwardRef` for ref forwarding). Replaced `useContext(X)`

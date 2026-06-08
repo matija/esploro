@@ -1,3 +1,53 @@
+## 2026-06-08 — Frontend Health Remediation Phase 5: Static values + pure functions (×6)
+
+Resolved all 6 `prefer-module-scope-static-value` and
+`prefer-module-scope-pure-function` findings — the highest-priority
+remaining actionable Phase 5 task. All six were genuinely pure (no
+closure over component state or props), so hoisting to module scope
+is safe and prevents unnecessary rebuilds each render.
+
+- `SchemaTree.tsx:177`: `const widths = [52, 72, 60]` (skeleton loading
+  bar widths inside `TreeRow`) → hoisted to module-scope
+  `SKELETON_WIDTHS`.
+- `RoleDetailPanel.tsx:164`: `BOOL_ATTRS` array (role attribute
+  toggles inside `AttributesTab`) → hoisted to module scope after
+  `SCHEMA_PRIVILEGES`.
+- `RoleDetailPanel.tsx:743`: `opKey(op: PrivilegeOp)` function (inside
+  `PrivilegesTab`) → renamed to `privilegeOpKey()` and hoisted to
+  module scope.
+- `TablePrivilegesTab.tsx:105`: `opKey(grantee, priv)` function
+  (inside `TablePrivilegesTab`) → renamed to `tablePrivOpKey()` and
+  hoisted to module scope.
+- `SchemaDetailPanel.tsx:97`: `opKey(grantee, privilege)` function
+  (inside `SchemaPrivilegesTab`) → renamed to `schemaPrivOpKey()` and
+  hoisted to module scope.
+- `QueryEditorTab.tsx:620`: `persistedHeight()` function (inside
+  `QueryEditorTab`, reads from localStorage) → renamed to
+  `persistedResultHeight()` and hoisted to module scope after
+  `RESULT_HEIGHT_KEY`.
+
+All call sites updated. Behavior-preserving.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build`
+succeeds.
+
+React Doctor: issues 44→38, maintainability 13→7, score 82/100.
+`prefer-module-scope-static-value`: 2→0 — resolved.
+`prefer-module-scope-pure-function`: 4→0 — resolved.
+
+Remaining findings (38 total, no errors):
+- Bugs 9: array-index-as-key ×1 (intentionally kept), prefer-useReducer
+  ×8 (opportunistic).
+- Performance 10: combine-iterations ×10 (intentionally kept per PRD
+  — all tiny static lists where clarity wins).
+- Accessibility 12: prefer-tag-over-role ×12 (structurally infeasible
+  — roles on div-based grids, trees, listboxes with no exact native
+  equivalents).
+- Maintainability 7: no-giant-component ×7 (opportunistic per PRD).
+
+All remaining findings are either intentionally kept, structurally
+infeasible, or opportunistic.
+
 ## 2026-06-08 — Frontend Health Remediation Phase 5: React 19 deprecated APIs (×3)
 
 Resolved all 3 `no-react19-deprecated-apis` findings:

@@ -40,6 +40,12 @@ import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/co
 
 const RESULT_HEIGHT_KEY = "esploro-query-result-height";
 
+function persistedResultHeight(): number {
+  const stored = localStorage.getItem(RESULT_HEIGHT_KEY);
+  const n = stored ? parseInt(stored, 10) : NaN;
+  return isNaN(n) ? 260 : Math.max(80, Math.min(600, n));
+}
+
 type RunState = "idle" | "pending" | "success" | "error";
 
 // ─── ResultGrid ───────────────────────────────────────────────────────────────
@@ -617,13 +623,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const [saveOpen, setSaveOpen] = useState(false);
   const [hasEverRun, setHasEverRun] = useState(false);
 
-  const persistedHeight = () => {
-    const stored = localStorage.getItem(RESULT_HEIGHT_KEY);
-    const n = stored ? parseInt(stored, 10) : NaN;
-    return isNaN(n) ? 260 : Math.max(80, Math.min(600, n));
-  };
-
-  const [resultHeight, setResultHeight] = useState(persistedHeight);
+  const [resultHeight, setResultHeight] = useState(persistedResultHeight);
   const isDragging = useRef(false);
   const dragStart = useRef(0);
   const dragStartH = useRef(0);

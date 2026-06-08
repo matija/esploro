@@ -45,6 +45,8 @@ const groupKey = (cid: string, db: string, s: string, label: GroupLabel) =>
 const tableKey = (cid: string, db: string, s: string, t: string) =>
   `${cid}:db:${db}:schema:${s}:table:${t}`;
 
+const SKELETON_WIDTHS = [52, 72, 60] as const;
+
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
 type ContextMenuState = { node: TreeNode; x: number; y: number };
@@ -174,13 +176,12 @@ function TreeRow({
   };
 
   if (node.kind === "loading") {
-    const widths = [52, 72, 60];
     return (
       <div
         className="flex flex-col gap-[5px] py-1"
         style={{ paddingLeft: node.depth * 10 + 18 }}
       >
-        {widths.map((w, i) => (
+        {SKELETON_WIDTHS.map((w, i) => (
           <div
             key={i}
             className="h-[7px] rounded animate-pulse bg-control"

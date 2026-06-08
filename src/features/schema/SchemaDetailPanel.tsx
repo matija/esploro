@@ -10,6 +10,10 @@ import type { SchemaPrivilegeOp } from "../roles/types";
 
 const SCHEMA_PRIVILEGES = ["USAGE", "CREATE"] as const;
 
+function schemaPrivOpKey(grantee: string, privilege: string): string {
+  return `${grantee}:${privilege}`;
+}
+
 // ── Apply Result Dialog ────────────────────────────────────────────────────────
 
 function ApplyResultSummary({
@@ -94,12 +98,8 @@ function SchemaPrivilegesTab({
   const [showRolePicker, setShowRolePicker] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
 
-  function opKey(grantee: string, privilege: string): string {
-    return `${grantee}:${privilege}`;
-  }
-
   function hasPrivilege(grantee: string, priv: string): boolean {
-    const key = opKey(grantee, priv);
+    const key = schemaPrivOpKey(grantee, priv);
     const pending = pendingOps.get(key);
     if (pending) return pending.op === "grant";
     return infoData?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
@@ -107,7 +107,7 @@ function SchemaPrivilegesTab({
 
   function togglePrivilege(grantee: string, priv: string) {
     const current = hasPrivilege(grantee, priv);
-    const key = opKey(grantee, priv);
+    const key = schemaPrivOpKey(grantee, priv);
     const serverHas = infoData?.grantees.find((g) => g.grantee === grantee)?.privileges.includes(priv) ?? false;
 
     setPendingOps((prev) => {
@@ -234,7 +234,7 @@ function SchemaPrivilegesTab({
                   <td className="py-1.5 pr-3 text-label font-mono">{grantee}</td>
                   {SCHEMA_PRIVILEGES.map((priv) => {
                     const checked = hasPrivilege(grantee, priv);
-                    const pending = pendingOps.has(opKey(grantee, priv));
+                    const pending = pendingOps.has(schemaPrivOpKey(grantee, priv));
                     return (
                       <td key={priv} className="text-center py-1.5 px-2">
                         <button
