@@ -885,3 +885,33 @@ React Doctor: issues 72→70, performance 24→22, score 75→77/100.
 Next: Phase 4 remaining — `js-combine-iterations` ×15, `js-index-maps` ×3,
 `js-set-map-lookups` ×3, `js-tosorted-immutable` ×2,
 `jsx-no-new-object-as-prop` ×1.
+
+## 2026-06-08 — Frontend Health Remediation Phase 4: Combine iterations hot-path (5 of 15)
+
+Collapsed the 5 genuinely hot-path `.map().filter()` / `.filter().filter()` chains
+into single passes. Per PRD guidance, the remaining 10 (batch results, member
+ops, small column lists) are intentionally kept — all tiny static lists where
+clarity wins.
+
+- `CommandPalette.tsx:445`: combined `.map() → .filter()` into `.reduce()` for
+  the fuzzy-search pipeline (hottest path — runs on every keystroke). Scores are
+  computed once, low-scoring results are discarded in the same pass instead of
+  creating an intermediate array of objects that get immediately filtered away.
+- `TableViewerTab.tsx:252`: combined `.filter() → .map()` on `Object.entries
+  (activeFilters)` into `.reduce()`. Active filters are iterated once instead of
+  twice.
+- `TablePrivilegesTab.tsx:170`: merged two consecutive `.filter()` calls on
+  `allRolesData` into a single `.filter()` with combined conditions.
+- `RoleDetailPanel.tsx:509` (`availableForMembers`): merged `.filter().filter()`
+  into single `.filter()` with combined conditions.
+- `RoleDetailPanel.tsx:520` (`availableForMemberOf`): same merge.
+
+Verification: `tsc --noEmit` clean, `eslint` clean, `npm run build` succeeds.
+
+React Doctor: issues 70→65, performance 22→19, score 77/100.
+`js-combine-iterations`: 15→10 (5 resolved; 10 intentionally kept for clarity).
+
+Next: Phase 4 remaining — `js-index-maps` ×3, `js-set-map-lookups` ×3,
+`js-tosorted-immutable` ×2, `jsx-no-new-object-as-prop` ×1.
+Phase 5 — React 19 deprecated APIs ×3, unused exports ×9, static
+value/pure-function ×6, giant components ×7, useReducer ×8.

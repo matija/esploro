@@ -506,24 +506,22 @@ function MembersTab({
 
   const availableForMembers = useMemo(() => {
     const current = new Set(members);
-    return (allRolesData ?? [])
-      .filter((r) => r.name !== roleName && !current.has(r.name))
-      .filter((r) =>
-        addMemberSearch
-          ? r.name.toLowerCase().includes(addMemberSearch.toLowerCase())
-          : true,
-      );
+    return (allRolesData ?? []).filter(
+      (r) =>
+        r.name !== roleName &&
+        !current.has(r.name) &&
+        (!addMemberSearch || r.name.toLowerCase().includes(addMemberSearch.toLowerCase())),
+    );
   }, [allRolesData, members, roleName, addMemberSearch]);
 
   const availableForMemberOf = useMemo(() => {
     const current = new Set(memberOf);
-    return (allRolesData ?? [])
-      .filter((r) => r.name !== roleName && !current.has(r.name))
-      .filter((r) =>
-        addMemberOfSearch
-          ? r.name.toLowerCase().includes(addMemberOfSearch.toLowerCase())
-          : true,
-      );
+    return (allRolesData ?? []).filter(
+      (r) =>
+        r.name !== roleName &&
+        !current.has(r.name) &&
+        (!addMemberOfSearch || r.name.toLowerCase().includes(addMemberOfSearch.toLowerCase())),
+    );
   }, [allRolesData, memberOf, roleName, addMemberOfSearch]);
 
   const isDirty = pendingOps.length > 0;

@@ -443,8 +443,11 @@ export function CommandPalette() {
     const trimmedQuery = query.trim();
     return trimmedQuery
       ? allCommands
-        .map((c) => ({ cmd: c, score: fuzzyScore(c.title, trimmedQuery) }))
-        .filter(({ score }) => score > 0)
+        .reduce((acc, c) => {
+          const score = fuzzyScore(c.title, trimmedQuery);
+          if (score > 0) acc.push({ cmd: c, score });
+          return acc;
+        }, [] as { cmd: CommandResult; score: number }[])
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
           return GROUP_ORDER.indexOf(a.cmd.group) - GROUP_ORDER.indexOf(b.cmd.group);

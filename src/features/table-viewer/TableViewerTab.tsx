@@ -249,21 +249,23 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   }, [ctx, driver, rawWhereInput]);
 
   const apiFilters = useMemo((): ColumnFilter[] => {
-    return Object.entries(activeFilters)
-      .filter(
-        ([, f]) =>
-          f.operator === "IsNull" ||
-          f.operator === "IsNotNull" ||
-          f.value.trim() !== "",
-      )
-      .map(([column, f]) => ({
-        column,
-        operator: f.operator,
-        value:
-          f.operator === "IsNull" || f.operator === "IsNotNull"
-            ? null
-            : f.value,
-      }));
+    return Object.entries(activeFilters).reduce((acc, [column, f]) => {
+      if (
+        f.operator === "IsNull" ||
+        f.operator === "IsNotNull" ||
+        f.value.trim() !== ""
+      ) {
+        acc.push({
+          column,
+          operator: f.operator,
+          value:
+            f.operator === "IsNull" || f.operator === "IsNotNull"
+              ? null
+              : f.value,
+        });
+      }
+      return acc;
+    }, [] as ColumnFilter[]);
   }, [activeFilters]);
 
   const enabled = !!ctx && !!connectionId;

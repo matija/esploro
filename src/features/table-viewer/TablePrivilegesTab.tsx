@@ -167,11 +167,11 @@ export function TablePrivilegesTab({
 
   const availableGrantees = useMemo(() => {
     const current = new Set(allGrantees);
-    return (allRolesData ?? [])
-      .filter((r) => !current.has(r.name))
-      .filter((r) =>
-        addGranteeSearch ? r.name.toLowerCase().includes(addGranteeSearch.toLowerCase()) : true,
-      );
+    return (allRolesData ?? []).filter(
+      (r) =>
+        !current.has(r.name) &&
+        (!addGranteeSearch || r.name.toLowerCase().includes(addGranteeSearch.toLowerCase())),
+    );
   }, [allRolesData, allGrantees, addGranteeSearch]);
 
   if (granteesLoading) {

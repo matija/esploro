@@ -1,6 +1,6 @@
 # PRD: Frontend Health Remediation — React Doctor Findings
 
-**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports done — 0 ✖ errors, 72 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
+**Status:** Phase 1 complete, Phase 2 complete, Phase 3 button-has-type + control-labels + label-association + keyboard-handlers + static-interaction + no-autofocus done, Phase 4 dynamic-imports + barrel-imports + unstable-context + hot-path-combine-iterations done — 0 ✖ errors, 65 warnings remaining (Phase 3 prefer-tag-over-role + Phases 4–5)
 **Owner:** Matija Munjaković
 **Date:** 2026-06-07
 **Target:** Esploro (Tauri 2 + React 19/TS Postgres/MySQL client)
@@ -297,10 +297,12 @@ context menu, and the rename/filter inputs; confirm focus order and Enter/Space 
     `SqlEditor.tsx`, `MiniSqlEditor.tsx`, and `tairikiTheme.ts` — the files are lazy-loaded by
     their consumers so the bundler correctly code-splits CodeMirror out of the initial bundle
     (verified: `codemirror-DcoinOpp.js` 383 kB separate chunk, not in `index-*.js`).
-- **Chained array iterations ×15** — `CommandPalette`, `RoleDetailPanel` (several),
-  `TableViewerTab`, `SchemaDetailPanel`, `TablePrivilegesTab`. Collapse `.map().filter()`
-  chains into one pass only where the lists are large/hot (table data, command palette);
-  skip tiny static lists where clarity wins.
+- **Chained array iterations ×15** ✅ **DONE (hot-path) 2026-06-08** — `CommandPalette`, `RoleDetailPanel` (several),
+  `TableViewerTab`, `SchemaDetailPanel`, `TablePrivilegesTab`. Collapsed 5 hot-path `.map().filter()`
+  / `.filter().filter()` chains into single passes (CommandPalette search pipeline, TableViewerTab
+  activeFilters, TablePrivilegesTab/RoleDetailPanel role-list double-filters). 10 remaining
+  intentionally kept per PRD guidance (batch results, member ops, column lists — all tiny
+  static lists where clarity wins).
 - **array.find() in a loop ×3** — `CommandPalette:104`, `SchemaTree:825,880`. Build a `Map`
   once before the loop.
 - **Array lookup in a loop ×3** — `fuzzy.ts:9`, `MiniSqlEditor:406`, `SchemaTree:755`. Use a
