@@ -1370,6 +1370,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 setSelectedCell({ row: vr.index, col: ci })
                               }
                               onKeyDown={(e) => {
+                                // While editing, let the input handle keys (incl. space).
+                                if (isEditing) return;
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();
                                   setSelectedCell({ row: vr.index, col: ci });
