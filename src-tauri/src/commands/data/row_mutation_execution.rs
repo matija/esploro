@@ -12,6 +12,15 @@ use super::type_mapping::{mysql_str, resolve_pg_cast};
 use super::{validate_column_identifier, DeleteRowResult, DeleteRowsRequest, UpdateRowsRequest};
 use crate::AppError;
 
+/// `tokio_postgres::Error`'s Display is just "db error"; the real message
+/// (e.g. a foreign-key violation) lives in the DbError source.
+fn pg_exec_error_string(e: &tokio_postgres::Error) -> String {
+    match e.as_db_error() {
+        Some(db) => db.to_string(),
+        None => e.to_string(),
+    }
+}
+
 pub(super) async fn update_rows_pg(
     pool: Arc<deadpool_postgres::Pool>,
     request: UpdateRowsRequest,
@@ -253,7 +262,7 @@ pub(super) async fn delete_rows_pg(
             .execute(delete_sql.exec_sql.as_str(), pg_params.as_slice())
             .await
             .err()
-            .map(|e| e.to_string());
+            .map(|e| pg_exec_error_string(&e));
         results.push(DeleteRowResult {
             sql: delete_sql.display_sql,
             error,

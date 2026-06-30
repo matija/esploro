@@ -54,9 +54,19 @@ export const uiPreferenceRanges = {
   editorLineHeight: { min: 1.25, max: 1.8 },
 } as const;
 
+// Default theme for a user who has never chosen one: GitHub Dark/Light to match
+// the OS. Resolved once at load; an explicit choice (stored prefs) overrides it.
+function defaultThemeForOS(): UiTheme {
+  const prefersDark =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return prefersDark ? "github-dark" : "github-light";
+}
+
 export const defaultUiPreferences: UiPreferences = {
   ui: {
-    theme: "system",
+    theme: defaultThemeForOS(),
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
     fontSize: 13,

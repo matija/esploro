@@ -159,14 +159,14 @@ body {
   background-color: transparent;
 }
 .cm-mini-host .cm-where-operator-badge {
-  display: inline-block;
+  /* box-shadow (not border) for the outline so the badge never grows the line
+     box; growing it would re-center the editor and make the text jump. */
   padding: 0 5px;
   margin: 0 2px;
-  border: 1px solid color-mix(in srgb, var(--ds-syntax-operator) 38%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-syntax-operator) 38%, transparent);
   border-radius: var(--radius-control);
   background-color: color-mix(in srgb, var(--ds-syntax-operator) 18%, transparent);
   color: var(--ds-syntax-operator);
   font-weight: 600;
-  line-height: 1.4;
   cursor: pointer;
 }

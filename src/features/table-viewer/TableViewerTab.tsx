@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2, Filter, Database, Table2, AlertCircle, RotateCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Play } from "lucide-react";
+import { Loader2, Filter, Database, Table2, AlertCircle, RotateCw, ClipboardCopy, ClipboardCheck, Save, X, FileCode2, Play, Trash2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { Tab } from "../../store";
 import { useAppStore } from "../../store";
@@ -210,22 +210,49 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const [copiedRawSql, setCopiedRawSql] = useState(false);
   const copiedRawSqlTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Debounced draft persistence for the WHERE bar. The MiniSqlEditor (CodeMirror)
+  // is the source of truth while typing; we only flush the draft to the store on
+  // a pause so each keystroke doesn't re-render the virtualized grid.
+  // ponytail: 300ms debounce, no React state per keystroke.
+  const draftWhereTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraftRef = useRef<string | null>(null);
+  const flushDraftWhere = useCallback(() => {
+    if (draftWhereTimerRef.current) {
+      clearTimeout(draftWhereTimerRef.current);
+      draftWhereTimerRef.current = null;
+    }
+    if (pendingDraftRef.current !== null) {
+      updateTableTabState(tab.id, { rawWhereInput: pendingDraftRef.current });
+      pendingDraftRef.current = null;
+    }
+  }, [tab.id, updateTableTabState]);
+  const cancelDraftWhere = useCallback(() => {
+    if (draftWhereTimerRef.current) {
+      clearTimeout(draftWhereTimerRef.current);
+      draftWhereTimerRef.current = null;
+    }
+    pendingDraftRef.current = null;
+  }, []);
+
   useEffect(() => () => {
     if (copiedRawSqlTimerRef.current) clearTimeout(copiedRawSqlTimerRef.current);
-  }, []);
+    flushDraftWhere();
+  }, [flushDraftWhere]);
 
   const handleRawWhereInputChange = useCallback(
     (v: string) => {
-      setRawWhereInput(v);
-      updateTableTabState(tab.id, { rawWhereInput: v });
+      pendingDraftRef.current = v;
+      if (draftWhereTimerRef.current) clearTimeout(draftWhereTimerRef.current);
+      draftWhereTimerRef.current = setTimeout(flushDraftWhere, 300);
     },
-    [tab.id, updateTableTabState],
+    [flushDraftWhere],
   );
 
   const applyRawWhere = useCallback(
     async (v: string) => {
       if (!await guardNavigation()) return;
       discardEdits();
+      cancelDraftWhere();
       const applied = v.trim();
       setRawWhereInput(v);
       setAppliedRawWhere(applied);
@@ -235,7 +262,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       });
       setPage(0);
     },
-    [guardNavigation, discardEdits, tab.id, updateTableTabState],
+    [guardNavigation, discardEdits, cancelDraftWhere, tab.id, updateTableTabState],
   );
 
   const copyRawWhereSql = useCallback(async () => {
@@ -640,38 +667,47 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [data, columns, ctids],
   );
 
-  const handleDeleteRow = useCallback(
-    async (rowIdx: number) => {
-      if (!data || !ctx) return;
-      const req = buildDeleteRequest(rowIdx);
-      if (!req) {
+  const handleDeleteRows = useCallback(
+    async (rowIdxs: number[]) => {
+      if (!data || !ctx || rowIdxs.length === 0) return;
+      const reqs = rowIdxs
+        .map(buildDeleteRequest)
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+      if (reqs.length === 0) {
         toast("Cannot delete: no primary key or ctid", "error");
         return;
       }
+      const n = reqs.length;
+      const hasPending = rowIdxs.some((i) => pendingEdits.has(i));
 
-      let sql: string;
-      try {
-        sql = await withSessionRetry(
-          ctx.connectionId,
-          (sid) =>
-            tableApi.previewDeleteRowsSql(sid, {
-              schema: ctx.schema,
-              table: ctx.table,
-              rows: [req],
-            }),
-          toast,
-        );
-      } catch (e) {
-        toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`, "error");
-        return;
+      // Single row: show the exact SQL. Many rows: just confirm the count
+      // (the joined preview would be a huge dialog and an extra round-trip).
+      let description: string;
+      if (n === 1) {
+        try {
+          description = await withSessionRetry(
+            ctx.connectionId,
+            (sid) =>
+              tableApi.previewDeleteRowsSql(sid, {
+                schema: ctx.schema,
+                table: ctx.table,
+                rows: reqs,
+              }),
+            toast,
+          );
+        } catch (e) {
+          toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          return;
+        }
+      } else {
+        description = `Permanently delete ${n} selected rows from ${ctx.schema}.${ctx.table}?`;
       }
 
-      const hasPending = pendingEdits.has(rowIdx);
       const ok = await confirm({
-        title: "Delete this row?",
+        title: n === 1 ? "Delete this row?" : `Delete ${n} rows?`,
         description:
-          sql +
-          (hasPending ? " — unsaved edits on this row will be discarded." : ""),
+          description +
+          (hasPending ? " — unsaved edits on selected rows will be discarded." : ""),
         confirmLabel: "Delete",
         destructive: true,
       });
@@ -684,7 +720,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             tableApi.deleteRows(sid, {
               schema: ctx.schema,
               table: ctx.table,
-              rows: [req],
+              rows: reqs,
             }),
           toast,
         );
@@ -692,15 +728,16 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         if (failed.length > 0) {
           setDeleteResults(results);
         } else {
-          toast("Row deleted", "success");
+          toast(n === 1 ? "Row deleted" : `${n} rows deleted`, "success");
           if (hasPending) {
             setPendingEdits((prev) => {
               const next = new Map(prev);
-              next.delete(rowIdx);
+              rowIdxs.forEach((i) => next.delete(i));
               return next;
             });
           }
         }
+        setSelectedRows(new Set());
         await refetch();
       } catch (e) {
         toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`, "error");
@@ -728,6 +765,36 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     row: number;
     col: number;
   } | null>(null);
+
+  // Row selection (by row index within the current page). Cleared whenever the
+  // page is refetched, since indices no longer point at the same rows.
+  // Shift-click extends a range from the anchor; Cmd/Ctrl-click toggles one row.
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const selectionAnchorRef = useRef<number | null>(null);
+  useEffect(() => setSelectedRows(new Set()), [dataUpdatedAt]);
+
+  const handleRowSelectClick = useCallback(
+    (idx: number, e: React.MouseEvent) => {
+      if (e.shiftKey) {
+        const anchor = selectionAnchorRef.current ?? idx;
+        const [lo, hi] = anchor <= idx ? [anchor, idx] : [idx, anchor];
+        setSelectedRows((prev) => {
+          const next = new Set(prev);
+          for (let i = lo; i <= hi; i++) next.add(i);
+          return next;
+        });
+      } else {
+        setSelectedRows((prev) => {
+          const next = new Set(prev);
+          if (next.has(idx)) next.delete(idx);
+          else next.add(idx);
+          return next;
+        });
+        selectionAnchorRef.current = idx;
+      }
+    },
+    [],
+  );
 
   const [copiedCell, setCopiedCell] = useState<{
     row: number;
@@ -994,6 +1061,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               onClear={async () => {
                 if (!await guardNavigation()) return;
                 discardEdits();
+                cancelDraftWhere();
                 setRawWhereInput("");
                 setAppliedRawWhere("");
                 updateTableTabState(tab.id, {
@@ -1108,6 +1176,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 onClick={async () => {
                   if (!await guardNavigation()) return;
                   discardEdits();
+                  cancelDraftWhere();
                   setRawWhereInput("");
                   setAppliedRawWhere("");
                   updateTableTabState(tab.id, {
@@ -1312,12 +1381,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                   {rowVirtualizer.getVirtualItems().map((vr) => {
                     const rowData = rows[vr.index];
                     const rowHasEdits = pendingEdits.has(vr.index);
+                    const rowSelected = selectedRows.has(vr.index);
                     return (
                       <div
                         key={vr.key}
                         className={cn(
                           "flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-subtle/60 transition-colors",
                           vr.index % 2 === 1 && "bg-subtle/30",
+                          rowSelected &&
+                            "bg-accent/10 hover:bg-accent/15 border-l-4 border-l-accent",
                           rowHasEdits &&
                             "bg-[color-mix(in_srgb,var(--ds-warning)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-warning)_12%,transparent)] border-l-4 border-l-[var(--ds-warning)]",
                         )}
@@ -1366,9 +1438,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 minWidth: colWidths[col.name] ?? COL_WIDTH,
                                 height: rowHeight,
                               }}
-                              onClick={() =>
-                                setSelectedCell({ row: vr.index, col: ci })
-                              }
+                              onClick={(e) => {
+                                if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                                  e.preventDefault();
+                                  handleRowSelectClick(vr.index, e);
+                                  return;
+                                }
+                                if (selectedRows.size > 0) setSelectedRows(new Set());
+                                setSelectedCell({ row: vr.index, col: ci });
+                              }}
                               onKeyDown={(e) => {
                                 // While editing, let the input handle keys (incl. space).
                                 if (isEditing) return;
@@ -1502,6 +1580,31 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         </div>
       )}
 
+      {/* Row-selection action bar */}
+      {viewMode === "data" && selectedRows.size > 0 && (
+        <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2 border-t border-accent/40 bg-accent/5 text-xs">
+          <span className="text-label font-medium">
+            {selectedRows.size} row{selectedRows.size === 1 ? "" : "s"} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedRows(new Set())}
+              className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDeleteRows([...selectedRows])}
+              className="px-3 py-1 rounded-[var(--radius-control)] bg-query-failed text-inverse font-medium hover:opacity-90 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Trash2 size={12} /> Delete selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       {viewMode === "data" && (
         <TableViewerFooter
@@ -1566,7 +1669,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           y={cellMenu.y}
           onClose={() => setCellMenu(null)}
           onFilterByValue={handleFilterByValue}
-          onDeleteRow={() => handleDeleteRow(cellMenu.rowIdx)}
+          onDeleteRow={() =>
+            handleDeleteRows(
+              selectedRows.size > 0 && selectedRows.has(cellMenu.rowIdx)
+                ? [...selectedRows]
+                : [cellMenu.rowIdx],
+            )
+          }
           canDelete={columns.some((c) => c.isPrimaryKey) || !!ctids[cellMenu.rowIdx]}
         />
       )}
