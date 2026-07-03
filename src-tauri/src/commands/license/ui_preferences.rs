@@ -3,7 +3,7 @@ use serde_json::Value;
 
 const DEFAULT_UI_THEME: &str = "tairiki-light";
 const DEFAULT_UI_FONT_FAMILY: &str =
-    "\"Inter Variable\", Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Helvetica Neue\", sans-serif";
+    "\"Readex Pro\", -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Helvetica Neue\", sans-serif";
 const DEFAULT_UI_FONT_SIZE: u8 = 14;
 const DEFAULT_EDITOR_FONT_FAMILY: &str =
     "\"JetBrains Mono Variable\", \"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, Monaco, \"Courier New\", monospace";

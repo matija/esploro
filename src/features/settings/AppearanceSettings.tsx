@@ -58,9 +58,9 @@ const THEME_OPTIONS: ThemeOption[] = [
 
 const FONT_PRESETS: FontPreset[] = [
   {
-    label: "Inter",
+    label: "Readex Pro",
     value:
-      '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
+      '"Readex Pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
     target: "ui",
   },
   {

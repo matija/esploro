@@ -12,6 +12,13 @@
 }
 
 @font-face {
+  font-family: "Readex Pro";
+  src: url("../assets/fonts/ReadexPro-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "JetBrains Mono Variable";
   src: url("../assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
   font-weight: 400 700;
@@ -570,7 +577,7 @@
   --shadow-active-pane:   0 0 0 1px var(--border-focus), 0 0 0 4px color-mix(in srgb, var(--ds-accent) 16%, transparent);
 
   /* Fonts */
-  --font-ui:              -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-ui:              "Readex Pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
   --font-editor:          ui-monospace, "SF Mono", Menlo, Monaco, "Courier New", monospace;
   --font-ui-size:         13px;
   --font-editor-size:     12px;

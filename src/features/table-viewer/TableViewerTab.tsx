@@ -773,8 +773,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const selectionAnchorRef = useRef<number | null>(null);
   useEffect(() => setSelectedRows(new Set()), [dataUpdatedAt]);
 
+  // fromGutter: plain click selects only that row (spreadsheet semantics);
+  // cell-based gestures (shift/cmd-click on cells) keep toggle behavior.
   const handleRowSelectClick = useCallback(
-    (idx: number, e: React.MouseEvent) => {
+    (idx: number, e: React.MouseEvent, fromGutter = false) => {
       if (e.shiftKey) {
         const anchor = selectionAnchorRef.current ?? idx;
         const [lo, hi] = anchor <= idx ? [anchor, idx] : [idx, anchor];
@@ -783,6 +785,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           for (let i = lo; i <= hi; i++) next.add(i);
           return next;
         });
+      } else if (fromGutter && !e.metaKey && !e.ctrlKey) {
+        setSelectedRows(new Set([idx]));
+        selectionAnchorRef.current = idx;
       } else {
         setSelectedRows((prev) => {
           const next = new Set(prev);
@@ -819,6 +824,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   dataRef.current = data;
   const copyCellRef = useRef(copyCell);
   copyCellRef.current = copyCell;
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+  const hasPendingEditsRef = useRef(hasPendingEdits);
+  hasPendingEditsRef.current = hasPendingEdits;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -831,6 +840,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       if ((e.metaKey || e.ctrlKey) && e.key === "c" && cell && d) {
         e.preventDefault();
         copyCellRef.current(cell.row, cell.col, d.rows);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "s" && hasPendingEditsRef.current) {
+        e.preventDefault();
+        void handleSaveRef.current();
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1015,9 +1028,111 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [firstDisplayColumnName, sortColumn]);
 
+  // Row-number gutter: absolute row numbers (page offset), sized to the digits.
+  const firstRowNumber = page * gridPageSize + 1;
+  const gutterWidth = useMemo(() => {
+    const maxDigits = String(firstRowNumber + rows.length - 1).length;
+    return Math.max(40, 14 + maxDigits * 8);
+  }, [firstRowNumber, rows.length]);
+
   const totalWidth = useMemo(
-    () => columns.reduce((sum, col) => sum + (colWidths[col.name] ?? COL_WIDTH), 0),
-    [columns, colWidths],
+    () =>
+      gutterWidth +
+      columns.reduce((sum, col) => sum + (colWidths[col.name] ?? COL_WIDTH), 0),
+    [columns, colWidths, gutterWidth],
+  );
+
+  // ── Keyboard grid navigation ───────────────────────────────────────────────
+
+  const displayPosByColIndex = useMemo(() => {
+    const m = new Map<number, number>();
+    displayColumnIndexes.forEach((ci, pos) => m.set(ci, pos));
+    return m;
+  }, [displayColumnIndexes]);
+
+  const cellDomId = useCallback(
+    (row: number, col: number) => `tv-cell-${tab.id}-${row}-${col}`,
+    [tab.id],
+  );
+
+  const scrollCellIntoView = useCallback(
+    (row: number, col: number) => {
+      rowVirtualizer.scrollToIndex(row);
+      const body = bodyRef.current;
+      if (!body) return;
+      const pos = displayPosByColIndex.get(col) ?? 0;
+      let left = gutterWidth;
+      for (let i = 0; i < pos; i++) {
+        const c = columns[displayColumnIndexes[i]];
+        if (c) left += colWidths[c.name] ?? COL_WIDTH;
+      }
+      const width = colWidths[columns[col]?.name ?? ""] ?? COL_WIDTH;
+      // The sticky gutter occludes the leftmost gutterWidth px of the viewport.
+      const viewLeft = body.scrollLeft + gutterWidth;
+      const viewRight = body.scrollLeft + body.clientWidth;
+      if (left < viewLeft) body.scrollLeft = left - gutterWidth;
+      else if (left + width > viewRight) body.scrollLeft = left + width - body.clientWidth;
+    },
+    [rowVirtualizer, displayPosByColIndex, gutterWidth, columns, displayColumnIndexes, colWidths],
+  );
+
+  const handleGridKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (editingCell || jsonEditorCell) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable) return;
+      if (rows.length === 0 || displayColumnIndexes.length === 0) return;
+
+      const move = (dr: number, dc: number) => {
+        e.preventDefault();
+        const cell = selectedCell;
+        if (!cell) {
+          const first = displayColumnIndexes[0];
+          setSelectedCell({ row: 0, col: first });
+          scrollCellIntoView(0, first);
+          return;
+        }
+        const pos = displayPosByColIndex.get(cell.col) ?? 0;
+        const nextRow = Math.min(rows.length - 1, Math.max(0, cell.row + dr));
+        const nextPos = Math.min(displayColumnIndexes.length - 1, Math.max(0, pos + dc));
+        const nextCol = displayColumnIndexes[nextPos];
+        setSelectedCell({ row: nextRow, col: nextCol });
+        scrollCellIntoView(nextRow, nextCol);
+      };
+
+      switch (e.key) {
+        case "ArrowUp": move(-1, 0); break;
+        case "ArrowDown": move(1, 0); break;
+        case "ArrowLeft": move(0, -1); break;
+        case "ArrowRight": move(0, 1); break;
+        case "Enter":
+          if (selectedCell) {
+            e.preventDefault();
+            startEdit(
+              selectedCell.row,
+              selectedCell.col,
+              document.getElementById(cellDomId(selectedCell.row, selectedCell.col)),
+            );
+          }
+          break;
+        case "Escape":
+          if (selectedRows.size > 0) setSelectedRows(new Set());
+          else setSelectedCell(null);
+          break;
+      }
+    },
+    [
+      editingCell,
+      jsonEditorCell,
+      rows.length,
+      displayColumnIndexes,
+      selectedCell,
+      displayPosByColIndex,
+      scrollCellIntoView,
+      startEdit,
+      cellDomId,
+      selectedRows.size,
+    ],
   );
 
   // ── Guard ──────────────────────────────────────────────────────────────────
@@ -1291,9 +1406,16 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               style={{ minWidth: "100%" }}
             >
               <div
+                role="row"
                 className="flex divide-x divide-separator"
                 style={{ width: Math.max(totalWidth, 1), minWidth: "100%" }}
               >
+                {/* Gutter corner */}
+                <div
+                  aria-hidden
+                  className="sticky left-0 z-10 shrink-0 bg-sidebar border-r border-separator"
+                  style={{ width: gutterWidth, minWidth: gutterWidth }}
+                />
                 {displayColumnIndexes.map((ci) => {
                   const col = columns[ci];
                   if (!col) return null;
@@ -1385,13 +1507,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     return (
                       <div
                         key={vr.key}
+                        role="row"
+                        aria-rowindex={vr.index + 2}
                         className={cn(
                           "flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-subtle/60 transition-colors",
                           vr.index % 2 === 1 && "bg-subtle/30",
-                          rowSelected &&
-                            "bg-accent/10 hover:bg-accent/15 border-l-4 border-l-accent",
+                          rowSelected && "bg-accent/10 hover:bg-accent/15",
                           rowHasEdits &&
-                            "bg-[color-mix(in_srgb,var(--ds-warning)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-warning)_12%,transparent)] border-l-4 border-l-[var(--ds-warning)]",
+                            "bg-[color-mix(in_srgb,var(--ds-warning)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-warning)_12%,transparent)]",
                         )}
                         style={{
                           position: "absolute",
@@ -1400,6 +1523,32 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           width: "100%",
                         }}
                       >
+                        {/* Row-number gutter cell — click to select the row */}
+                        <div
+                          role="gridcell"
+                          aria-colindex={1}
+                          title={
+                            rowHasEdits
+                              ? "Unsaved changes — click to select row"
+                              : "Click to select row (⇧ range, ⌘ toggle)"
+                          }
+                          onClick={(e) => handleRowSelectClick(vr.index, e, true)}
+                          className={cn(
+                            "sticky left-0 z-10 flex items-center justify-end gap-1 px-1.5 shrink-0 select-none cursor-default",
+                            "border-r border-separator font-mono text-[10px] tabular-nums",
+                            rowSelected
+                              ? "bg-accent-subtle text-accent font-semibold"
+                              : "bg-sidebar text-tertiary hover:text-secondary hover:bg-subtle",
+                          )}
+                          style={{ width: gutterWidth, minWidth: gutterWidth, height: rowHeight }}
+                        >
+                          {rowHasEdits && (
+                            <span className="text-[var(--ds-warning)] leading-none" aria-label="Unsaved changes">
+                              ●
+                            </span>
+                          )}
+                          {firstRowNumber + vr.index}
+                        </div>
                         {displayColumnIndexes.map((ci) => {
                           const col = columns[ci];
                           if (!col) return null;

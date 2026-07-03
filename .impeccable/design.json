@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-03T00:00:00Z",
+  "title": "Design System: Esploro",
+  "extensions": {
+    "colorMeta": {
+      "accent-blue": { "role": "primary", "displayName": "Action Blue", "canonical": "#2563eb", "tonalRamp": ["#0f1e4d", "#16307d", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#1b1b1f", "tonalRamp": ["#1b1b1f", "#2c2c31", "#4b4b52", "#6b7280", "#9ca3af", "#c9ccd1", "#e5e6e8", "#f5f5f7"] },
+      "sidebar-gray": { "role": "neutral", "displayName": "Sidebar Gray", "canonical": "#f5f5f7", "tonalRamp": ["#2a2a2c", "#4a4a4c", "#8a8a8c", "#bab8b4", "#d4d2ce", "#e4e2df", "#f0efed", "#f5f5f7"] },
+      "syntax-keyword-violet": { "role": "secondary", "displayName": "Keyword Violet", "canonical": "#7c3aed", "tonalRamp": ["#2e1065", "#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#ddd6fe"] },
+      "syntax-string-green": { "role": "secondary", "displayName": "String Green", "canonical": "#15803d", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#bbf7d0"] },
+      "syntax-number-cyan": { "role": "secondary", "displayName": "Number Cyan", "canonical": "#0891b2", "tonalRamp": ["#083344", "#155e75", "#0e7490", "#0891b2", "#06b6d4", "#22d3ee", "#67e8f9", "#cffafe"] },
+      "syntax-type-amber": { "role": "secondary", "displayName": "Type Amber", "canonical": "#b45309", "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"] },
+      "syntax-enum-orange": { "role": "secondary", "displayName": "Enum Orange", "canonical": "#ea580c", "tonalRamp": ["#431407", "#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fed7aa"] },
+      "destructive-red": { "role": "tertiary", "displayName": "Destructive Red", "canonical": "#dc2626", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fecaca"] },
+      "success-green": { "role": "tertiary", "displayName": "Success Green", "canonical": "#16a34a", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#bbf7d0"] },
+      "warning-amber": { "role": "tertiary", "displayName": "Warning Amber", "canonical": "#d97706", "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"] }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Body", "purpose": "Default 13px UI chrome — sidebar, tabs, menus, forms." },
+      "title": { "displayName": "Title", "purpose": "Dialog titles and panel headers; the largest type in the app." },
+      "label": { "displayName": "Label", "purpose": "Buttons, badges, column headers." },
+      "mono": { "displayName": "Mono", "purpose": "SQL, data values, identifiers — mono means data." }
+    },
+    "shadows": [
+      { "name": "hairline", "value": "inset 0 0 0 1px var(--border-subtle)", "purpose": "Resting separation for panels and insets." },
+      { "name": "popover", "value": "0 12px 30px color-mix(in srgb, #000 18%, transparent)", "purpose": "Menus, dropdowns, command palette." },
+      { "name": "modal", "value": "0 20px 60px color-mix(in srgb, #000 24%, transparent)", "purpose": "Dialogs over a dimmed blurred overlay." },
+      { "name": "active-pane", "value": "0 0 0 1px var(--border-focus), 0 0 0 4px color-mix(in srgb, var(--ds-accent) 16%, transparent)", "purpose": "Marks the focused split pane." }
+    ],
+    "motion": [
+      { "name": "motion-fast", "value": "100ms", "purpose": "Hover feedback." },
+      { "name": "motion-base", "value": "150ms", "purpose": "Default state transitions." },
+      { "name": "motion-slow", "value": "220ms", "purpose": "Panel and overlay transitions." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.2, 0, 0, 1)", "purpose": "Default easing." },
+      { "name": "ease-enter", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Entrances (toasts, popovers)." },
+      { "name": "ease-exit", "value": "cubic-bezier(0.7, 0, 0.84, 0)", "purpose": "Exits." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single accent action in a view — confirm, run, connect.",
+      "html": "<button class=\"ds-btn-primary\">Connect</button>",
+      "css": ".ds-btn-primary { background: var(--ds-accent, #2563eb); color: var(--ds-text-inverse, #fff); padding: 6px 12px; font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; border: none; border-radius: var(--radius-control, 6px); cursor: pointer; transition: background 150ms cubic-bezier(0.2,0,0,1), opacity 150ms; } .ds-btn-primary:hover { background: var(--ds-accent-hover, #1d4ed8); } .ds-btn-primary:active { opacity: 0.8; } .ds-btn-primary:focus-visible { outline: 2px solid var(--ds-accent, #2563eb); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet neutral action — cancel, secondary operations.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background: var(--ds-control-bg, #f3f1ef); color: var(--ds-label, #1b1b1f); padding: 6px 12px; font-size: 12px; font-weight: 400; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; border: 1px solid var(--ds-separator, #d4d2ce); border-radius: var(--radius-control, 6px); cursor: pointer; transition: background 150ms cubic-bezier(0.2,0,0,1); } .ds-btn-secondary:hover { background: var(--surface-hover, #f0efed); } .ds-btn-secondary:active { background: var(--surface-pressed, #e4e2df); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ds-accent, #2563eb); outline-offset: 2px; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Irreversible actions — drop, delete rows, disconnect.",
+      "html": "<button class=\"ds-btn-destructive\">Delete 3 rows</button>",
+      "css": ".ds-btn-destructive { background: var(--ds-destructive, #dc2626); color: var(--ds-text-inverse, #fff); padding: 6px 12px; font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; border: none; border-radius: var(--radius-control, 6px); cursor: pointer; transition: opacity 150ms cubic-bezier(0.2,0,0,1); } .ds-btn-destructive:hover { opacity: 0.9; } .ds-btn-destructive:active { opacity: 0.8; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Form field — connection settings, filters, search.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Host\" />",
+      "css": ".ds-input { background: var(--ds-control-bg, #f3f1ef); color: var(--ds-label, #1b1b1f); border: 1px solid var(--ds-separator, #d4d2ce); border-radius: var(--radius-control, 6px); padding: 6px 10px; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; transition: border-color 150ms cubic-bezier(0.2,0,0,1); } .ds-input::placeholder { color: var(--ds-tertiary, #9ca3af); } .ds-input:focus-visible { outline: none; border-color: var(--ds-accent, #2563eb); }"
+    },
+    {
+      "name": "Enum Chip",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "Tinted value badge — the 12%/28%/full tint formula, cycling 8 data-enum hues.",
+      "html": "<span class=\"ds-chip\">active</span>",
+      "css": ".ds-chip { --chip-color: var(--ds-syntax-enum, #ea580c); display: inline-block; padding: 1px 6px; font-size: 11px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; border-radius: var(--radius-badge, 4px); color: var(--chip-color); background: color-mix(in srgb, var(--chip-color) 12%, transparent); border: 1px solid color-mix(in srgb, var(--chip-color) 28%, transparent); }"
+    },
+    {
+      "name": "Schema Tree Row",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "One row of the sidebar object explorer; icon colored by object kind.",
+      "html": "<div class=\"ds-tree-row\"><svg class=\"ds-tree-icon\" viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"10\" rx=\"1\"/><path d=\"M2 6.5h12M6.5 6.5V13\"/></svg><span>users</span></div>",
+      "css": ".ds-tree-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; color: var(--ds-label, #1b1b1f); background: var(--ds-sidebar-bg, #f5f5f7); border-radius: var(--radius-badge, 4px); cursor: default; transition: background 100ms cubic-bezier(0.2,0,0,1); } .ds-tree-row:hover { background: var(--surface-hover, #f0efed); } .ds-tree-icon { color: var(--schema-table, #15803d); flex: none; }"
+    },
+    {
+      "name": "Data Grid Cell Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature surface: dense mono values colored by data type.",
+      "html": "<div class=\"ds-grid-row\"><span class=\"ds-cell-num\">42</span><span class=\"ds-cell-text\">alice@example.com</span><span class=\"ds-cell-bool\">true</span><span class=\"ds-cell-null\">NULL</span></div>",
+      "css": ".ds-grid-row { display: flex; gap: 16px; padding: 3px 10px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.5; background: var(--ds-content-bg, #fff); border-bottom: 1px solid color-mix(in srgb, var(--ds-separator, #d4d2ce) 55%, transparent); } .ds-grid-row:hover { background: var(--surface-hover, #f0efed); } .ds-cell-num { color: var(--data-number, #0891b2); } .ds-cell-text { color: var(--data-text, #1b1b1f); } .ds-cell-bool { color: var(--data-boolean-true, #16a34a); } .ds-cell-null { color: var(--data-null, #9ca3af); font-style: italic; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Workbench",
+    "overview": "Esploro is a craftsman's bench for databases: everything within reach, dense, nothing ornamental. The interface is built so the data — grids, schema trees, query results — carries the visual weight, while chrome recedes into flat, hairline-separated surfaces. It reads as a native macOS tool (SF Pro at 13px, system materials, light/dark parity), not a web app that happens to run in a window. The system is two-layered: a palette layer (--ds-* tokens) defines the raw colors per theme, and a semantic craft contract maps them to roles. Components consume only the semantic layer — this is what makes eleven palettes work without touching a component.",
+    "keyCharacteristics": [
+      "Professional-tool density: 13px UI type, 12px mono data, compact rows",
+      "Flat surfaces separated by hairlines; shadows strictly mean \"floats above the workspace\"",
+      "Restrained color: blue accent for actions/selection/focus only; the rich color lives in data",
+      "Fast, functional motion (100–220ms); nothing choreographed",
+      "Theme-agnostic components via the semantic token contract"
+    ],
+    "rules": [
+      { "name": "The Contract Rule", "body": "Components never reference --ds-* palette tokens or raw hex. They consume the semantic layer only. Breaking this breaks all eleven themes at once.", "section": "colors" },
+      { "name": "The Data-Owns-Color Rule", "body": "Chrome is neutral. Saturation belongs to meaning: syntax highlighting, type badges, enum chips, state indicators. If a decorative element wants color, the answer is no.", "section": "colors" },
+      { "name": "The Tint Formula", "body": "Colored chips/badges are built from their hue via color-mix: 12% background tint, 28% border tint, full-strength text. Never solid colored fills for passive labels.", "section": "colors" },
+      { "name": "The One-Notch Rule", "body": "Adjacent hierarchy levels differ by one step (12 → 13 → 14px) and/or one weight grade. No jumps, no display sizes.", "section": "typography" },
+      { "name": "The Mono-Means-Data Rule", "body": "Monospace marks database content (SQL, values, identifiers, types). UI chrome is never mono; data is never proportional.", "section": "typography" },
+      { "name": "The Floats-Above Rule", "body": "Shadows appear only on transient layers (popover, modal) and the active-pane ring. A resting panel with a drop shadow is a bug.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do route every color through the semantic contract (--surface-*, --text-*, --state-*, --data-*); this is what keeps all eleven palettes working.",
+      "Do keep controls compact and quiet: 6px radius, px-3 py-1.5, 12px medium labels, accent only on the primary action.",
+      "Do use the tint formula (12% bg / 28% border / full text) for any colored chip or badge.",
+      "Do use the motion tokens (100/150/220ms, standard/enter/exit eases) and respect prefers-reduced-motion.",
+      "Do keep light/dark parity for every new surface — test both, plus at least one optional palette."
+    ],
+    "donts": [
+      "Don't look like pgAdmin or DBeaver: no toolbar sprawl, no dialog mazes, no chrome competing with data.",
+      "Don't import generic SaaS web-app styling: no cards with decorative shadows, no marketing gradients, no hero metrics inside a desktop tool.",
+      "Don't hardcode hex values or reach past the contract into --ds-* tokens from components.",
+      "Don't put a drop shadow on a resting surface — shadows mean \"floats above the workspace.\"",
+      "Don't use accent fills for selection in data surfaces; selection is --surface-selected so type-colored values stay legible.",
+      "Don't use proportional type for data or mono for chrome.",
+      "Don't remove the global focus-visible ring without an equal-or-better replacement."
+    ]
+  }
+}
