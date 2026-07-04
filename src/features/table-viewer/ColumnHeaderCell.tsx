@@ -13,6 +13,7 @@ export function ColumnHeaderCell({
   width,
   sortDir,
   isFiltered,
+  ariaColIndex,
   onClick,
   onFilterClick,
   onResizeStart,
@@ -22,6 +23,7 @@ export function ColumnHeaderCell({
   width: number;
   sortDir: "asc" | "desc" | null;
   isFiltered: boolean;
+  ariaColIndex?: number;
   onClick: () => void;
   onFilterClick: (e: React.MouseEvent) => void;
   onResizeStart: (e: React.MouseEvent) => void;
@@ -30,6 +32,10 @@ export function ColumnHeaderCell({
   return (
     <div
       role="columnheader"
+      aria-colindex={ariaColIndex}
+      aria-sort={
+        sortDir === "asc" ? "ascending" : sortDir === "desc" ? "descending" : undefined
+      }
       tabIndex={-1}
       className={cn(
         "relative flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
@@ -68,7 +74,7 @@ export function ColumnHeaderCell({
         </Tooltip.Portal>
       </Tooltip.Root>
       {col.isNullable && (
-        <span className="text-[8px] font-mono text-tertiary shrink-0 group-hover:hidden" title="Nullable">?</span>
+        <span className="text-[10px] font-mono text-tertiary shrink-0" title="Nullable">?</span>
       )}
       {/* Filter icon: accent when filtered, visible on hover when not */}
       <button
@@ -76,17 +82,17 @@ export function ColumnHeaderCell({
         onClick={onFilterClick}
         title={`Filter by ${col.name}`}
         className={cn(
-          "shrink-0 p-0.5 rounded transition-colors",
+          "shrink-0 p-1 rounded transition-colors",
           isFiltered
             ? "text-accent"
             : "text-tertiary opacity-0 group-hover:opacity-100 hover:text-accent",
         )}
       >
-        <Filter size={9} />
+        <Filter size={11} />
       </button>
       <span
         className={cn(
-          "text-[9px] font-mono px-1 py-px rounded shrink-0",
+          "text-[10px] font-mono px-1 py-px rounded shrink-0",
           typeFamilyBadgeClass(getTypeFamily(col.dataType)),
         )}
       >

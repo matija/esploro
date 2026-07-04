@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Filter, Trash2 } from "lucide-react";
 import type { CellValue, ResultColumn } from "./types";
 import { cellToString } from "./types";
+import { useClampedMenuPosition } from "./useClampedMenuPosition";
 
 export function CellContextMenu({
   rowData,
@@ -25,6 +26,8 @@ export function CellContextMenu({
   onDeleteRow: () => void;
   canDelete: boolean;
 }) {
+  const { ref: menuRef, pos } = useClampedMenuPosition(x, y);
+
   useEffect(() => {
     const onDown = () => onClose();
     const onKey = (e: KeyboardEvent) => {
@@ -89,8 +92,9 @@ export function CellContextMenu({
 
   return createPortal(
     <div
+      ref={menuRef}
       className="fixed z-50 min-w-[200px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
-      style={{ left: x, top: y }}
+      style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <button
@@ -100,7 +104,7 @@ export function CellContextMenu({
       >
         <span className="font-medium">Copy Value</span>
         {cellValue === null && (
-          <span className="ml-auto font-mono text-[9px] text-tertiary bg-control px-1 rounded border border-separator/50">
+          <span className="ml-auto font-mono text-[10px] text-tertiary bg-control px-1 rounded border border-separator/50">
             NULL
           </span>
         )}

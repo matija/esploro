@@ -72,7 +72,7 @@ export function ColumnFilterPopover({
           {/* Column name + type badge */}
           <div className="flex items-center gap-2 pb-1 border-b border-separator">
             <span className="text-xs font-semibold text-label truncate flex-1">{col.name}</span>
-            <span className={cn("text-[9px] font-mono px-1 py-px rounded shrink-0", typeFamilyBadgeClass(family))}>
+            <span className={cn("text-[10px] font-mono px-1 py-px rounded shrink-0", typeFamilyBadgeClass(family))}>
               {col.dataType}
             </span>
           </div>

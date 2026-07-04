@@ -40,6 +40,7 @@ const MiniSqlEditor = lazy(() =>
 );
 import { COL_WIDTH, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 import { CellContextMenu } from "./CellContextMenu";
+import { useClampedMenuPosition } from "./useClampedMenuPosition";
 import { ColumnHeaderCell } from "./ColumnHeaderCell";
 import { RefreshButton } from "./RefreshButton";
 import { SkeletonGrid } from "./SkeletonGrid";
@@ -912,6 +913,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // ── Header context menu ────────────────────────────────────────────────────
 
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
+  const { ref: headerMenuRef, pos: headerMenuPos } = useClampedMenuPosition(
+    headerMenu?.x ?? 0,
+    headerMenu?.y ?? 0,
+  );
 
   useEffect(() => {
     if (!headerMenu) return;
@@ -1085,6 +1090,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
       const move = (dr: number, dc: number) => {
         e.preventDefault();
+        // Keep focus on the stable scroll container: a focused cell can be
+        // unmounted by virtualization mid-navigation, dropping focus to <body>.
+        bodyRef.current?.focus({ preventScroll: true });
         const cell = selectedCell;
         if (!cell) {
           const first = displayColumnIndexes[0];
@@ -1207,7 +1215,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               title="Run filter"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => rawWhereEditorRef.current?.apply()}
-              className="inline-flex h-5 items-center gap-1 rounded-[var(--radius-control)] bg-accent px-1.5 text-[10px] font-medium text-inverse hover:bg-accent-hover transition-colors"
+              className="inline-flex h-5 items-center gap-1 rounded-[var(--radius-control)] bg-accent px-1.5 text-[11px] font-medium text-inverse hover:bg-accent-hover transition-colors"
             >
               <Play size={10} fill="currentColor" />
               Run
@@ -1356,10 +1364,16 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
       {/* Grid area */}
       {viewMode === "data" && (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
+      <div
+        role={!isLoading && !error && data ? "grid" : undefined}
+        aria-label={`${ctx.table} data`}
+        aria-rowcount={rows.length + 1}
+        aria-colcount={displayColumnIndexes.length + 1}
+        className="flex flex-col flex-1 min-h-0 overflow-hidden relative"
+      >
         {/* Refetch indicator */}
         {isFetching && !isLoading && (
-          <div className="absolute top-0 right-0 z-20 p-1">
+          <div aria-hidden className="absolute top-0 right-0 z-20 p-1">
             <Loader2 size={12} className="text-accent animate-spin" />
           </div>
         )}
@@ -1402,11 +1416,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             {/* Header */}
             <div
               ref={headerRef}
+              role="rowgroup"
               className="shrink-0 flex border-b-2 border-separator bg-sidebar overflow-x-hidden"
               style={{ minWidth: "100%" }}
             >
               <div
                 role="row"
+                aria-rowindex={1}
                 className="flex divide-x divide-separator"
                 style={{ width: Math.max(totalWidth, 1), minWidth: "100%" }}
               >
@@ -1416,13 +1432,14 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                   className="sticky left-0 z-10 shrink-0 bg-sidebar border-r border-separator"
                   style={{ width: gutterWidth, minWidth: gutterWidth }}
                 />
-                {displayColumnIndexes.map((ci) => {
+                {displayColumnIndexes.map((ci, pos) => {
                   const col = columns[ci];
                   if (!col) return null;
 
                   return (
                     <ColumnHeaderCell
                       key={col.name}
+                      ariaColIndex={pos + 2}
                       col={col}
                       width={colWidths[col.name] ?? COL_WIDTH}
                       sortDir={
@@ -1455,6 +1472,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             {/* Body */}
             <div
               ref={bodyRef}
+              role={rows.length > 0 ? "rowgroup" : undefined}
+              tabIndex={0}
+              onKeyDown={handleGridKeyDown}
               className="flex-1 overflow-auto"
               onScroll={syncHeader}
             >
@@ -1549,7 +1569,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           )}
                           {firstRowNumber + vr.index}
                         </div>
-                        {displayColumnIndexes.map((ci) => {
+                        {displayColumnIndexes.map((ci, pos) => {
                           const col = columns[ci];
                           if (!col) return null;
 
@@ -1571,7 +1591,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           return (
                             <div
                               key={col.name}
+                              id={cellDomId(vr.index, ci)}
                               role="gridcell"
+                              aria-colindex={pos + 2}
+                              aria-selected={isSelected}
                               tabIndex={-1}
                               className={cn(
                                 "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
@@ -1595,14 +1618,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 }
                                 if (selectedRows.size > 0) setSelectedRows(new Set());
                                 setSelectedCell({ row: vr.index, col: ci });
-                              }}
-                              onKeyDown={(e) => {
-                                // While editing, let the input handle keys (incl. space).
-                                if (isEditing) return;
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  setSelectedCell({ row: vr.index, col: ci });
-                                }
                               }}
                               onDoubleClick={(e) => {
                                 if (editable) startEdit(vr.index, ci, e.currentTarget);
@@ -1837,8 +1852,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       {/* Header context menu */}
       {headerMenu && createPortal(
         <div
+          ref={headerMenuRef}
           className="fixed z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] py-1"
-          style={{ left: headerMenu.x, top: headerMenu.y }}
+          style={{ left: headerMenuPos.left, top: headerMenuPos.top }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
