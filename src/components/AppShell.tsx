@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { listen } from "@tauri-apps/api/event";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
@@ -29,6 +28,7 @@ import {
   themeToDomAttribute,
 } from "../features/settings/preferences";
 import { settingsApi } from "../features/settings/api";
+import { onMenuEvent } from "../lib/tauriEvents";
 import { cn } from "../lib/utils";
 import { ToastProvider } from "./Toast";
 import { ConfirmProvider } from "./ConfirmDialog";
@@ -486,21 +486,19 @@ export function AppShell() {
   ]);
 
   useEffect(() => {
-    const unlisten = listen("menu:open-settings", () => {
+    return onMenuEvent("menu:open-settings", () => {
       const existing = tabs.find((t) => t.type === "settings");
       if (existing) { updateTabTitle(existing.id, "Appearance"); setActiveTab(existing.id); }
       else { addTab({ type: "settings", title: "Appearance" }); }
     });
-    return () => { void unlisten.then((fn) => fn()); };
   }, [addTab, setActiveTab, updateTabTitle, tabs]);
 
   useEffect(() => {
-    const unlisten = listen("menu:open-about", () => {
+    return onMenuEvent("menu:open-about", () => {
       const existing = tabs.find((t) => t.type === "settings");
       if (existing) { updateTabTitle(existing.id, "About"); setActiveTab(existing.id); }
       else { addTab({ type: "settings", title: "About" }); }
     });
-    return () => { void unlisten.then((fn) => fn()); };
   }, [addTab, setActiveTab, updateTabTitle, tabs]);
 
   return (
