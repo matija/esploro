@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2, Search, SquarePen, Settings } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
@@ -247,6 +248,9 @@ function UpdateIndicator() {
   );
 }
 
+const menuItemClass =
+  "flex items-center justify-between gap-6 px-3 py-1.5 text-[13px] text-label hover:bg-hover cursor-default outline-none data-[highlighted]:bg-hover data-[disabled]:opacity-50";
+
 function Toolbar() {
   const { addTab, tabs, setActiveTab, updateTabTitle, activeSessions, setCommandPaletteOpen } = useAppStore(
     useShallow((state) => ({
@@ -258,6 +262,15 @@ function Toolbar() {
       setCommandPaletteOpen: state.setCommandPaletteOpen,
     })),
   );
+  const { checking, checkNow } = useUpdateCheckAction();
+
+  // Same behaviour the ⌘, shortcut and the app menu use: reuse the open
+  // settings tab (retitled to the requested section) instead of stacking tabs.
+  function openSettingsTab(title: string) {
+    const existing = tabs.find((t) => t.type === "settings");
+    if (existing) { updateTabTitle(existing.id, title); setActiveTab(existing.id); }
+    else { addTab({ type: "settings", title }); }
+  }
 
   return (
     <div className="flex items-center gap-1 px-2">
@@ -284,18 +297,51 @@ function Toolbar() {
       >
         <SquarePen size={13} />
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          const existing = tabs.find((t) => t.type === "settings");
-          if (existing) { updateTabTitle(existing.id, "Appearance"); setActiveTab(existing.id); }
-          else { addTab({ type: "settings", title: "Appearance" }); }
-        }}
-        className={toolbarBtnClass}
-        title="Settings (⌘,)"
-      >
-        <Settings size={13} />
-      </button>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            className={toolbarBtnClass}
+            aria-label="Application menu"
+            title="Settings and more"
+          >
+            <Settings size={13} />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={6}
+            className={cn(
+              "z-50 min-w-[200px] rounded-[var(--radius-popover)] overflow-hidden",
+              "bg-raised border border-separator shadow-[var(--shadow-popover)] py-1",
+              "animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
+            )}
+          >
+            <DropdownMenu.Item
+              onSelect={() => openSettingsTab("Appearance")}
+              className={menuItemClass}
+            >
+              <span>Settings…</span>
+              <kbd className="text-[12px] text-tertiary font-mono">⌘,</kbd>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              disabled={checking}
+              onSelect={() => { void checkNow(); }}
+              className={menuItemClass}
+            >
+              <span>{checking ? "Checking for Updates…" : "Check for Updates…"}</span>
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 border-t border-separator" />
+            <DropdownMenu.Item
+              onSelect={() => openSettingsTab("About")}
+              className={menuItemClass}
+            >
+              <span>About Esploro</span>
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
       <UpdateIndicator />
       <LicenseBadge />
     </div>
