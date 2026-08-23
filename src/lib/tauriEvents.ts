@@ -4,7 +4,10 @@ import { listen } from "@tauri-apps/api/event";
  * Menu events emitted by the Rust side; see the `menu:*` emits in
  * `src-tauri/src/lib.rs`. They carry no payload — the name is the message.
  */
-export type MenuEvent = "menu:open-settings" | "menu:open-about";
+export type MenuEvent =
+  | "menu:open-settings"
+  | "menu:open-about"
+  | "menu:check-for-updates";
 
 /**
  * Subscribe to a menu event. Returns a synchronous cleanup function so it can

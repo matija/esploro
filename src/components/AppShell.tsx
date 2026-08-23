@@ -16,6 +16,7 @@ import { SettingsView } from "../features/settings/SettingsView";
 import { NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings/settingsNav";
 import { UpdateSheet } from "../features/updates/UpdateSheet";
 import { useUpdateChecker } from "../features/updates/useUpdateChecker";
+import { useUpdateCheckAction } from "../features/updates/useUpdateCheckAction";
 import { WelcomeView } from "../features/welcome/WelcomeView";
 import { RoleDetailPanel } from "../features/roles/RoleDetailPanel";
 import { SchemaDetailPanel } from "../features/schema/SchemaDetailPanel";
@@ -301,6 +302,21 @@ function Toolbar() {
   );
 }
 
+/**
+ * Bridges the "Check for Updates…" app-menu item to the shared check action.
+ * Lives inside `ToastProvider` because `useUpdateCheckAction` reports its
+ * outcome through toasts; renders nothing itself.
+ */
+function MenuUpdateCheckListener() {
+  const { checkNow } = useUpdateCheckAction();
+
+  useEffect(() => {
+    return onMenuEvent("menu:check-for-updates", () => { void checkNow(); });
+  }, [checkNow]);
+
+  return null;
+}
+
 export function AppShell() {
   const {
     tabs,
@@ -562,6 +578,7 @@ export function AppShell() {
         </div>
       </div>
 
+      <MenuUpdateCheckListener />
       <CommandPalette />
       <UsageTypeDialog />
       {updateInfo && (

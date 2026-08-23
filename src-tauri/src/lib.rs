@@ -136,6 +136,13 @@ pub fn run() {
                     true,
                     None::<&str>,
                 )?)
+                .item(&MenuItem::with_id(
+                    app,
+                    "check-for-updates",
+                    "Check for Updates…",
+                    true,
+                    None::<&str>,
+                )?)
                 .separator()
                 .item(&MenuItem::with_id(
                     app,
@@ -184,6 +191,8 @@ pub fn run() {
                     let _ = app.emit("menu:open-settings", ());
                 } else if event.id() == "about" {
                     let _ = app.emit("menu:open-about", ());
+                } else if event.id() == "check-for-updates" {
+                    let _ = app.emit("menu:check-for-updates", ());
                 }
             });
 
