@@ -18,6 +18,9 @@ vi.mock("./api", () => ({
     checkForUpdate: () => checkForUpdate(),
     installUpdate: () => Promise.resolve(),
   },
+  // Both surfaces only exist in builds that can self-update; the tests cover
+  // that case.
+  isSelfUpdateAvailable: () => true,
 }));
 
 vi.mock("../license/api", () => ({

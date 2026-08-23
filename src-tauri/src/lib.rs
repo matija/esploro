@@ -128,21 +128,26 @@ pub fn run() {
         .manage(AppState::default())
         .setup(|app| {
             // Native macOS menu bar
-            let app_submenu = SubmenuBuilder::new(app, "Esploro")
-                .item(&MenuItem::with_id(
-                    app,
-                    "about",
-                    "About Esploro",
-                    true,
-                    None::<&str>,
-                )?)
-                .item(&MenuItem::with_id(
+            let mut app_submenu = SubmenuBuilder::new(app, "Esploro").item(&MenuItem::with_id(
+                app,
+                "about",
+                "About Esploro",
+                true,
+                None::<&str>,
+            )?);
+            // Only the packaged Distribution build can self-update, so the item
+            // is absent elsewhere rather than failing when invoked. The web side
+            // mirrors this in `isSelfUpdateAvailable()` (src/features/updates/api.ts).
+            if !cfg!(debug_assertions) {
+                app_submenu = app_submenu.item(&MenuItem::with_id(
                     app,
                     "check-for-updates",
                     "Check for Updates…",
                     true,
                     None::<&str>,
-                )?)
+                )?);
+            }
+            let app_submenu = app_submenu
                 .separator()
                 .item(&MenuItem::with_id(
                     app,

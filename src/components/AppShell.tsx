@@ -18,6 +18,7 @@ import { NAV_ITEMS, TITLE_TO_SECTION } from "../features/settings/settingsNav";
 import { UpdateSheet } from "../features/updates/UpdateSheet";
 import { useUpdateChecker } from "../features/updates/useUpdateChecker";
 import { useUpdateCheckAction } from "../features/updates/useUpdateCheckAction";
+import { isSelfUpdateAvailable } from "../features/updates/api";
 import { MenuUpdateCheckListener } from "../features/updates/MenuUpdateCheckListener";
 import { WelcomeView } from "../features/welcome/WelcomeView";
 import { RoleDetailPanel } from "../features/roles/RoleDetailPanel";
@@ -326,13 +327,15 @@ function Toolbar() {
               <span>Settings…</span>
               <kbd className="text-[12px] text-tertiary font-mono">⌘,</kbd>
             </DropdownMenu.Item>
-            <DropdownMenu.Item
-              disabled={checking}
-              onSelect={() => { void checkNow(); }}
-              className={menuItemClass}
-            >
-              <span>{checking ? "Checking for Updates…" : "Check for Updates…"}</span>
-            </DropdownMenu.Item>
+            {isSelfUpdateAvailable() && (
+              <DropdownMenu.Item
+                disabled={checking}
+                onSelect={() => { void checkNow(); }}
+                className={menuItemClass}
+              >
+                <span>{checking ? "Checking for Updates…" : "Check for Updates…"}</span>
+              </DropdownMenu.Item>
+            )}
             <DropdownMenu.Separator className="my-1 border-t border-separator" />
             <DropdownMenu.Item
               onSelect={() => openSettingsTab("About")}
