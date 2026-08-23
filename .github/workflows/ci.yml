@@ -28,6 +28,9 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      - name: Frontend tests
+        run: npm test
+
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
