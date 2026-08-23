@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import appIconUrl from "../../assets/app-icon.png";
 import { licenseApi, LICENSE_STATUS_KEY } from "../license/api";
 import { useUpdateChecker } from "../updates/useUpdateChecker";
+import { useUpdateCheckAction } from "../updates/useUpdateCheckAction";
 import { useAppStore } from "../../store";
 
 async function openUrl(url: string) {
@@ -13,8 +13,6 @@ async function openUrl(url: string) {
 interface Props {
   onNavigateToLicense: () => void;
 }
-
-type CheckState = "idle" | "checking" | "up-to-date" | "error";
 
 export function AboutSettings({ onNavigateToLicense }: Props) {
   const { data: status } = useQuery({
@@ -30,39 +28,12 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         ? "Personal"
         : "Unlicensed";
 
-  const { updateInfo, checkNow } = useUpdateChecker();
+  const { updateInfo } = useUpdateChecker();
+  const { checking, checkNow } = useUpdateCheckAction();
   const setUpdateSheetOpen = useAppStore((s) => s.setUpdateSheetOpen);
 
-  const [checkState, setCheckState] = useState<CheckState>("idle");
-  const [checkError, setCheckError] = useState<string | null>(null);
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => { if (resetTimerRef.current) clearTimeout(resetTimerRef.current); }, []);
-
-  async function handleCheckForUpdates() {
-    if (checkState === "checking") return;
-    setCheckState("checking");
-    setCheckError(null);
-    try {
-      const info = await checkNow();
-      if (info) {
-        setCheckState("idle");
-        setUpdateSheetOpen(true);
-      } else {
-        setCheckState("up-to-date");
-        resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
-      }
-    } catch (e) {
-      setCheckError(String(e));
-      setCheckState("error");
-      resetTimerRef.current = setTimeout(() => setCheckState("idle"), 5000);
-    }
-  }
-
   const checkButtonLabel =
-    checkState === "checking" ? "Checking…"
-    : checkState === "up-to-date" ? `Up to date — ${__APP_VERSION__}`
-    : checkState === "error" ? "Check failed"
+    checking ? "Checking…"
     : updateInfo ? "Update available"
     : "Check for Updates";
 
@@ -146,19 +117,16 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
             if (updateInfo) {
               setUpdateSheetOpen(true);
             } else {
-              void handleCheckForUpdates();
+              void checkNow();
             }
           }}
-          disabled={checkState === "checking" || checkState === "up-to-date"}
+          disabled={checking}
           className="text-[14px] text-accent hover:text-accent/80 disabled:text-tertiary
             disabled:cursor-default transition-colors duration-[var(--motion-fast)]"
         >
           {checkButtonLabel}
         </button>
       </div>
-      {checkState === "error" && checkError && (
-        <p className="text-[12px] text-destructive leading-relaxed">{checkError}</p>
-      )}
     </section>
   );
 }
