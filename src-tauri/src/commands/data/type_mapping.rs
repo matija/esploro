@@ -163,20 +163,27 @@ pub(super) fn pg_cell_value(row: &tokio_postgres::Row, i: usize, udt: &str) -> C
 
 pub(super) fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue {
     match row.as_ref(idx) {
-        None | Some(Value::NULL) => CellValue::Null,
-        Some(Value::Int(n)) => CellValue::Int(*n),
-        Some(Value::UInt(n)) => CellValue::Int(*n as i64),
-        Some(Value::Float(f)) => CellValue::Float(*f as f64),
-        Some(Value::Double(f)) => CellValue::Float(*f),
-        Some(Value::Bytes(b)) => CellValue::Text(String::from_utf8_lossy(b).into_owned()),
-        Some(Value::Date(y, m, d, h, min, s, _)) => {
+        None => CellValue::Null,
+        Some(value) => mysql_value_to_cell(value),
+    }
+}
+
+pub(super) fn mysql_value_to_cell(value: &Value) -> CellValue {
+    match value {
+        Value::NULL => CellValue::Null,
+        Value::Int(n) => CellValue::Int(*n),
+        Value::UInt(n) => CellValue::Int(*n as i64),
+        Value::Float(f) => CellValue::Float(*f as f64),
+        Value::Double(f) => CellValue::Float(*f),
+        Value::Bytes(b) => CellValue::Text(String::from_utf8_lossy(b).into_owned()),
+        Value::Date(y, m, d, h, min, s, _) => {
             if *h == 0 && *min == 0 && *s == 0 {
                 CellValue::Other(format!("{y:04}-{m:02}-{d:02}"))
             } else {
                 CellValue::Other(format!("{y:04}-{m:02}-{d:02} {h:02}:{min:02}:{s:02}"))
             }
         }
-        Some(Value::Time(neg, days, h, min, s, _)) => {
+        Value::Time(neg, days, h, min, s, _) => {
             let sign = if *neg { "-" } else { "" };
             let total_h = days * 24 + *h as u32;
             CellValue::Other(format!("{sign}{total_h:02}:{min:02}:{s:02}"))
@@ -185,7 +192,11 @@ pub(super) fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue 
 }
 
 pub(super) fn mysql_str(row: &mysql_async::Row, idx: usize) -> Option<String> {
-    match row.as_ref(idx)? {
+    mysql_value_to_str(row.as_ref(idx)?)
+}
+
+pub(super) fn mysql_value_to_str(value: &Value) -> Option<String> {
+    match value {
         Value::NULL => None,
         Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
         Value::Int(n) => Some(n.to_string()),
@@ -229,5 +240,170 @@ mod tests {
         let literal = json_to_pg_array_literal(r#"[1, "a\"b", null, true]"#).unwrap();
 
         assert_eq!(literal, r#"{"1","a\"b",NULL,"true"}"#);
+    }
+
+    // CellValue has no PartialEq; compare the serialised wire shape the
+    // frontend actually receives instead.
+    fn tagged(value: &CellValue) -> serde_json::Value {
+        serde_json::to_value(value).unwrap()
+    }
+
+    fn tag(t: &str) -> serde_json::Value {
+        serde_json::json!({ "t": t })
+    }
+
+    fn tag_v(t: &str, v: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({ "t": t, "v": v })
+    }
+
+    #[test]
+    fn pg_numeric_udts_resolve_to_bigint_or_numeric_casts() {
+        for udt in ["int2", "int4", "int8"] {
+            assert_eq!(resolve_pg_cast(udt, "integer"), "bigint");
+        }
+        for udt in ["float4", "float8", "numeric", "money"] {
+            assert_eq!(resolve_pg_cast(udt, "numeric"), "numeric");
+        }
+    }
+
+    #[test]
+    fn pg_temporal_and_scalar_udts_resolve_to_their_own_casts() {
+        assert_eq!(resolve_pg_cast("date", "date"), "date");
+        assert_eq!(
+            resolve_pg_cast("timestamp", "timestamp without time zone"),
+            "timestamptz"
+        );
+        assert_eq!(
+            resolve_pg_cast("timestamptz", "timestamp with time zone"),
+            "timestamptz"
+        );
+        assert_eq!(resolve_pg_cast("time", "time without time zone"), "time");
+        assert_eq!(resolve_pg_cast("timetz", "time with time zone"), "time");
+        assert_eq!(resolve_pg_cast("bool", "boolean"), "boolean");
+        assert_eq!(resolve_pg_cast("uuid", "uuid"), "uuid");
+        assert_eq!(resolve_pg_cast("json", "json"), "json");
+        assert_eq!(resolve_pg_cast("jsonb", "jsonb"), "jsonb");
+    }
+
+    #[test]
+    fn unknown_pg_types_fall_back_to_text() {
+        assert_eq!(resolve_pg_cast("inet", "inet"), "text");
+        assert_eq!(resolve_pg_cast("varchar", "character varying"), "text");
+    }
+
+    #[test]
+    fn pg_native_udts_are_read_without_a_text_cast() {
+        for udt in [
+            "bool", "boolean", "int2", "int4", "int8", "float4", "float8", "text", "varchar",
+            "bpchar", "char", "name", "citext", "json", "jsonb",
+        ] {
+            assert!(pg_native_udt(udt), "{udt} should be native");
+        }
+        for udt in ["uuid", "date", "timestamptz", "numeric", "inet", "_int4"] {
+            assert!(!pg_native_udt(udt), "{udt} should not be native");
+        }
+    }
+
+    #[test]
+    fn json_array_literal_rejects_non_arrays_and_invalid_json() {
+        assert!(json_to_pg_array_literal("{}")
+            .unwrap_err()
+            .contains("Expected a JSON array"));
+        assert!(json_to_pg_array_literal("[1,")
+            .unwrap_err()
+            .contains("Invalid JSON array"));
+    }
+
+    #[test]
+    fn json_array_literal_escapes_backslashes_and_nests_objects() {
+        assert_eq!(
+            json_to_pg_array_literal(r#"["a\\b"]"#).unwrap(),
+            r#"{"a\\b"}"#
+        );
+        assert_eq!(json_to_pg_array_literal("[]").unwrap(), "{}");
+    }
+
+    #[test]
+    fn mysql_null_and_integers_map_to_tagged_cells() {
+        assert_eq!(tagged(&mysql_value_to_cell(&Value::NULL)), tag("null"));
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Int(-7))),
+            tag_v("int", serde_json::json!(-7))
+        );
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::UInt(7))),
+            tag_v("int", serde_json::json!(7))
+        );
+    }
+
+    #[test]
+    fn mysql_floats_and_bytes_map_to_tagged_cells() {
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Float(1.5))),
+            tag_v("float", serde_json::json!(1.5))
+        );
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Double(2.25))),
+            tag_v("float", serde_json::json!(2.25))
+        );
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Bytes(b"hello".to_vec()))),
+            tag_v("text", serde_json::json!("hello"))
+        );
+    }
+
+    #[test]
+    fn mysql_invalid_utf8_bytes_are_lossily_decoded_rather_than_dropped() {
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Bytes(vec![0xff, 0xfe]))),
+            tag_v("text", serde_json::json!("\u{fffd}\u{fffd}"))
+        );
+    }
+
+    #[test]
+    fn mysql_dates_drop_a_zero_time_component() {
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Date(2024, 1, 2, 0, 0, 0, 0))),
+            tag_v("other", serde_json::json!("2024-01-02"))
+        );
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Date(2024, 1, 2, 3, 4, 5, 0))),
+            tag_v("other", serde_json::json!("2024-01-02 03:04:05"))
+        );
+    }
+
+    #[test]
+    fn mysql_times_roll_days_into_hours_and_keep_the_sign() {
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Time(false, 1, 2, 3, 4, 0))),
+            tag_v("other", serde_json::json!("26:03:04"))
+        );
+        assert_eq!(
+            tagged(&mysql_value_to_cell(&Value::Time(true, 0, 2, 3, 4, 0))),
+            tag_v("other", serde_json::json!("-02:03:04"))
+        );
+    }
+
+    #[test]
+    fn mysql_str_stringifies_every_value_kind_except_null() {
+        assert_eq!(mysql_value_to_str(&Value::NULL), None);
+        assert_eq!(
+            mysql_value_to_str(&Value::Bytes(b"public".to_vec())).as_deref(),
+            Some("public")
+        );
+        assert_eq!(mysql_value_to_str(&Value::Int(-7)).as_deref(), Some("-7"));
+        assert_eq!(mysql_value_to_str(&Value::UInt(7)).as_deref(), Some("7"));
+        assert_eq!(
+            mysql_value_to_str(&Value::Double(2.25)).as_deref(),
+            Some("2.25")
+        );
+        assert_eq!(
+            mysql_value_to_str(&Value::Date(2024, 1, 2, 0, 0, 0, 0)).as_deref(),
+            Some("2024-01-02")
+        );
+        assert_eq!(
+            mysql_value_to_str(&Value::Time(true, 1, 2, 3, 4, 0)).as_deref(),
+            Some("-26:03:04")
+        );
     }
 }
