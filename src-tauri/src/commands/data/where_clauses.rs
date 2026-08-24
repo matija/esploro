@@ -245,4 +245,176 @@ mod tests {
             r#"WHERE "id" = $1"#,
         );
     }
+
+    fn bytes(s: &str) -> Value {
+        Value::Bytes(s.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn pg_comparison_operators_all_cast_through_text() {
+        let map = make_map(&[("n", "bigint")]);
+        let filters = vec![
+            f("n", FilterOperator::Eq, Some("1")),
+            f("n", FilterOperator::Neq, Some("2")),
+            f("n", FilterOperator::Gt, Some("3")),
+            f("n", FilterOperator::Lt, Some("4")),
+            f("n", FilterOperator::Gte, Some("5")),
+            f("n", FilterOperator::Lte, Some("6")),
+        ];
+
+        let (clauses, params) = build_pg_where_clause(&filters, &map).unwrap();
+
+        assert_eq!(
+            clauses,
+            vec![
+                r#""n" = $1::text::bigint"#,
+                r#""n" != $2::text::bigint"#,
+                r#""n" > $3::text::bigint"#,
+                r#""n" < $4::text::bigint"#,
+                r#""n" >= $5::text::bigint"#,
+                r#""n" <= $6::text::bigint"#,
+            ]
+        );
+        assert_eq!(params, vec!["1", "2", "3", "4", "5", "6"]);
+    }
+
+    #[test]
+    fn mysql_comparison_operators_use_positional_placeholders_without_casts() {
+        let filters = vec![
+            f("n", FilterOperator::Eq, Some("1")),
+            f("n", FilterOperator::Neq, Some("2")),
+            f("n", FilterOperator::Gt, Some("3")),
+            f("n", FilterOperator::Lt, Some("4")),
+            f("n", FilterOperator::Gte, Some("5")),
+            f("n", FilterOperator::Lte, Some("6")),
+        ];
+
+        let (clauses, params) = build_mysql_where_clause(&filters).unwrap();
+
+        assert_eq!(
+            clauses,
+            vec!["`n` = ?", "`n` != ?", "`n` > ?", "`n` < ?", "`n` >= ?", "`n` <= ?",]
+        );
+        assert_eq!(
+            params,
+            vec![
+                bytes("1"),
+                bytes("2"),
+                bytes("3"),
+                bytes("4"),
+                bytes("5"),
+                bytes("6")
+            ]
+        );
+    }
+
+    #[test]
+    fn mysql_eq_ignores_the_column_type_and_binds_bytes() {
+        let (clauses, params) =
+            build_mysql_where_clause(&[f("id", FilterOperator::Eq, Some("abc"))]).unwrap();
+
+        assert_eq!(clauses[0], "`id` = ?");
+        assert_eq!(params[0], bytes("abc"));
+    }
+
+    #[test]
+    fn mysql_like_casts_the_column_to_char() {
+        let (clauses, params) =
+            build_mysql_where_clause(&[f("name", FilterOperator::Like, Some("%foo%"))]).unwrap();
+
+        assert_eq!(clauses[0], "CAST(`name` AS CHAR) LIKE ?");
+        assert_eq!(params[0], bytes("%foo%"));
+    }
+
+    #[test]
+    fn pg_ilike_has_a_dedicated_operator_while_mysql_reuses_like() {
+        let map = make_map(&[("name", "text")]);
+        let (pg_clauses, _) =
+            build_pg_where_clause(&[f("name", FilterOperator::ILike, Some("%foo%"))], &map)
+                .unwrap();
+        let (mysql_clauses, _) =
+            build_mysql_where_clause(&[f("name", FilterOperator::ILike, Some("%foo%"))]).unwrap();
+
+        assert_eq!(pg_clauses[0], r#""name"::text ILIKE $1"#);
+        assert_eq!(mysql_clauses[0], "CAST(`name` AS CHAR) LIKE ?");
+    }
+
+    #[test]
+    fn mysql_null_checks_produce_no_params() {
+        let (clauses, params) = build_mysql_where_clause(&[
+            f("id", FilterOperator::IsNull, None),
+            f("name", FilterOperator::IsNotNull, None),
+        ])
+        .unwrap();
+
+        assert_eq!(clauses, vec!["`id` IS NULL", "`name` IS NOT NULL"]);
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn pg_is_not_null_produces_no_param() {
+        let map = make_map(&[("name", "text")]);
+        let (clauses, params) =
+            build_pg_where_clause(&[f("name", FilterOperator::IsNotNull, None)], &map).unwrap();
+
+        assert_eq!(clauses[0], r#""name" IS NOT NULL"#);
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn mysql_multi_filter_params_stay_in_clause_order() {
+        let filters = vec![
+            f("id", FilterOperator::Eq, Some("7")),
+            f("name", FilterOperator::Like, Some("%foo%")),
+        ];
+
+        let (clauses, params) = build_mysql_where_clause(&filters).unwrap();
+
+        assert_eq!(clauses[0], "`id` = ?");
+        assert_eq!(clauses[1], "CAST(`name` AS CHAR) LIKE ?");
+        assert_eq!(params, vec![bytes("7"), bytes("%foo%")]);
+    }
+
+    #[test]
+    fn missing_filter_values_become_empty_params_on_both_drivers() {
+        let map = make_map(&[("name", "text")]);
+        let (_, pg_params) =
+            build_pg_where_clause(&[f("name", FilterOperator::Eq, None)], &map).unwrap();
+        let (_, mysql_params) =
+            build_mysql_where_clause(&[f("name", FilterOperator::Eq, None)]).unwrap();
+
+        assert_eq!(pg_params, vec![String::new()]);
+        assert_eq!(mysql_params, vec![bytes("")]);
+    }
+
+    #[test]
+    fn pg_where_clause_rejects_unsafe_column_names() {
+        let err = build_pg_where_clause(
+            &[f(r#"id" = 1 OR ""#, FilterOperator::Eq, Some("x"))],
+            &make_map(&[]),
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Invalid identifier"));
+    }
+
+    #[test]
+    fn mysql_where_clause_rejects_unsafe_column_names() {
+        let err = build_mysql_where_clause(&[f("id` = 1 OR `", FilterOperator::Eq, Some("x"))])
+            .unwrap_err();
+
+        assert!(err.contains("Invalid identifier"));
+    }
+
+    #[test]
+    fn where_sql_joins_driver_specific_clauses_identically() {
+        assert_eq!(
+            build_where_sql(&[r#""id" = $1::text::uuid"#.to_string()], &None),
+            r#"WHERE "id" = $1::text::uuid"#
+        );
+        assert_eq!(
+            build_where_sql(&["`id` = ?".to_string()], &None),
+            "WHERE `id` = ?"
+        );
+    }
 }

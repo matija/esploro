@@ -317,4 +317,176 @@ mod tests {
             "Unknown op: remove"
         );
     }
+
+    // Roles are a PostgreSQL-only feature: `commands::roles` rejects
+    // `DriverSession::Mysql` before reaching any builder here, so every builder
+    // has a single PostgreSQL-flavoured output and no MySQL counterpart.
+    #[test]
+    fn role_options_emit_the_postgres_keyword_for_each_flag() {
+        let mut options = empty_role_options();
+        options.is_superuser = Some(true);
+        options.inherit = Some(true);
+        options.create_role = Some(true);
+        options.create_db = Some(true);
+        options.can_login = Some(true);
+        options.replication = Some(true);
+        options.bypass_rls = Some(true);
+        options.conn_limit = Some(5);
+
+        let (sql, password) = build_role_options(options);
+
+        assert_eq!(
+            sql,
+            "SUPERUSER INHERIT CREATEROLE CREATEDB LOGIN REPLICATION BYPASSRLS CONNECTION LIMIT 5"
+        );
+        assert_eq!(password, None);
+    }
+
+    #[test]
+    fn role_options_emit_the_negated_postgres_keyword_for_each_cleared_flag() {
+        let mut options = empty_role_options();
+        options.is_superuser = Some(false);
+        options.inherit = Some(false);
+        options.create_role = Some(false);
+        options.create_db = Some(false);
+        options.can_login = Some(false);
+        options.replication = Some(false);
+        options.bypass_rls = Some(false);
+
+        let (sql, _) = build_role_options(options);
+
+        assert_eq!(
+            sql,
+            "NOSUPERUSER NOINHERIT NOCREATEROLE NOCREATEDB NOLOGIN NOREPLICATION NOBYPASSRLS"
+        );
+    }
+
+    #[test]
+    fn role_options_strip_quotes_from_valid_until_literals() {
+        let mut options = empty_role_options();
+        options.valid_until = Some("2030-01-01' OR '1");
+
+        let (sql, _) = build_role_options(options);
+
+        assert_eq!(sql, "VALID UNTIL '2030-01-01 OR 1'");
+    }
+
+    #[test]
+    fn role_options_are_empty_when_nothing_is_set() {
+        let (sql, password) = build_role_options(empty_role_options());
+
+        assert_eq!(sql, "");
+        assert_eq!(password, None);
+    }
+
+    #[test]
+    fn create_role_sql_omits_the_with_clause_when_there_are_no_options() {
+        let (sql, password) = build_create_role_sql("analyst", empty_role_options());
+
+        assert_eq!(sql, "CREATE ROLE \"analyst\"");
+        assert_eq!(password, None);
+    }
+
+    #[test]
+    fn alter_role_sql_quotes_identifier_and_parameterizes_password() {
+        let mut options = empty_role_options();
+        options.can_login = Some(false);
+        options.password = Some("secret");
+
+        let (sql, password) = build_alter_role_sql("analyst\"team", options).unwrap();
+
+        assert_eq!(
+            sql,
+            "ALTER ROLE \"analyst\"\"team\" WITH NOLOGIN PASSWORD $1"
+        );
+        assert_eq!(password.as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn drop_role_sql_quotes_the_identifier() {
+        assert_eq!(build_drop_role_sql("analyst"), "DROP ROLE \"analyst\"");
+        assert_eq!(
+            build_drop_role_sql("analyst\"team"),
+            "DROP ROLE \"analyst\"\"team\""
+        );
+    }
+
+    #[test]
+    fn role_privilege_sql_rejects_unknown_op_and_object_type_pairs() {
+        assert_eq!(
+            build_role_privilege_sql("grant", "sequence", "public", "s", "USAGE", "reader")
+                .unwrap_err(),
+            "Unknown op/object_type: grant / sequence"
+        );
+        assert_eq!(
+            build_role_privilege_sql("remove", "table", "public", "events", "SELECT", "reader")
+                .unwrap_err(),
+            "Unknown op/object_type: remove / table"
+        );
+    }
+
+    #[test]
+    fn role_privilege_sql_revokes_table_grants() {
+        assert_eq!(
+            build_role_privilege_sql("revoke", "table", "public", "events", "SELECT", "reader")
+                .unwrap(),
+            "REVOKE SELECT ON \"public\".\"events\" FROM \"reader\""
+        );
+        assert_eq!(
+            build_role_privilege_sql("grant", "schema", "public", "", "USAGE", "reader").unwrap(),
+            "GRANT USAGE ON SCHEMA \"public\" TO \"reader\""
+        );
+    }
+
+    #[test]
+    fn membership_sql_quotes_both_role_and_member() {
+        assert_eq!(
+            build_membership_sql("grant", "admin\"s", "ada").unwrap(),
+            "GRANT \"admin\"\"s\" TO \"ada\""
+        );
+        assert_eq!(
+            build_membership_sql("revoke", "admins", "ada").unwrap(),
+            "REVOKE \"admins\" FROM \"ada\""
+        );
+    }
+
+    #[test]
+    fn table_privilege_sql_quotes_schema_table_and_grantee() {
+        assert_eq!(
+            build_table_privilege_sql("grant", "public", "events", "SELECT", "reader").unwrap(),
+            "GRANT SELECT ON \"public\".\"events\" TO \"reader\""
+        );
+        assert_eq!(
+            build_table_privilege_sql("revoke", "public", "events", "SELECT", "reader").unwrap(),
+            "REVOKE SELECT ON \"public\".\"events\" FROM \"reader\""
+        );
+    }
+
+    #[test]
+    fn schema_privilege_sql_quotes_schema_and_grantee() {
+        assert_eq!(
+            build_schema_privilege_sql("grant", "public", "USAGE", "reader").unwrap(),
+            "GRANT USAGE ON SCHEMA \"public\" TO \"reader\""
+        );
+        assert_eq!(
+            build_schema_privilege_sql("revoke", "public", "USAGE", "reader").unwrap(),
+            "REVOKE USAGE ON SCHEMA \"public\" FROM \"reader\""
+        );
+    }
+
+    #[test]
+    fn unknown_op_formatters_produce_unquoted_audit_strings() {
+        assert_eq!(
+            format_unknown_role_privilege_sql("remove", "public", "events", "SELECT"),
+            "remove SELECT on public.events"
+        );
+        assert_eq!(
+            format_unknown_table_privilege_sql("remove", "public", "events", "SELECT", "reader"),
+            "remove SELECT on \"public\".\"events\" to reader"
+        );
+        assert_eq!(
+            format_unknown_schema_privilege_sql("remove", "public", "USAGE", "reader"),
+            "remove USAGE on schema public to reader"
+        );
+    }
 }

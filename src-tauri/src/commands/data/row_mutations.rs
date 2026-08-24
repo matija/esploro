@@ -5,22 +5,26 @@ use mysql_async::Value;
 use super::type_mapping::json_to_pg_array_literal;
 use super::{validate_column_identifier, DeleteRowRequest, RowChange};
 
+#[cfg_attr(test, derive(Debug))]
 pub(super) struct PgMutationSql {
     pub sql: String,
     pub params: Vec<String>,
 }
 
+#[cfg_attr(test, derive(Debug))]
 pub(super) struct PgDeleteSql {
     pub exec_sql: String,
     pub display_sql: String,
     pub params: Vec<String>,
 }
 
+#[cfg_attr(test, derive(Debug))]
 pub(super) struct MysqlMutationSql {
     pub sql: String,
     pub params: Vec<Value>,
 }
 
+#[cfg_attr(test, derive(Debug))]
 pub(super) struct MysqlDeleteSql {
     pub exec_sql: String,
     pub display_sql: String,
@@ -582,5 +586,387 @@ mod tests {
             build_mysql_update_preview_sql("app", "people", &[missing_pk]).unwrap_err(),
             "MySQL row change has no PK conditions"
         );
+    }
+
+    fn bytes(s: &str) -> Value {
+        Value::Bytes(s.as_bytes().to_vec())
+    }
+
+    fn pk(column: &str, value: &str) -> PkCondition {
+        PkCondition {
+            column: column.to_string(),
+            value: value.to_string(),
+        }
+    }
+
+    fn set(column: &str, value: Option<&str>) -> ColumnChange {
+        ColumnChange {
+            column: column.to_string(),
+            value: value.map(str::to_string),
+        }
+    }
+
+    fn change(pks: Vec<PkCondition>, ctid: Option<&str>, sets: Vec<ColumnChange>) -> RowChange {
+        RowChange {
+            pk_conditions: pks,
+            ctid: ctid.map(str::to_string),
+            column_changes: sets,
+        }
+    }
+
+    fn delete_row(pks: Vec<PkCondition>, ctid: Option<&str>) -> DeleteRowRequest {
+        DeleteRowRequest {
+            pk_conditions: pks,
+            ctid: ctid.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn mysql_update_sql_binds_set_values_before_pk_values() {
+        let change = change(
+            vec![pk("id", "7")],
+            None,
+            vec![set("name", Some("O'Hara")), set("nickname", None)],
+        );
+
+        let sql = build_mysql_update_sql("app", "people", &change).unwrap();
+
+        assert_eq!(
+            sql.sql,
+            "UPDATE `app`.`people` SET `name` = ?, `nickname` = NULL WHERE `id` = ?"
+        );
+        assert_eq!(sql.params, vec![bytes("O'Hara"), bytes("7")]);
+    }
+
+    #[test]
+    fn update_sql_placeholders_differ_per_driver_for_the_same_change() {
+        let change = change(vec![pk("id", "7")], None, vec![set("name", Some("Ada"))]);
+        let casts = map(&[("name", "text"), ("id", "bigint")]);
+
+        let pg = build_pg_update_sql("public", "people", &change, &casts, &casts).unwrap();
+        let mysql = build_mysql_update_sql("app", "people", &change).unwrap();
+
+        assert_eq!(
+            pg.sql,
+            r#"UPDATE "public"."people" SET "name" = $1::text::text WHERE "id" = $2::text::bigint"#
+        );
+        assert_eq!(
+            mysql.sql,
+            "UPDATE `app`.`people` SET `name` = ? WHERE `id` = ?"
+        );
+    }
+
+    #[test]
+    fn pg_update_sql_falls_back_to_ctid_when_there_is_no_pk() {
+        let change = change(vec![], Some("(0,42)"), vec![set("name", Some("Ada"))]);
+
+        let sql = build_pg_update_sql(
+            "public",
+            "people",
+            &change,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"UPDATE "public"."people" SET "name" = $1::text::text WHERE ctid = $2::tid"#
+        );
+        assert_eq!(sql.params, vec!["Ada".to_string(), "(0,42)".to_string()]);
+    }
+
+    #[test]
+    fn mysql_update_sql_has_no_ctid_fallback() {
+        let change = change(vec![], Some("(0,42)"), vec![set("name", Some("Ada"))]);
+
+        assert_eq!(
+            build_mysql_update_sql("app", "people", &change).unwrap_err(),
+            "MySQL row change has no PK conditions"
+        );
+    }
+
+    #[test]
+    fn pg_update_sql_errors_without_pk_or_ctid() {
+        let change = change(vec![], None, vec![set("name", Some("Ada"))]);
+
+        assert_eq!(
+            build_pg_update_sql(
+                "public",
+                "people",
+                &change,
+                &HashMap::new(),
+                &HashMap::new()
+            )
+            .unwrap_err(),
+            "Row change has no PK conditions and no ctid"
+        );
+    }
+
+    #[test]
+    fn pg_update_sql_expands_array_columns_to_array_literals() {
+        let change = change(vec![pk("id", "7")], None, vec![set("tags", Some("[1, 2]"))]);
+
+        let sql = build_pg_update_sql(
+            "public",
+            "people",
+            &change,
+            &map(&[("tags", "_int4")]),
+            &map(&[("id", "bigint")]),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"UPDATE "public"."people" SET "tags" = $1::text::int4[] WHERE "id" = $2::text::bigint"#
+        );
+        assert_eq!(
+            sql.params,
+            vec![r#"{"1","2"}"#.to_string(), "7".to_string()]
+        );
+    }
+
+    #[test]
+    fn update_sql_rejects_unsafe_identifiers_on_both_drivers() {
+        let pg_change = change(vec![pk("id", "7")], None, vec![set(r#"name" = 'x"#, None)]);
+        let mysql_change = change(vec![pk("id", "7")], None, vec![set("name` = 'x", None)]);
+
+        assert!(build_pg_update_sql(
+            "public",
+            "people",
+            &pg_change,
+            &HashMap::new(),
+            &HashMap::new()
+        )
+        .unwrap_err()
+        .contains("Invalid identifier"));
+        assert!(build_mysql_update_sql("app", "people", &mysql_change)
+            .unwrap_err()
+            .contains("Invalid identifier"));
+    }
+
+    #[test]
+    fn pg_update_preview_wraps_statements_in_a_begin_commit_block() {
+        let changes = vec![change(
+            vec![pk("id", "7")],
+            None,
+            vec![set("name", Some("O'Hara")), set("nickname", None)],
+        )];
+
+        let sql = build_pg_update_preview_sql(
+            "public",
+            "people",
+            &changes,
+            &map(&[("name", "text")]),
+            &map(&[("name", "text"), ("id", "bigint")]),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql,
+            "BEGIN;\n\
+             -- Generated by Esploro from inline edits. Review before running.\n\
+             UPDATE \"public\".\"people\" SET \"name\" = 'O''Hara', \"nickname\" = NULL WHERE \"id\" = '7'::bigint;\n\
+             COMMIT;"
+        );
+    }
+
+    #[test]
+    fn mysql_update_preview_wraps_statements_in_a_start_transaction_block() {
+        let changes = vec![change(
+            vec![pk("id", "7")],
+            None,
+            vec![set("name", Some("O'Hara")), set("nickname", None)],
+        )];
+
+        let sql = build_mysql_update_preview_sql("app", "people", &changes).unwrap();
+
+        assert_eq!(
+            sql,
+            "START TRANSACTION;\n\
+             -- Generated by Esploro from inline edits. Review before running.\n\
+             UPDATE `app`.`people` SET `name` = 'O''Hara', `nickname` = NULL WHERE `id` = '7';\n\
+             COMMIT;"
+        );
+    }
+
+    #[test]
+    fn update_preview_is_empty_when_no_change_touches_a_column_on_either_driver() {
+        let changes = vec![change(vec![pk("id", "7")], None, vec![])];
+
+        assert_eq!(
+            build_pg_update_preview_sql(
+                "public",
+                "people",
+                &changes,
+                &HashMap::new(),
+                &HashMap::new()
+            )
+            .unwrap(),
+            ""
+        );
+        assert_eq!(
+            build_mysql_update_preview_sql("app", "people", &changes).unwrap(),
+            ""
+        );
+    }
+
+    #[test]
+    fn pg_update_preview_inlines_text_values_without_a_cast() {
+        let changes = vec![change(
+            vec![pk("id", "abc")],
+            None,
+            vec![set("name", Some("Ada"))],
+        )];
+
+        let sql = build_pg_update_preview_sql(
+            "public",
+            "people",
+            &changes,
+            &map(&[("name", "text")]),
+            &map(&[("name", "text"), ("id", "text")]),
+        )
+        .unwrap();
+
+        assert!(sql.contains(r#"SET "name" = 'Ada' WHERE "id" = 'abc';"#));
+    }
+
+    #[test]
+    fn pg_update_preview_falls_back_to_an_inline_ctid() {
+        let changes = vec![change(vec![], Some("(0,42)"), vec![set("name", None)])];
+
+        let sql = build_pg_update_preview_sql(
+            "public",
+            "people",
+            &changes,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert!(sql.contains(r#"SET "name" = NULL WHERE ctid = '(0,42)'::tid;"#));
+    }
+
+    #[test]
+    fn pg_update_preview_inlines_array_literals() {
+        let changes = vec![change(
+            vec![pk("id", "7")],
+            None,
+            vec![set("tags", Some(r#"["a'b"]"#))],
+        )];
+
+        let sql = build_pg_update_preview_sql(
+            "public",
+            "people",
+            &changes,
+            &map(&[("tags", "_text")]),
+            &map(&[("id", "bigint")]),
+        )
+        .unwrap();
+
+        assert!(sql.contains(r#"SET "tags" = '{"a''b"}'::text[]"#));
+    }
+
+    #[test]
+    fn pg_delete_sql_uses_casted_params_and_inlined_preview_for_pks() {
+        let row = delete_row(vec![pk("id", "7"), pk("tenant", "acme")], None);
+
+        let sql = build_pg_delete_sql("public", "people", &row, &map(&[("id", "bigint")])).unwrap();
+
+        assert_eq!(
+            sql.exec_sql,
+            r#"DELETE FROM "public"."people" WHERE "id" = $1::text::bigint AND "tenant" = $2::text::text"#
+        );
+        assert_eq!(
+            sql.display_sql,
+            r#"DELETE FROM "public"."people" WHERE "id" = '7'::bigint AND "tenant" = 'acme';"#
+        );
+        assert_eq!(sql.params, vec!["7".to_string(), "acme".to_string()]);
+    }
+
+    #[test]
+    fn mysql_delete_sql_uses_positional_params_and_inlined_preview_for_pks() {
+        let row = delete_row(vec![pk("id", "7"), pk("tenant", "O'Hara")], None);
+
+        let sql = build_mysql_delete_sql("app", "people", &row).unwrap();
+
+        assert_eq!(
+            sql.exec_sql,
+            "DELETE FROM `app`.`people` WHERE `id` = ? AND `tenant` = ?"
+        );
+        assert_eq!(
+            sql.display_sql,
+            "DELETE FROM `app`.`people` WHERE `id` = '7' AND `tenant` = 'O''Hara';"
+        );
+        assert_eq!(sql.params, vec![bytes("7"), bytes("O'Hara")]);
+    }
+
+    #[test]
+    fn mysql_delete_sql_requires_a_primary_key() {
+        let row = delete_row(vec![], Some("(0,42)"));
+
+        assert_eq!(
+            build_mysql_delete_sql("app", "people", &row).unwrap_err(),
+            "MySQL delete requires a primary key"
+        );
+    }
+
+    #[test]
+    fn pg_delete_sql_errors_without_pk_or_ctid() {
+        let row = delete_row(vec![], None);
+
+        assert_eq!(
+            build_pg_delete_sql("public", "people", &row, &HashMap::new()).unwrap_err(),
+            "Row has no PK conditions and no ctid"
+        );
+    }
+
+    #[test]
+    fn pg_delete_preview_statement_inlines_pk_values() {
+        let row = delete_row(vec![pk("id", "O'Hara")], None);
+
+        let sql =
+            build_pg_delete_preview_statement("public", "people", &row, &HashMap::new()).unwrap();
+
+        assert_eq!(
+            sql,
+            r#"DELETE FROM "public"."people" WHERE "id" = 'O''Hara';"#
+        );
+    }
+
+    #[test]
+    fn mysql_delete_preview_joins_one_statement_per_row() {
+        let rows = vec![
+            delete_row(vec![pk("id", "7")], None),
+            delete_row(vec![pk("id", "8")], None),
+        ];
+
+        let sql = build_mysql_delete_preview_sql("app", "people", &rows);
+
+        assert_eq!(
+            sql,
+            "DELETE FROM `app`.`people` WHERE `id` = '7';\n\
+             DELETE FROM `app`.`people` WHERE `id` = '8';"
+        );
+    }
+
+    #[test]
+    fn delete_preview_quoting_differs_per_driver_for_the_same_row() {
+        let row = delete_row(vec![pk("id", "7")], None);
+
+        assert_eq!(
+            build_pg_delete_preview_statement("public", "people", &row, &HashMap::new()).unwrap(),
+            r#"DELETE FROM "public"."people" WHERE "id" = '7';"#
+        );
+        assert_eq!(
+            build_mysql_delete_preview_sql("app", "people", std::slice::from_ref(&row)),
+            "DELETE FROM `app`.`people` WHERE `id` = '7';"
+        );
+    }
+
+    #[test]
+    fn sql_escape_string_doubles_single_quotes_for_both_drivers() {
+        assert_eq!(sql_escape_string("O'Hara"), "O''Hara");
+        assert_eq!(sql_escape_string("plain"), "plain");
     }
 }

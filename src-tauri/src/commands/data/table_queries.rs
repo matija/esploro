@@ -224,4 +224,128 @@ mod tests {
 
         assert_eq!(sql, "SELECT COUNT(*) FROM `app`.`users` WHERE `active` = ?");
     }
+
+    #[test]
+    fn pg_order_sql_requires_complete_sort_state() {
+        assert!(build_pg_order_sql(&None, &Some(SortDirection::Asc))
+            .unwrap()
+            .is_empty());
+        assert!(build_pg_order_sql(&None, &None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn mysql_order_sql_requires_complete_sort_state() {
+        assert!(build_mysql_order_sql(&Some("name".to_string()), &None)
+            .unwrap()
+            .is_empty());
+        assert!(build_mysql_order_sql(&None, &Some(SortDirection::Desc))
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn pg_order_sql_rejects_unsafe_column_names() {
+        let err = build_pg_order_sql(
+            &Some(r#"name" DESC"#.to_string()),
+            &Some(SortDirection::Asc),
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Invalid identifier"));
+    }
+
+    #[test]
+    fn order_sql_quoting_differs_per_driver_for_the_same_sort() {
+        let column = Some("created_at".to_string());
+        let direction = Some(SortDirection::Asc);
+
+        assert_eq!(
+            build_pg_order_sql(&column, &direction).unwrap(),
+            r#"ORDER BY "created_at" ASC"#
+        );
+        assert_eq!(
+            build_mysql_order_sql(&column, &direction).unwrap(),
+            "ORDER BY `created_at` ASC"
+        );
+    }
+
+    #[test]
+    fn pg_select_list_treats_columns_missing_from_the_type_map_as_text() {
+        // Unknown columns fall back to udt "text", which is natively readable.
+        let select_list = build_pg_select_list(&[column("mystery")], &HashMap::new());
+
+        assert_eq!(select_list, r#""mystery""#);
+    }
+
+    #[test]
+    fn mysql_select_list_backtick_quotes_every_column_without_casting() {
+        let select_list = build_mysql_select_list(&[column("id"), column("payload")]);
+
+        assert_eq!(select_list, "`id`, `payload`");
+    }
+
+    #[test]
+    fn select_list_quoting_differs_per_driver_for_the_same_columns() {
+        let columns = vec![column("id"), column("payload")];
+        let col_type_map = HashMap::from([
+            ("id".to_string(), "int8".to_string()),
+            ("payload".to_string(), "uuid".to_string()),
+        ]);
+
+        assert_eq!(
+            build_pg_select_list(&columns, &col_type_map),
+            r#""id", "payload"::text"#
+        );
+        assert_eq!(build_mysql_select_list(&columns), "`id`, `payload`");
+    }
+
+    #[test]
+    fn mysql_data_sql_backticks_identifiers_and_paginates() {
+        let sql = build_mysql_data_sql(
+            "app",
+            "users",
+            "`id`, `name`",
+            "WHERE `name` LIKE ?",
+            "ORDER BY `id` ASC",
+            2,
+            50,
+        );
+
+        assert_eq!(
+            sql,
+            "SELECT `id`, `name` FROM `app`.`users` WHERE `name` LIKE ? ORDER BY `id` ASC LIMIT 50 OFFSET 100"
+        );
+    }
+
+    #[test]
+    fn mysql_data_sql_never_selects_a_ctid_column() {
+        let sql = build_mysql_data_sql("app", "users", "`id`", "", "", 0, 25);
+
+        assert_eq!(sql, "SELECT `id` FROM `app`.`users`   LIMIT 25 OFFSET 0");
+        assert!(!sql.contains("__ctid"));
+    }
+
+    #[test]
+    fn data_sql_differs_per_driver_for_the_same_page() {
+        let pg = build_pg_data_sql("public", "users", r#""id""#, false, "", "", 1, 10);
+        let mysql = build_mysql_data_sql("app", "users", "`id`", "", "", 1, 10);
+
+        assert_eq!(
+            pg,
+            r#"SELECT "id" FROM "public"."users"   LIMIT 10 OFFSET 10"#
+        );
+        assert_eq!(mysql, "SELECT `id` FROM `app`.`users`   LIMIT 10 OFFSET 10");
+    }
+
+    #[test]
+    fn count_sql_without_filters_differs_per_driver() {
+        assert_eq!(
+            build_pg_count_sql("public", "users", ""),
+            r#"SELECT COUNT(*) FROM "public"."users" "#
+        );
+        assert_eq!(
+            build_mysql_count_sql("app", "users", ""),
+            "SELECT COUNT(*) FROM `app`.`users` "
+        );
+    }
 }
