@@ -63,6 +63,9 @@ pub(super) fn build_mysql_select_list(columns: &[ResultColumn]) -> String {
         .join(", ")
 }
 
+/// Builds the page query. The `LIMIT` is `page_size + 1`: the extra "probe"
+/// row is never shown — its presence tells the caller a next page exists
+/// without running a `COUNT(*)`. Callers must trim it (see `query_table_pg`).
 pub(super) fn build_pg_data_sql(
     schema: &str,
     table: &str,
@@ -74,7 +77,7 @@ pub(super) fn build_pg_data_sql(
     page_size: u32,
 ) -> String {
     let offset = (page * page_size) as i64;
-    let limit = page_size as i64;
+    let limit = page_size.saturating_add(1) as i64;
     let ctid_select = if include_ctid {
         ", ctid::text AS __ctid"
     } else {
@@ -89,6 +92,8 @@ pub(super) fn build_pg_count_sql(schema: &str, table: &str, where_sql: &str) -> 
     format!("SELECT COUNT(*) FROM \"{schema}\".\"{table}\" {where_sql}")
 }
 
+/// MySQL counterpart of [`build_pg_data_sql`]; also fetches one probe row
+/// beyond `page_size` so the caller can report `has_more`.
 pub(super) fn build_mysql_data_sql(
     schema: &str,
     table: &str,
@@ -99,7 +104,7 @@ pub(super) fn build_mysql_data_sql(
     page_size: u32,
 ) -> String {
     let offset = (page * page_size) as u64;
-    let limit = page_size as u64;
+    let limit = page_size.saturating_add(1) as u64;
     format!(
         "SELECT {select_list} FROM `{schema}`.`{table}` {where_sql} {order_sql} LIMIT {limit} OFFSET {offset}"
     )
@@ -171,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn pg_data_sql_includes_ctid_and_pagination() {
+    fn pg_data_sql_includes_ctid_and_fetches_one_probe_row() {
         let sql = build_pg_data_sql(
             "public",
             "users",
@@ -185,7 +190,7 @@ mod tests {
 
         assert_eq!(
             sql,
-            r#"SELECT "id", "name", ctid::text AS __ctid FROM "public"."users" WHERE "name"::text LIKE $1 ORDER BY "id" ASC LIMIT 50 OFFSET 100"#
+            r#"SELECT "id", "name", ctid::text AS __ctid FROM "public"."users" WHERE "name"::text LIKE $1 ORDER BY "id" ASC LIMIT 51 OFFSET 100"#
         );
     }
 
@@ -204,7 +209,7 @@ mod tests {
 
         assert_eq!(
             sql,
-            r#"SELECT "id", "name" FROM "public"."active_users"   LIMIT 25 OFFSET 0"#
+            r#"SELECT "id", "name" FROM "public"."active_users"   LIMIT 26 OFFSET 0"#
         );
     }
 
@@ -300,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn mysql_data_sql_backticks_identifiers_and_paginates() {
+    fn mysql_data_sql_backticks_identifiers_and_fetches_one_probe_row() {
         let sql = build_mysql_data_sql(
             "app",
             "users",
@@ -313,7 +318,7 @@ mod tests {
 
         assert_eq!(
             sql,
-            "SELECT `id`, `name` FROM `app`.`users` WHERE `name` LIKE ? ORDER BY `id` ASC LIMIT 50 OFFSET 100"
+            "SELECT `id`, `name` FROM `app`.`users` WHERE `name` LIKE ? ORDER BY `id` ASC LIMIT 51 OFFSET 100"
         );
     }
 
@@ -321,7 +326,7 @@ mod tests {
     fn mysql_data_sql_never_selects_a_ctid_column() {
         let sql = build_mysql_data_sql("app", "users", "`id`", "", "", 0, 25);
 
-        assert_eq!(sql, "SELECT `id` FROM `app`.`users`   LIMIT 25 OFFSET 0");
+        assert_eq!(sql, "SELECT `id` FROM `app`.`users`   LIMIT 26 OFFSET 0");
         assert!(!sql.contains("__ctid"));
     }
 
@@ -332,9 +337,9 @@ mod tests {
 
         assert_eq!(
             pg,
-            r#"SELECT "id" FROM "public"."users"   LIMIT 10 OFFSET 10"#
+            r#"SELECT "id" FROM "public"."users"   LIMIT 11 OFFSET 10"#
         );
-        assert_eq!(mysql, "SELECT `id` FROM `app`.`users`   LIMIT 10 OFFSET 10");
+        assert_eq!(mysql, "SELECT `id` FROM `app`.`users`   LIMIT 11 OFFSET 10");
     }
 
     #[test]

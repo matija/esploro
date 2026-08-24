@@ -107,6 +107,9 @@ pub struct TableQueryResult {
     pub page: u32,
     pub page_size: u32,
     pub execution_ms: u64,
+    /// True when the driver saw at least one row past `page_size` — i.e. a
+    /// next page exists. Lets the UI paginate without a `COUNT(*)`.
+    pub has_more: bool,
 }
 
 #[derive(Deserialize, specta::Type, Clone)]

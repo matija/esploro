@@ -93,6 +93,7 @@ export function makeTableQueryResult(
     page: 0,
     pageSize: 100,
     executionMs: 12,
+    hasMore: false,
     ...overrides,
   };
 }

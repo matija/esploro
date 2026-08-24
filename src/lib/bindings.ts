@@ -365,6 +365,11 @@ export type TableQueryResult = {
 	page: number,
 	pageSize: number,
 	executionMs: number,
+	/**
+	 *  True when the driver saw at least one row past `page_size` — i.e. a
+	 *  next page exists. Lets the UI paginate without a `COUNT(*)`.
+	 */
+	hasMore: boolean,
 };
 
 export type TableSummary = {

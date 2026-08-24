@@ -156,10 +156,16 @@ pub(super) async fn query_table_pg(
         })?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
+    // The query asked for `page_size + 1` rows; the extra probe row only tells
+    // us a next page exists and is dropped before it reaches the frontend.
+    let page_size = request.page_size as usize;
+    let has_more = data_rows.len() > page_size;
+    let data_rows = &data_rows[..data_rows.len().min(page_size)];
+
     let mut rows: Vec<Vec<CellValue>> = Vec::with_capacity(data_rows.len());
     let mut ctids: Vec<Option<String>> = Vec::with_capacity(data_rows.len());
 
-    for row in &data_rows {
+    for row in data_rows {
         let cells: Vec<CellValue> = result_columns
             .iter()
             .enumerate()
@@ -184,6 +190,7 @@ pub(super) async fn query_table_pg(
         page: request.page,
         page_size: request.page_size,
         execution_ms,
+        has_more,
     })
 }
 
@@ -313,8 +320,13 @@ pub(super) async fn query_table_mysql(
         .await?;
     let execution_ms = start.elapsed().as_millis() as u64;
 
+    // Drop the probe row fetched beyond `page_size` (see `build_mysql_data_sql`).
+    let page_size = request.page_size as usize;
+    let has_more = data_rows.len() > page_size;
+
     let rows: Vec<Vec<CellValue>> = data_rows
         .iter()
+        .take(page_size)
         .map(|row| {
             (0..result_columns.len())
                 .map(|i| mysql_cell_value(row, i))
@@ -329,6 +341,7 @@ pub(super) async fn query_table_mysql(
         page: request.page,
         page_size: request.page_size,
         execution_ms,
+        has_more,
     })
 }
 

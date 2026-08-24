@@ -114,6 +114,8 @@ function serveFixturePage(_sessionId: string, request: TableQueryRequest): Promi
     page: request.page,
     pageSize: request.pageSize,
     executionMs: 4,
+    // The backend probes one row past the page; mirror that here.
+    hasMore: last < TOTAL_ROWS,
   });
 }
 
@@ -173,9 +175,10 @@ function renderWithProviders(ui: ReactNode) {
 }
 
 /** Renders the tab and waits for the first page to land. */
-async function renderTableViewer() {
+async function renderTableViewer(contextOverrides: Partial<Tab["tableContext"]> = {}) {
   const user = userEvent.setup();
-  renderWithProviders(<TableViewerTab tab={TAB} />);
+  const tab: Tab = { ...TAB, tableContext: { ...TAB.tableContext!, ...contextOverrides } };
+  renderWithProviders(<TableViewerTab tab={tab} />);
   await screen.findByRole("grid");
   await waitFor(() => expect(queryTableData).toHaveBeenCalledTimes(1));
   return user;
@@ -338,6 +341,46 @@ describe("pagination", () => {
     await waitFor(() => expect(bodyRows()).toHaveLength(PAGE_SIZE));
     expect((screen.getByRole("button", { name: /Prev/ }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("steps forward on the backend's probe row when the total count is disabled", async () => {
+    // No count to compare against, and no estimate either: `hasMore` decides.
+    useAppStore.setState({ showTotalCount: false });
+    const user = await renderTableViewer({ estimatedRows: null });
+
+    const next = screen.getByRole("button", { name: /Next/ }) as HTMLButtonElement;
+    expect(next.disabled).toBe(false);
+    expect(queryTableCount).not.toHaveBeenCalled();
+
+    await user.click(next);
+
+    await waitFor(() => expect(lastDataRequest().page).toBe(1));
+    // Final page: the probe row came back empty, so Next locks.
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: /Next/ }) as HTMLButtonElement).disabled).toBe(true),
+    );
+  });
+
+  it("locks Next on an exactly-full last page when the total count is disabled", async () => {
+    // A full page used to imply "there is more"; only the probe row can tell
+    // that this page ends the table.
+    useAppStore.setState({ showTotalCount: false });
+    queryTableData.mockImplementation((_sessionId, request) =>
+      Promise.resolve({
+        columns: COLUMNS,
+        rows: Array.from({ length: request.pageSize }, (_, i) => fixtureRow(i + 1)),
+        ctids: Array.from({ length: request.pageSize }, () => null),
+        page: request.page,
+        pageSize: request.pageSize,
+        executionMs: 2,
+        hasMore: false,
+      }),
+    );
+
+    await renderTableViewer({ estimatedRows: null });
+
+    expect(bodyRows()).toHaveLength(PAGE_SIZE);
+    expect((screen.getByRole("button", { name: /Next/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
 
 describe("column filters", () => {
@@ -451,6 +494,7 @@ describe("footer", () => {
         page: request.page,
         pageSize: request.pageSize,
         executionMs: 1,
+        hasMore: false,
       }),
     );
 

@@ -943,7 +943,9 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const currentPage = data?.page ?? page;
   const end = currentPage * pageSize + (data?.rows.length ?? 0);
   const hasPrev = currentPage > 0;
-  const hasNext = totalCount !== null ? end < totalCount : (data?.rows.length ?? 0) >= pageSize;
+  // Without a count (disabled, or not yet loaded) fall back to the backend's
+  // probe row: it fetched pageSize + 1 rows and reports whether one came back.
+  const hasNext = totalCount !== null ? end < totalCount : (data?.hasMore ?? false);
   const goToPreviousPage = useCallback(async () => {
     if (!await guardNavigation()) return;
     discardEdits();
