@@ -9,6 +9,9 @@ ones are: too many columns, too many rows, too many objects.
 | `bench.tall` | 10,000,000 rows | Paging, row counts, sorting and filtering on a table too big to buffer |
 | `bench_many` | 2,000 tables + 1,000 views + 500 sequences | Object tree loading, schema filtering, autocomplete |
 
+Loading them is only half of it: [measure.md](measure.md) is the protocol for what
+to time against them and how to write the numbers down.
+
 Two scripts, one per engine:
 
 - `seed.sql` — PostgreSQL
