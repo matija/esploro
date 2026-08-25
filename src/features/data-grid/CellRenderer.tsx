@@ -41,6 +41,19 @@ export function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum
     );
   }
 
+  if (cell.t === "truncated") {
+    const preview = cell.v.value.length > 300 ? cell.v.value.slice(0, 300) : cell.v.value;
+    return (
+      <span
+        className="font-mono text-xs text-label truncate block"
+        title={`Value truncated — showing ${cell.v.value.length} of ${cell.v.originalBytes} bytes`}
+      >
+        {preview}
+        <span className="ml-1 text-tertiary">… (truncated)</span>
+      </span>
+    );
+  }
+
   // text / other
   const raw = cell.v;
   if (raw === "") {

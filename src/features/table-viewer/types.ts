@@ -23,6 +23,8 @@ export type {
 export function cellToString(cell: CellValue): string | null {
   if (cell.t === "null") return null;
   if (cell.t === "json") return JSON.stringify(cell.v);
+  // Clipped by the backend payload guard — only the prefix is available here.
+  if (cell.t === "truncated") return cell.v.value;
   return String(cell.v);
 }
 

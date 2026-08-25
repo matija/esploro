@@ -5,7 +5,7 @@ use mysql_async::prelude::Queryable;
 
 use super::table_queries::{
     build_mysql_count_sql, build_mysql_data_sql, build_mysql_order_sql, build_mysql_select_list,
-    build_pg_count_sql, build_pg_data_sql, build_pg_order_sql, build_pg_select_list,
+    build_pg_count_sql, build_pg_data_sql, build_pg_order_sql, build_pg_select_list, PayloadBudget,
 };
 use super::type_mapping::{mysql_cell_value, mysql_str, pg_cell_value, resolve_pg_cast, CellValue};
 use super::where_clauses::{build_mysql_where_clause, build_pg_where_clause, build_where_sql};
@@ -159,13 +159,21 @@ pub(super) async fn query_table_pg(
     // The query asked for `page_size + 1` rows; the extra probe row only tells
     // us a next page exists and is dropped before it reaches the frontend.
     let page_size = request.page_size as usize;
-    let has_more = data_rows.len() > page_size;
+    let mut has_more = data_rows.len() > page_size;
     let data_rows = &data_rows[..data_rows.len().min(page_size)];
 
     let mut rows: Vec<Vec<CellValue>> = Vec::with_capacity(data_rows.len());
     let mut ctids: Vec<Option<String>> = Vec::with_capacity(data_rows.len());
 
+    // Oversized cells are clipped and the page is cut short once the summed
+    // payload crosses the ceiling; the dropped rows are reported as `has_more`.
+    let mut budget = PayloadBudget::new();
+
     for row in data_rows {
+        if budget.is_exhausted() {
+            has_more = true;
+            break;
+        }
         let cells: Vec<CellValue> = result_columns
             .iter()
             .enumerate()
@@ -177,7 +185,7 @@ pub(super) async fn query_table_pg(
                 pg_cell_value(row, i, udt)
             })
             .collect();
-        rows.push(cells);
+        rows.push(budget.accept_row(cells));
         if include_ctid {
             ctids.push(row.try_get::<_, Option<String>>(ctid_idx).ok().flatten());
         }
@@ -322,17 +330,22 @@ pub(super) async fn query_table_mysql(
 
     // Drop the probe row fetched beyond `page_size` (see `build_mysql_data_sql`).
     let page_size = request.page_size as usize;
-    let has_more = data_rows.len() > page_size;
+    let mut has_more = data_rows.len() > page_size;
 
-    let rows: Vec<Vec<CellValue>> = data_rows
-        .iter()
-        .take(page_size)
-        .map(|row| {
-            (0..result_columns.len())
-                .map(|i| mysql_cell_value(row, i))
-                .collect()
-        })
-        .collect();
+    // Same payload guard as the Postgres path (see `query_table_pg`).
+    let mut budget = PayloadBudget::new();
+    let mut rows: Vec<Vec<CellValue>> = Vec::with_capacity(data_rows.len().min(page_size));
+
+    for row in data_rows.iter().take(page_size) {
+        if budget.is_exhausted() {
+            has_more = true;
+            break;
+        }
+        let cells: Vec<CellValue> = (0..result_columns.len())
+            .map(|i| mysql_cell_value(row, i))
+            .collect();
+        rows.push(budget.accept_row(cells));
+    }
 
     Ok(TableQueryResult {
         columns: result_columns,

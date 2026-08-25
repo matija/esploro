@@ -85,7 +85,13 @@ export type AppErrorWire = {
 	position: number | null,
 };
 
-export type CellValue = { t: "null" } | { t: "bool"; v: boolean } | { t: "int"; v: number } | { t: "float"; v: number | null } | { t: "text"; v: string } | { t: "json"; v: JsonValue } | { t: "other"; v: string };
+export type CellValue = { t: "null" } | { t: "bool"; v: boolean } | { t: "int"; v: number } | { t: "float"; v: number | null } | { t: "text"; v: string } | { t: "json"; v: JsonValue } | { t: "other"; v: string } | 
+/**
+ *  A value clipped by the payload guard in `table_queries`. Carries the
+ *  clipped rendering plus the `truncated` flag the UI branches on, so an
+ *  oversized cell still round-trips as a displayable string.
+ */
+{ t: "truncated"; v: TruncatedCell };
 
 export type ColumnChange = {
 	column: string,
@@ -375,6 +381,17 @@ export type TableQueryResult = {
 export type TableSummary = {
 	name: string,
 	estimatedRowCount: number | null,
+};
+
+/**
+ *  Payload of [`CellValue::Truncated`]: the clipped prefix of an oversized
+ *  cell, the always-set truncation flag, and the original byte length so the
+ *  UI can tell the user how much was dropped.
+ */
+export type TruncatedCell = {
+	value: string,
+	truncated: boolean,
+	originalBytes: number,
 };
 
 export type UiGridConfig = {

@@ -27,6 +27,21 @@ pub enum CellValue {
     Text(String),
     Json(#[specta(type = JsonValue)] serde_json::Value),
     Other(String),
+    /// A value clipped by the payload guard in `table_queries`. Carries the
+    /// clipped rendering plus the `truncated` flag the UI branches on, so an
+    /// oversized cell still round-trips as a displayable string.
+    Truncated(TruncatedCell),
+}
+
+/// Payload of [`CellValue::Truncated`]: the clipped prefix of an oversized
+/// cell, the always-set truncation flag, and the original byte length so the
+/// UI can tell the user how much was dropped.
+#[derive(Serialize, specta::Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TruncatedCell {
+    pub value: String,
+    pub truncated: bool,
+    pub original_bytes: usize,
 }
 
 fn pg_cast_for_udt(udt: &str) -> &'static str {
