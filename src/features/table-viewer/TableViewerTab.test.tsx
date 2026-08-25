@@ -13,13 +13,15 @@ import { TableViewerTab } from "./TableViewerTab";
 // The tab talks to the backend through `tableApi`; both reads are faked so the
 // tests describe what the grid asks for (sort/page/filter/WHERE) and what it
 // renders back.
-const queryTableData = vi.fn<(sessionId: string, request: TableQueryRequest) => Promise<TableQueryResult>>();
-const queryTableCount = vi.fn<(sessionId: string, request: TableQueryRequest) => Promise<{ count: number; isEstimate: boolean }>>();
+const queryTableData = vi.fn<(sessionId: string, request: TableQueryRequest, signal?: AbortSignal) => Promise<TableQueryResult>>();
+const queryTableCount = vi.fn<(sessionId: string, request: TableQueryRequest, signal?: AbortSignal) => Promise<{ count: number; isEstimate: boolean }>>();
 
 vi.mock("./api", () => ({
   tableApi: {
-    queryTableData: (sessionId: string, request: TableQueryRequest) => queryTableData(sessionId, request),
-    queryTableCount: (sessionId: string, request: TableQueryRequest) => queryTableCount(sessionId, request),
+    queryTableData: (sessionId: string, request: TableQueryRequest, signal?: AbortSignal) =>
+      queryTableData(sessionId, request, signal),
+    queryTableCount: (sessionId: string, request: TableQueryRequest, signal?: AbortSignal) =>
+      queryTableCount(sessionId, request, signal),
     updateRows: () => Promise.resolve(),
     previewUpdateRowsSql: () => Promise.resolve(""),
     deleteRows: () => Promise.resolve([]),
@@ -460,6 +462,57 @@ describe("raw WHERE", () => {
     await waitFor(() => expect(lastDataRequest().rawWhere).toBe(null));
     expect(screen.queryByText("WHERE")).toBe(null);
     expect((screen.getByLabelText("WHERE clause") as HTMLTextAreaElement).value).toBe("");
+  });
+});
+
+describe("query supersession", () => {
+  it("aborts a slow superseded fetch and does not let it overwrite newer data", async () => {
+    const user = await renderTableViewer();
+
+    const resolvers = new Map<string, (result: TableQueryResult) => void>();
+    const signals = new Map<string, AbortSignal | undefined>();
+    queryTableData.mockImplementation((_sessionId, request, signal) => {
+      const key = request.rawWhere ?? "";
+      signals.set(key, signal);
+      return new Promise<TableQueryResult>((resolve) => {
+        resolvers.set(key, resolve);
+      });
+    });
+
+    const resultFor = (id: number): TableQueryResult => ({
+      columns: COLUMNS,
+      rows: [fixtureRow(id)],
+      ctids: [null],
+      page: 0,
+      pageSize: PAGE_SIZE,
+      executionMs: 1,
+      hasMore: false,
+    });
+
+    // First request (stays pending — simulates a slow query).
+    await user.type(await screen.findByLabelText("WHERE clause"), "id > 1");
+    await user.click(screen.getByTitle("Run filter"));
+    await waitFor(() => expect(signals.has("id > 1")).toBe(true));
+
+    // Superseding request before the first resolves.
+    await user.clear(screen.getByLabelText("WHERE clause"));
+    await user.type(screen.getByLabelText("WHERE clause"), "id > 2");
+    await user.click(screen.getByTitle("Run filter"));
+    await waitFor(() => expect(signals.has("id > 2")).toBe(true));
+
+    // React Query aborts the outdated fetch once no observer wants it anymore.
+    await waitFor(() => expect(signals.get("id > 1")?.aborted).toBe(true));
+
+    // The newer request resolves first...
+    resolvers.get("id > 2")!(resultFor(99));
+    await waitFor(() => expect(screen.queryByText("user99@example.com")).not.toBeNull());
+
+    // ...then the stale, superseded response finally arrives. It must not
+    // clobber the newer data that's already on screen.
+    resolvers.get("id > 1")!(resultFor(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText("user99@example.com")).toBeDefined();
+    expect(screen.queryByText("user1@example.com")).toBeNull();
   });
 });
 

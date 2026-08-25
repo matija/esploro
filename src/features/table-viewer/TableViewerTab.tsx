@@ -311,7 +311,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       sortDirection,
       page,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       withSessionRetry(ctx!.connectionId, (sid) =>
         tableApi.queryTableData(sid, {
           database: ctx!.database,
@@ -323,7 +323,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           sortDirection: sortColumn ? sortDirection : null,
           page,
           pageSize: gridPageSize,
-        }),
+        }, signal),
         toast,
       ),
     enabled,
@@ -352,7 +352,8 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       apiFilters,
       appliedRawWhere,
     ],
-    queryFn: () => withSessionRetry(ctx!.connectionId, (sid) => tableApi.queryTableCount(sid, countRequest), toast),
+    queryFn: ({ signal }) =>
+      withSessionRetry(ctx!.connectionId, (sid) => tableApi.queryTableCount(sid, countRequest, signal), toast),
     enabled: enabled && showTotalCount,
     staleTime: 60_000,
     placeholderData: (prev) => prev,
