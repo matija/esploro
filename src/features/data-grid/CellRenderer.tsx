@@ -1,7 +1,25 @@
+import { memo } from "react";
 import { type CellValue, getEnumBadgeClass } from "../table-viewer/types";
 import { cn } from "../../lib/utils";
 
-export function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum?: boolean }) {
+function cellValuesEqual(a: CellValue, b: CellValue): boolean {
+  if (a.t !== b.t) return false;
+  if (a.t === "truncated" && b.t === "truncated") {
+    return (
+      a.v.value === b.v.value &&
+      a.v.truncated === b.v.truncated &&
+      a.v.originalBytes === b.v.originalBytes
+    );
+  }
+  if (a.t === "json" && b.t === "json") {
+    return JSON.stringify(a.v) === JSON.stringify(b.v);
+  }
+  if (a.t === "null") return true;
+  // bool / int / float / text / other all carry a primitive `v`
+  return (a as { v?: unknown }).v === (b as { v?: unknown }).v;
+}
+
+function CellRendererImpl({ cell, isEnum = false }: { cell: CellValue; isEnum?: boolean }) {
   if (cell.t === "null") {
     return (
       <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
@@ -88,3 +106,11 @@ export function CellRenderer({ cell, isEnum = false }: { cell: CellValue; isEnum
     </span>
   );
 }
+
+type CellRendererProps = { cell: CellValue; isEnum?: boolean };
+
+export function cellRendererPropsAreEqual(prev: CellRendererProps, next: CellRendererProps): boolean {
+  return prev.isEnum === next.isEnum && cellValuesEqual(prev.cell, next.cell);
+}
+
+export const CellRenderer = memo(CellRendererImpl, cellRendererPropsAreEqual);
