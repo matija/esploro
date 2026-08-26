@@ -154,11 +154,13 @@ fn build_pg_pool(
         .map_err(AppError::from)
 }
 
+/// Per-profile pool size used when a profile leaves `pool_max_connections` unset.
+const DEFAULT_POOL_MAX: usize = 4;
+
 fn pool_max_size(configured: u32) -> usize {
-    const DEFAULT: usize = 5;
     const HARD_CAP: usize = 10;
     if configured == 0 {
-        DEFAULT
+        DEFAULT_POOL_MAX
     } else {
         (configured as usize).min(HARD_CAP)
     }
@@ -171,7 +173,7 @@ fn build_mysql_pool(
     let host = profile.host.as_deref().unwrap_or("localhost");
     let max = pool_max_size(profile.pool_max_connections);
     let constraints = mysql_async::PoolConstraints::new(1, max)
-        .unwrap_or_else(|| mysql_async::PoolConstraints::new(1, 5).unwrap());
+        .unwrap_or_else(|| mysql_async::PoolConstraints::new(1, DEFAULT_POOL_MAX).unwrap());
     let pool_opts = mysql_async::PoolOpts::default().with_constraints(constraints);
     let opts = mysql_async::OptsBuilder::default()
         .ip_or_hostname(host)

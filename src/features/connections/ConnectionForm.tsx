@@ -26,21 +26,29 @@ type ConnectionType = 'host' | 'socket';
 type TestState = 'idle' | 'testing' | { ms: number } | { error: string };
 
 const DEFAULT_PORT: Record<DbDriver, number> = { postgres: 5432, mysql: 3306 };
+
+// Pool sizing is per connection profile; mirrors `pool_max_size` in
+// src-tauri/src/commands/connections.rs.
+const DEFAULT_POOL_MAX_CONNECTIONS = 4;
+const MAX_POOL_MAX_CONNECTIONS = 10;
 const DRIVER_LABELS: Record<DbDriver, string> = { postgres: 'PostgreSQL', mysql: 'MySQL / MariaDB' };
 
 function Field({
   label,
   children,
   error,
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
   error?: string;
+  hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-secondary">{label}</label>
       {children}
+      {hint && <p className="text-xs text-secondary">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
@@ -78,7 +86,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
   const [password, setPassword] = useState('');
   const [sslMode, setSslMode] = useState<SslMode>(profile?.sslMode ?? 'prefer');
   const [poolMaxConnections, setPoolMaxConnections] = useState(
-    String(profile?.poolMaxConnections ?? 5),
+    String(profile?.poolMaxConnections ?? DEFAULT_POOL_MAX_CONNECTIONS),
   );
   const [urlInput, setUrlInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -144,7 +152,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     setUsername(profile?.username ?? '');
     setPassword('');
     setSslMode(profile?.sslMode ?? 'prefer');
-    setPoolMaxConnections(String(profile?.poolMaxConnections ?? 5));
+    setPoolMaxConnections(String(profile?.poolMaxConnections ?? DEFAULT_POOL_MAX_CONNECTIONS));
     setUrlInput(initialUrl ?? '');
 
     if (!profile && initialUrl) {
@@ -165,7 +173,8 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
       database: database.trim(),
       username: username.trim(),
       sslMode,
-      poolMaxConnections: maxConn > 0 ? Math.min(maxConn, 10) : 5,
+      poolMaxConnections:
+        maxConn > 0 ? Math.min(maxConn, MAX_POOL_MAX_CONNECTIONS) : DEFAULT_POOL_MAX_CONNECTIONS,
     };
   }
 
@@ -434,13 +443,16 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
 
             <fieldset className="flex flex-col gap-3 border-none p-0">
               <legend className="text-xs font-medium text-secondary uppercase tracking-wide">Advanced</legend>
-              <Field label="Max connections (1–10, default 5)">
+              <Field
+                label={`Max connections (1–${MAX_POOL_MAX_CONNECTIONS}, default ${DEFAULT_POOL_MAX_CONNECTIONS})`}
+                hint="Size of the connection pool for this profile only. Each saved connection keeps its own pool, so the limit is not shared across profiles."
+              >
                 <Input
                   value={poolMaxConnections}
                   onChange={(e) => setPoolMaxConnections(e.target.value)}
                   type="number"
                   min={1}
-                  max={10}
+                  max={MAX_POOL_MAX_CONNECTIONS}
                   className="w-24"
                 />
               </Field>
