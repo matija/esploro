@@ -25,6 +25,11 @@ export const commands = {
 	listSchemas: (sessionId: string, database: string) => __TAURI_INVOKE<string[]>("list_schemas", { sessionId, database }),
 	listObjects: (sessionId: string, database: string, schema: string) => __TAURI_INVOKE<SchemaObjects>("list_objects", { sessionId, database, schema }),
 	listColumns: (sessionId: string, database: string, schema: string, table: string) => __TAURI_INVOKE<ColumnDef[]>("list_columns", { sessionId, database, schema, table }),
+	/**
+	 *  Explicitly drops cached introspection for a session. Omitting `database`
+	 *  and/or `schema` widens the reset: `None`/`None` clears the whole session.
+	 */
+	refreshSchemaCache: (sessionId: string, database: string | null, schema: string | null) => __TAURI_INVOKE<null>("refresh_schema_cache", { sessionId, database, schema }),
 	listRoles: (sessionId: string) => __TAURI_INVOKE<RoleSummary[]>("list_roles", { sessionId }),
 	listRoleMembers: (sessionId: string, roleName: string) => __TAURI_INVOKE<RoleMembers>("list_role_members", { sessionId, roleName }),
 	getRoleDependents: (sessionId: string, roleName: string) => __TAURI_INVOKE<RoleDependent[]>("get_role_dependents", { sessionId, roleName }),

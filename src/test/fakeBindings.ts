@@ -56,6 +56,7 @@ const defaultImpls: RealCommands = {
   listSchemas: () => Promise.resolve([]),
   listObjects: () => Promise.resolve({ tables: [], views: [], sequences: [], functions: [] }),
   listColumns: () => Promise.resolve([]),
+  refreshSchemaCache: () => Promise.resolve(null),
   listRoles: () => Promise.resolve([]),
   listRoleMembers: () => Promise.resolve({ memberOf: [], members: [] }),
   getRoleDependents: () => Promise.resolve([]),

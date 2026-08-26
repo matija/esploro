@@ -682,10 +682,14 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const SCHEMA_STALE_MS = 5 * 60 * 1000;
 
   function refreshSchema() {
-    void queryClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
-    void queryClient.invalidateQueries({ queryKey: ["objects", sessionId] });
-    void queryClient.invalidateQueries({ queryKey: ["columns", sessionId] });
-    void queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+    // Clear the backend cache before invalidating, so the refetches triggered
+    // below miss it and re-introspect rather than replaying the same results.
+    void schemaApi.refreshSchemaCache(sessionId).finally(() => {
+      void queryClient.invalidateQueries({ queryKey: ["schemas", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["objects", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["columns", sessionId] });
+      void queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+    });
   }
 
   // Level 1 — schemas (connection IS the database; MySQL has no schema level)

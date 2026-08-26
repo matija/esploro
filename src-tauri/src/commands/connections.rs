@@ -410,6 +410,7 @@ pub async fn connect(
 #[specta::specta]
 pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Result<(), AppError> {
     let removed = state.sessions.lock().await.remove(&session_id).is_some();
+    state.schema_cache.invalidate(&session_id, None, None).await;
     info!(
         target: "sessions",
         "closed session session_id={session_id} removed={removed}",

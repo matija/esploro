@@ -19,4 +19,10 @@ export const schemaApi = {
 
   listColumns: (sessionId: string, database: string, schema: string, table: string): Promise<ColumnDef[]> =>
     normalizeCommandError(commands.listColumns(sessionId, database, schema, table)),
+
+  // Drops the backend's introspection cache so the refetch that follows a
+  // React Query invalidation actually re-reads the catalog. Passing null for
+  // database/schema clears the whole session.
+  refreshSchemaCache: (sessionId: string, database: string | null = null, schema: string | null = null): Promise<null> =>
+    normalizeCommandError(commands.refreshSchemaCache(sessionId, database, schema)),
 };

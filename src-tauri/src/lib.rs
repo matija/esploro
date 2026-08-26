@@ -11,6 +11,7 @@ use tauri_plugin_log::{log::LevelFilter, RotationStrategy, Target, TargetKind};
 use tokio::sync::Mutex;
 
 pub use commands::connections::ConnectionProfile;
+pub use commands::schema::SchemaCache;
 
 pub enum DriverSession {
     Postgres(Arc<deadpool_postgres::Pool>),
@@ -27,6 +28,8 @@ pub struct AppState {
     pub sessions: Mutex<HashMap<String, SessionInfo>>,
     /// Session-only banner dismiss flag (not persisted to disk)
     pub banner_dismissed: Mutex<bool>,
+    /// Introspection results keyed by session + database + schema
+    pub schema_cache: SchemaCache,
 }
 
 impl Default for AppState {
@@ -34,6 +37,7 @@ impl Default for AppState {
         Self {
             sessions: Mutex::new(HashMap::new()),
             banner_dismissed: Mutex::new(false),
+            schema_cache: SchemaCache::default(),
         }
     }
 }
@@ -62,6 +66,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::schema::list_schemas,
             commands::schema::list_objects,
             commands::schema::list_columns,
+            commands::schema::refresh_schema_cache,
             commands::roles::list_roles,
             commands::roles::list_role_members,
             commands::roles::get_role_dependents,

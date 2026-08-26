@@ -380,11 +380,20 @@ pub async fn execute_sql(
     sql: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<QueryResult>, AppError> {
-    with_pool(
+    let results = with_pool(
         &state,
         &session_id,
         |pool| execute_sql_pg(pool, sql.clone()),
         |pool| execute_sql_mysql(pool, sql.clone()),
     )
-    .await
+    .await;
+
+    // Invalidate on the *attempt*, not on success: a partially applied batch or
+    // a statement that errored after committing earlier DDL still leaves the
+    // cached tree stale.
+    if crate::commands::schema::sql_contains_ddl(&sql) {
+        state.schema_cache.invalidate(&session_id, None, None).await;
+    }
+
+    results
 }
