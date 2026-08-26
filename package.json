@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify": "npm run type-check && npm run lint && npm test",
     "tauri": "tauri"
   },
   "dependencies": {
