@@ -67,6 +67,10 @@ function buildTableRawWhereSql(
     : `SELECT *\nFROM ${tableRef};`;
 }
 
+// A data query that stays in flight past this gets a "still running" note, so a
+// slow table doesn't look like a stuck one.
+const SLOW_QUERY_NOTICE_MS = 1000;
+
 // ─── TableViewerTab ───────────────────────────────────────────────────────────
 
 export function TableViewerTab({ tab }: { tab: Tab }) {
@@ -358,6 +362,17 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
+
+  // Surface a "still running" note once a data query outlives the threshold.
+  // The timer restarts on every fetch, so a fast page never shows it.
+  const isQuerying = isLoading || isFetching;
+  const [isSlowQuery, setIsSlowQuery] = useState(false);
+  useEffect(() => {
+    setIsSlowQuery(false);
+    if (!isQuerying) return;
+    const timer = setTimeout(() => setIsSlowQuery(true), SLOW_QUERY_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [isQuerying]);
 
   // Sync loading state into tab strip
   useEffect(() => {
@@ -1376,13 +1391,31 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       >
         {/* Refetch indicator */}
         {isFetching && !isLoading && (
-          <div aria-hidden className="absolute top-0 right-0 z-20 p-1">
-            <Loader2 size={12} className="text-accent animate-spin" />
+          <div className="absolute top-0 right-0 z-20 flex items-center gap-1.5 p-1">
+            <Loader2 aria-hidden size={12} className="text-accent animate-spin" />
+            {isSlowQuery && (
+              <span role="status" className="text-[11px] text-secondary">
+                Still running…
+              </span>
+            )}
           </div>
         )}
 
         {/* Skeleton while loading */}
-        {isLoading && <SkeletonGrid />}
+        {isLoading && (
+          <>
+            <SkeletonGrid />
+            {isSlowQuery && (
+              <div
+                role="status"
+                className="absolute inset-x-0 top-1 z-20 flex items-center justify-center gap-1.5 text-[11px] text-secondary"
+              >
+                <Loader2 aria-hidden size={12} className="text-accent animate-spin" />
+                Still running…
+              </div>
+            )}
+          </>
+        )}
 
         {/* Error */}
         {!isLoading && error && (

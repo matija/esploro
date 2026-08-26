@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/Toast";
 import { ConfirmProvider } from "../../components/ConfirmDialog";
@@ -555,5 +555,57 @@ describe("footer", () => {
 
     expect(await screen.findByText("No rows")).toBeDefined();
     expect(screen.getByText("This table is empty")).toBeDefined();
+  });
+});
+
+describe("slow query notice", () => {
+  // Fake timers drive the one-second threshold; the data query is held open by
+  // hand so the tab stays in its loading state for as long as the test needs.
+  function deferredDataQuery() {
+    let release!: () => void;
+    queryTableData.mockImplementation(
+      (sessionId, request) =>
+        new Promise<TableQueryResult>((resolve) => {
+          release = () => resolve(serveFixturePage(sessionId, request));
+        }),
+    );
+    return () => release();
+  }
+
+  it("says the query is still running once it passes one second", async () => {
+    vi.useFakeTimers();
+    try {
+      const finishQuery = deferredDataQuery();
+      renderWithProviders(<TableViewerTab tab={TAB} />);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(999); });
+      expect(screen.queryByText("Still running…")).toBeNull();
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(screen.getByRole("status").textContent).toContain("Still running…");
+
+      // It clears as soon as the rows land.
+      await act(async () => { finishQuery(); await vi.advanceTimersByTimeAsync(0); });
+      expect(screen.queryByText("Still running…")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays quiet for a query that finishes inside a second", async () => {
+    vi.useFakeTimers();
+    try {
+      const finishQuery = deferredDataQuery();
+      renderWithProviders(<TableViewerTab tab={TAB} />);
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      await act(async () => { finishQuery(); await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+
+      expect(screen.queryByText("Still running…")).toBeNull();
+      expect(screen.getByRole("grid")).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
