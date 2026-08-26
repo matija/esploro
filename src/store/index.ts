@@ -32,6 +32,26 @@ export interface RecentObject {
 
 const MAX_RECENT_OBJECTS = 50;
 
+/**
+ * Cap on persisted schema-browser expansion state. `expandedNodes` grows
+ * unboundedly as users browse large schemas across many connections; without
+ * a cap the persisted blob (and localStorage write on every toggle) grows
+ * without limit. Object key insertion order is used as the recency signal:
+ * re-expanding a key moves it to the end, and the oldest (least-recently-used)
+ * keys are evicted first once the cap is exceeded.
+ */
+const MAX_EXPANDED_NODES = 200;
+
+function trimExpandedNodes(nodes: Record<string, true>): Record<string, true> {
+  const keys = Object.keys(nodes);
+  if (keys.length <= MAX_EXPANDED_NODES) return nodes;
+  const trimmed: Record<string, true> = {};
+  for (const key of keys.slice(keys.length - MAX_EXPANDED_NODES)) {
+    trimmed[key] = true;
+  }
+  return trimmed;
+}
+
 export interface LastAction {
   label: string;
   durationMs: number;
@@ -354,17 +374,28 @@ export const useAppStore = create<AppState>()(
             const { [key]: _removed, ...rest } = s.expandedNodes;
             return { expandedNodes: rest as Record<string, true> };
           }
-          return { expandedNodes: { ...s.expandedNodes, [key]: true } };
+          // Re-inserting moves `key` to the end so it reads as most-recently-used.
+          return { expandedNodes: trimExpandedNodes({ ...s.expandedNodes, [key]: true }) };
         }),
     }),
     {
       name: "esploro-ui",
       partialize: (state) => ({
         sidebarWidth: state.sidebarWidth,
-        expandedNodes: state.expandedNodes,
+        expandedNodes: trimExpandedNodes(state.expandedNodes),
         theme: state.theme,
         recentObjects: state.recentObjects,
       }),
+      // Re-trim on rehydration so the cap holds even if the persisted blob
+      // predates MAX_EXPANDED_NODES or was written by an older build.
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<AppState> | null | undefined;
+        const merged = { ...currentState, ...persisted };
+        return {
+          ...merged,
+          expandedNodes: trimExpandedNodes(merged.expandedNodes ?? {}),
+        };
+      },
     },
   ),
 );
