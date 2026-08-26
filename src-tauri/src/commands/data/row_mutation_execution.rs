@@ -115,7 +115,11 @@ pub(super) async fn update_rows_mysql(
         ));
     }
 
-    conn.exec_drop("START TRANSACTION", ()).await?;
+    // START TRANSACTION/COMMIT/ROLLBACK can't run through the prepared-statement
+    // (binary) protocol — MySQL rejects them with error 1295. `query_drop` uses
+    // the plain text protocol instead; only the per-row mutations below need
+    // `exec_drop` for parameter binding.
+    conn.query_drop("START TRANSACTION").await?;
 
     let result: Result<(), AppError> = (async {
         for change in &request.changes {
@@ -133,10 +137,10 @@ pub(super) async fn update_rows_mysql(
     .await;
 
     if result.is_err() {
-        conn.exec_drop("ROLLBACK", ()).await.ok();
+        conn.query_drop("ROLLBACK").await.ok();
         return result;
     }
-    conn.exec_drop("COMMIT", ()).await.map_err(AppError::from)
+    conn.query_drop("COMMIT").await.map_err(AppError::from)
 }
 
 pub(super) async fn preview_update_rows_sql_pg(

@@ -1,4 +1,7 @@
-mod commands;
+// `pub` so integration tests (src-tauri/tests/integration/, gated behind the
+// `integration-db` feature) can call the command functions directly with a
+// mock-runtime `State<AppState>`, bypassing the Tauri IPC layer.
+pub mod commands;
 mod error;
 
 pub use error::AppError;
