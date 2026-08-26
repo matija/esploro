@@ -47,9 +47,37 @@ const tableKey = (cid: string, db: string, s: string, t: string) =>
 
 const SKELETON_WIDTHS = [52, 72, 60] as const;
 
+// ─── Refresh scope ────────────────────────────────────────────────────────────
+
+/** What a node's Refresh acts on. The backend introspection cache is keyed by
+ *  (session, database, schema), so refreshing anything inside a schema — a
+ *  group, a table, a view — necessarily re-reads that whole schema. Roles are
+ *  not cached backend-side, so they only need a query invalidation. */
+type RefreshScope =
+  | { kind: "schema"; database: string; schema: string }
+  | { kind: "roles" };
+
+function refreshScopeOf(node: TreeNode): RefreshScope | null {
+  switch (node.kind) {
+    case "schema":
+      return { kind: "schema", database: node.database, schema: node.name };
+    case "group":
+    case "table":
+    case "view":
+    case "sequence":
+    case "function":
+      return { kind: "schema", database: node.database, schema: node.schema };
+    case "roles-group":
+    case "role":
+      return { kind: "roles" };
+    default:
+      return null;
+  }
+}
+
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
-type ContextMenuState = { node: TreeNode; x: number; y: number };
+type ContextMenuState = { node: TreeNode; rowKey: string; x: number; y: number };
 
 function ContextMenu({
   menu,
@@ -85,6 +113,8 @@ function ContextMenu({
       "sep",
       { label: "Open table viewer", action: "open-table" },
       { label: "Open in query editor", action: "open-query" },
+      "sep",
+      { label: "Refresh schema", action: "refresh" },
     ];
   } else if (node.kind === "column") {
     items = [
@@ -92,7 +122,25 @@ function ContextMenu({
       { label: "Copy type", action: "copy-type" },
     ];
   } else if (node.kind === "role") {
-    items = [{ label: "Delete role…", action: "delete-role" }];
+    items = [
+      { label: "Delete role…", action: "delete-role" },
+      "sep",
+      { label: "Refresh roles", action: "refresh" },
+    ];
+  } else if (node.kind === "roles-group") {
+    items = [
+      { label: "Create role…", action: "create-role" },
+      "sep",
+      { label: "Refresh roles", action: "refresh" },
+    ];
+  } else if (node.kind === "schema") {
+    items = [{ label: "Refresh schema", action: "refresh" }];
+  } else if (
+    node.kind === "group" ||
+    node.kind === "sequence" ||
+    node.kind === "function"
+  ) {
+    items = [{ label: `Refresh ${node.schema}`, action: "refresh" }];
   }
 
   if (items.length === 0) return null;
@@ -150,6 +198,7 @@ interface RowProps {
   isExpanded: boolean;
   isFocused: boolean;
   isMysql?: boolean;
+  isRefreshing?: boolean;
   onToggle: () => void;
   onFocus: () => void;
   onContextMenu: (x: number, y: number) => void;
@@ -162,6 +211,7 @@ function TreeRow({
   isExpanded,
   isFocused,
   isMysql,
+  isRefreshing,
   onToggle,
   onFocus,
   onContextMenu,
@@ -309,7 +359,10 @@ function TreeRow({
     return null;
   })();
 
-  const hasInlineActions = onAction && (node.kind === "table" || node.kind === "view" || node.kind === "roles-group");
+  const canRefresh = !!onAction && refreshScopeOf(node) !== null;
+  const hasInlineActions =
+    !!onAction &&
+    (node.kind === "table" || node.kind === "view" || node.kind === "roles-group" || canRefresh);
 
   const isDataNode = node.kind === "table" || node.kind === "view" || node.kind === "role" || node.kind === "schema";
 
@@ -392,10 +445,10 @@ function TreeRow({
           className={cn(
             "flex items-center gap-0.5 shrink-0 transition-opacity",
             "opacity-0 group-hover:opacity-100",
-            isFocused && "opacity-100",
+            (isFocused || isRefreshing) && "opacity-100",
           )}
         >
-          {node.kind === "roles-group" ? (
+          {node.kind === "roles-group" && (
             <button
               type="button"
               title="Create role"
@@ -404,7 +457,8 @@ function TreeRow({
             >
               <Plus size={10} />
             </button>
-          ) : (
+          )}
+          {(node.kind === "table" || node.kind === "view") && (
             <>
               <button
                 type="button"
@@ -423,6 +477,18 @@ function TreeRow({
                 <TerminalIcon size={10} />
               </button>
             </>
+          )}
+          {canRefresh && (
+            <button
+              type="button"
+              title={node.kind === "roles-group" || node.kind === "role" ? "Refresh roles" : "Refresh schema"}
+              aria-label={node.kind === "roles-group" || node.kind === "role" ? "Refresh roles" : "Refresh schema"}
+              disabled={isRefreshing}
+              onClick={(e) => { e.stopPropagation(); onAction?.("refresh"); }}
+              className="p-0.5 rounded text-tertiary hover:text-accent hover:bg-accent/10 transition-colors duration-[var(--motion-fast)] disabled:hover:bg-transparent"
+            >
+              <RotateCw size={10} className={cn(isRefreshing && "animate-spin")} />
+            </button>
           )}
         </span>
       )}
@@ -679,7 +745,48 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
 
-  const SCHEMA_STALE_MS = 5 * 60 * 1000;
+  const [refreshingKeys, setRefreshingKeys] = useState<ReadonlySet<string>>(new Set());
+
+  // Introspection only changes when someone runs DDL, and the backend already
+  // drops its cache when DDL goes through `execute_sql`. With a per-node
+  // Refresh (and the toolbar one) as an escape hatch for changes made outside
+  // the app, the tree can hold results far longer than a few minutes.
+  const SCHEMA_STALE_MS = 30 * 60 * 1000;
+
+  /** Refresh one node's slice of the tree: drop the backend introspection cache
+   *  for its scope, then invalidate exactly the query keys that read it. */
+  async function refreshNode(node: TreeNode, rowKey: string) {
+    const scope = refreshScopeOf(node);
+    if (!scope || refreshingKeys.has(rowKey)) return;
+
+    setRefreshingKeys((prev) => new Set(prev).add(rowKey));
+    try {
+      if (scope.kind === "roles") {
+        await queryClient.invalidateQueries({ queryKey: ["roles", sessionId] });
+      } else {
+        // Clear the backend cache before invalidating, so the refetches
+        // triggered below miss it and re-introspect rather than replaying the
+        // same results.
+        await schemaApi.refreshSchemaCache(sessionId, scope.database, scope.schema);
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ["objects", sessionId, scope.database, scope.schema],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["columns", sessionId, scope.database, scope.schema],
+          }),
+        ]);
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setRefreshingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(rowKey);
+        return next;
+      });
+    }
+  }
 
   function refreshSchema() {
     // Clear the backend cache before invalidating, so the refetches triggered
@@ -1134,7 +1241,12 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  function handleAction(node: TreeNode, action: string) {
+  function handleAction(node: TreeNode, action: string, rowKey: string) {
+    if (action === "refresh") {
+      setContextMenu(null);
+      void refreshNode(node, rowKey);
+      return;
+    }
     if (node.kind === "table" || node.kind === "view") {
       if (action === "copy-name") {
         navigator.clipboard.writeText(node.name);
@@ -1336,7 +1448,8 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         </div>
         <button
           type="button"
-          title="Refresh schema"
+          title="Refresh all schemas"
+          aria-label="Refresh all schemas"
           onClick={refreshSchema}
           className="shrink-0 p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)]"
         >
@@ -1360,15 +1473,16 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
               isExpanded={nkey ? isExp(nkey) : false}
               isFocused={key === focusedKey}
               isMysql={isMysql}
+              isRefreshing={refreshingKeys.has(key)}
               onToggle={() => nkey && toggleNode(nkey)}
               onFocus={() => setFocusedKey(key)}
-              onContextMenu={(x, y) => setContextMenu({ node, x, y })}
+              onContextMenu={(x, y) => setContextMenu({ node, rowKey: key, x, y })}
               onActivate={() => {
                 if (node.kind === "table" || node.kind === "view") openTable(node);
                 else if (node.kind === "role") openRole(node);
                 else if (node.kind === "schema") openSchema(node);
               }}
-              onAction={(action) => handleAction(node, action)}
+              onAction={(action) => handleAction(node, action, key)}
             />
           );
         })}
@@ -1379,7 +1493,7 @@ export function SchemaTree({ sessionId, connectionId }: Props) {
         <ContextMenu
           menu={contextMenu}
           onClose={() => setContextMenu(null)}
-          onAction={(action) => handleAction(contextMenu.node, action)}
+          onAction={(action) => handleAction(contextMenu.node, action, contextMenu.rowKey)}
         />
       )}
 

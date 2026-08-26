@@ -15,6 +15,7 @@ import { SchemaTree } from "./SchemaTree";
 const listSchemas = vi.fn<(sessionId: string, database: string) => Promise<string[]>>();
 const listObjects = vi.fn<(sessionId: string, database: string, schema: string) => Promise<SchemaObjects>>();
 const listColumns = vi.fn<(sessionId: string, database: string, schema: string, table: string) => Promise<ColumnDef[]>>();
+const refreshSchemaCache = vi.fn<(sessionId: string, database: string | null, schema: string | null) => Promise<null>>();
 
 vi.mock("./api", () => ({
   schemaApi: {
@@ -23,6 +24,8 @@ vi.mock("./api", () => ({
       listObjects(sessionId, database, schema),
     listColumns: (sessionId: string, database: string, schema: string, table: string) =>
       listColumns(sessionId, database, schema, table),
+    refreshSchemaCache: (sessionId: string, database: string | null = null, schema: string | null = null) =>
+      refreshSchemaCache(sessionId, database, schema),
   },
 }));
 
@@ -169,6 +172,8 @@ beforeEach(() => {
   listObjects.mockResolvedValue(OBJECTS);
   listColumns.mockReset();
   listColumns.mockResolvedValue(COLUMNS);
+  refreshSchemaCache.mockReset();
+  refreshSchemaCache.mockResolvedValue(null);
   useAppStore.setState({
     profiles: [PROFILE],
     activeSessions: { "conn-1": "session-1" },
@@ -341,5 +346,69 @@ describe("error nodes", () => {
 
     expect(await screen.findByText("email")).toBeDefined();
     expect(screen.queryByRole("button", { name: /Retry/ })).toBe(null);
+  });
+});
+
+describe("per-node refresh", () => {
+  it("drops the backend cache for one schema and refetches just that schema", async () => {
+    const { user } = await renderTree();
+    await screen.findByText("public");
+
+    await expandRow(user, "public");
+    await screen.findByText("Tables");
+    await expandRow(user, "audit");
+    await waitFor(() => expect(listObjects).toHaveBeenCalledTimes(2));
+
+    await user.click(within(row("public")).getByRole("button", { name: "Refresh schema" }));
+
+    await waitFor(() =>
+      expect(refreshSchemaCache).toHaveBeenCalledWith("session-1", "app", "public"),
+    );
+    // `public` re-introspects; `audit` keeps replaying its cached result.
+    await waitFor(() => expect(listObjects).toHaveBeenCalledTimes(3));
+    expect(listObjects.mock.calls.at(-1)).toEqual(["session-1", "app", "public"]);
+  });
+
+  it("refreshes a table's columns from the row's context menu", async () => {
+    const { user } = await renderTree();
+    await screen.findByText("public");
+
+    await expandRow(user, "public");
+    await expandRow(user, "Tables");
+    await screen.findByText("users");
+    await expandRow(user, "users");
+    await waitFor(() => expect(listColumns).toHaveBeenCalledTimes(1));
+
+    await user.pointer({ keys: "[MouseRight]", target: row("users") });
+    // The row carries an inline Refresh too, so take the one in the popover.
+    const menuItem = await waitFor(() => {
+      const item = screen
+        .getAllByRole("button", { name: "Refresh schema" })
+        .find((b) => b.closest(".fixed.z-50") !== null);
+      if (!item) throw new Error("no Refresh item in the context menu");
+      return item;
+    });
+    await user.click(menuItem);
+
+    await waitFor(() =>
+      expect(refreshSchemaCache).toHaveBeenCalledWith("session-1", "app", "public"),
+    );
+    await waitFor(() => expect(listColumns).toHaveBeenCalledTimes(2));
+  });
+
+  it("surfaces a failed refresh without disturbing the tree", async () => {
+    refreshSchemaCache.mockRejectedValueOnce(new Error("session is gone"));
+    const { user } = await renderTree();
+    await screen.findByText("public");
+
+    await expandRow(user, "public");
+    await screen.findByText("Tables");
+
+    await user.click(within(row("public")).getByRole("button", { name: "Refresh schema" }));
+
+    expect(await screen.findByText("session is gone")).toBeDefined();
+    expect(screen.getByText("Tables")).toBeDefined();
+    // The cache was never cleared, so nothing was refetched behind the failure.
+    expect(listObjects).toHaveBeenCalledTimes(1);
   });
 });
