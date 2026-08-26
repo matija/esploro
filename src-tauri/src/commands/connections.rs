@@ -98,23 +98,24 @@ fn keychain_entry(id: &str) -> Result<keyring::Entry, AppError> {
 // File-storage helpers
 // ---------------------------------------------------------------------------
 
-fn connections_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+async fn connections_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     let dir = app.path().app_data_dir()?;
-    std::fs::create_dir_all(&dir)?;
+    tokio::fs::create_dir_all(&dir).await?;
     Ok(dir.join("connections.json"))
 }
 
 async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
-    let path = connections_path(app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let data = tokio::fs::read_to_string(&path).await?;
+    let path = connections_path(app).await?;
+    let data = match tokio::fs::read_to_string(&path).await {
+        Ok(data) => data,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(AppError::from(e)),
+    };
     serde_json::from_str(&data).map_err(AppError::from)
 }
 
 async fn save_profiles(app: &AppHandle, profiles: &[ConnectionProfile]) -> Result<(), AppError> {
-    let path = connections_path(app)?;
+    let path = connections_path(app).await?;
     let data = serde_json::to_string_pretty(profiles)?;
     tokio::fs::write(&path, data).await.map_err(AppError::from)
 }

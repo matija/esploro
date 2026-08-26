@@ -99,9 +99,9 @@ fn clear_stored_license() {
 // File path helpers
 // ---------------------------------------------------------------------------
 
-fn prefs_path(app: &AppHandle) -> PathBuf {
+async fn prefs_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("app data dir");
-    std::fs::create_dir_all(&dir).ok();
+    tokio::fs::create_dir_all(&dir).await.ok();
     dir.join("prefs.json")
 }
 
@@ -109,38 +109,43 @@ fn prefs_path(app: &AppHandle) -> PathBuf {
 // Prefs helpers
 // ---------------------------------------------------------------------------
 
-fn read_prefs_json(app: &AppHandle) -> Result<Option<Value>, AppError> {
-    let path = prefs_path(app);
-    if !path.exists() {
-        return Ok(None);
-    }
+async fn read_prefs_json(app: &AppHandle) -> Result<Option<Value>, AppError> {
+    let path = prefs_path(app).await;
+    let data = match tokio::fs::read_to_string(&path).await {
+        Ok(data) => data,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(AppError::from(e)),
+    };
 
-    let data = std::fs::read_to_string(&path)?;
     serde_json::from_str::<Value>(&data)
         .map(Some)
         .map_err(AppError::from)
 }
 
-fn write_json_atomic(path: &Path, value: &Value) -> Result<(), AppError> {
+async fn write_json_atomic(path: &Path, value: &Value) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let data = serde_json::to_string_pretty(value)?;
     let tmp_path = path.with_extension("json.tmp");
-    std::fs::write(&tmp_path, data)?;
-    std::fs::rename(&tmp_path, path).map_err(AppError::from)
+    tokio::fs::write(&tmp_path, data).await?;
+    tokio::fs::rename(&tmp_path, path)
+        .await
+        .map_err(AppError::from)
 }
 
-fn load_prefs(app: &AppHandle) -> UserPrefs {
-    let path = prefs_path(app);
-    if path.exists() {
-        if let Ok(data) = std::fs::read_to_string(&path) {
+async fn load_prefs(app: &AppHandle) -> UserPrefs {
+    let path = prefs_path(app).await;
+    match tokio::fs::read_to_string(&path).await {
+        Ok(data) => {
             if let Ok(prefs) = serde_json::from_str::<UserPrefs>(&data) {
                 return prefs;
             }
             warn!("failed to parse prefs.json; using defaults");
         }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => warn!("failed to read prefs.json: {e}; using defaults"),
     }
     UserPrefs {
         usage_type_answered: false,
@@ -153,10 +158,10 @@ fn load_prefs(app: &AppHandle) -> UserPrefs {
     }
 }
 
-fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), AppError> {
-    let path = prefs_path(app);
+async fn save_prefs(app: &AppHandle, prefs: &UserPrefs) -> Result<(), AppError> {
+    let path = prefs_path(app).await;
     let value = serde_json::to_value(prefs)?;
-    write_json_atomic(&path, &value)
+    write_json_atomic(&path, &value).await
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +232,8 @@ fn compute_status_pure(
 }
 
 /// Returns status from cached state only — no network calls.
-fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
-    let prefs = load_prefs(app);
+async fn compute_status(app: &AppHandle, banner_dismissed: bool) -> LicenseStatus {
+    let prefs = load_prefs(app).await;
     let stored = read_stored_license();
     compute_status_pure(stored.as_ref(), &prefs, banner_dismissed, Utc::now())
 }
@@ -250,13 +255,11 @@ pub async fn get_license_status(
         .ok()
         .map(|d| d.join("license.key"));
     if let Some(path) = legacy_path {
-        if path.exists() {
-            std::fs::remove_file(&path).ok();
-        }
+        tokio::fs::remove_file(&path).await.ok();
     }
 
     let dismissed = *state.banner_dismissed.lock().await;
-    Ok(compute_status(&app, dismissed))
+    Ok(compute_status(&app, dismissed).await)
 }
 
 #[tauri::command]
@@ -274,7 +277,7 @@ pub async fn activate_license(
             };
             write_stored_license(&stored)?;
             let dismissed = *state.banner_dismissed.lock().await;
-            Ok(compute_status(&app, dismissed))
+            Ok(compute_status(&app, dismissed).await)
         }
         Ok(false) => Err(AppError::License(
             dodo::dodo_invalid_key_message().to_string(),
@@ -291,7 +294,7 @@ pub async fn deactivate_license(
 ) -> Result<LicenseStatus, AppError> {
     clear_stored_license();
     let dismissed = *state.banner_dismissed.lock().await;
-    Ok(compute_status(&app, dismissed))
+    Ok(compute_status(&app, dismissed).await)
 }
 
 #[tauri::command]
@@ -301,15 +304,15 @@ pub async fn answer_usage_dialog(
     state: State<'_, AppState>,
     answer: String,
 ) -> Result<LicenseStatus, AppError> {
-    let mut prefs = load_prefs(&app);
+    let mut prefs = load_prefs(&app).await;
     prefs.usage_type_answered = true;
     prefs.usage_type = Some(answer.clone());
     if answer == "commercial" && prefs.commercial_detected_at.is_none() {
         prefs.commercial_detected_at = Some(Utc::now().to_rfc3339());
     }
-    save_prefs(&app, &prefs)?;
+    save_prefs(&app, &prefs).await?;
     let dismissed = *state.banner_dismissed.lock().await;
-    Ok(compute_status(&app, dismissed))
+    Ok(compute_status(&app, dismissed).await)
 }
 
 #[tauri::command]
@@ -326,13 +329,13 @@ pub async fn notify_connection_count(
     state: State<'_, AppState>,
     count: usize,
 ) -> Result<LicenseStatus, AppError> {
-    let mut prefs = load_prefs(&app);
+    let mut prefs = load_prefs(&app).await;
     if count >= 4 && prefs.commercial_detected_at.is_none() {
         prefs.commercial_detected_at = Some(Utc::now().to_rfc3339());
-        save_prefs(&app, &prefs)?;
+        save_prefs(&app, &prefs).await?;
     }
     let dismissed = *state.banner_dismissed.lock().await;
-    Ok(compute_status(&app, dismissed))
+    Ok(compute_status(&app, dismissed).await)
 }
 
 #[tauri::command]
@@ -358,7 +361,7 @@ pub fn open_url(url: String) -> Result<(), AppError> {
 #[tauri::command]
 #[specta::specta]
 pub async fn get_ui_preferences(app: AppHandle) -> Result<UiPreferences, AppError> {
-    match read_prefs_json(&app) {
+    match read_prefs_json(&app).await {
         Ok(Some(value)) => Ok(preferences_from_json(&value)),
         Ok(None) => Ok(default_ui_preferences()),
         Err(error) => {
@@ -375,7 +378,7 @@ pub async fn set_ui_preferences(
     preferences: UiPreferences,
 ) -> Result<(), AppError> {
     let preferences = normalize_ui_preferences(preferences);
-    let mut root = match read_prefs_json(&app) {
+    let mut root = match read_prefs_json(&app).await {
         Ok(Some(Value::Object(map))) => map,
         Ok(Some(_)) | Ok(None) => Map::new(),
         Err(error) => {
@@ -394,7 +397,7 @@ pub async fn set_ui_preferences(
         Value::String(preferences.ui.theme.clone()),
     );
 
-    write_json_atomic(&prefs_path(&app), &Value::Object(root))
+    write_json_atomic(&prefs_path(&app).await, &Value::Object(root)).await
 }
 
 // ---------------------------------------------------------------------------
