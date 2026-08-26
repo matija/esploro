@@ -12,6 +12,9 @@ ones are: too many columns, too many rows, too many objects.
 Loading them is only half of it: [measure.md](measure.md) is the protocol for what
 to time against them and how to write the numbers down.
 
+For running the gated `cargo test --features integration-db` suite against
+`docker compose`-provided Postgres/MySQL, see [integration.md](integration.md).
+
 Two scripts, one per engine:
 
 - `seed.sql` — PostgreSQL
