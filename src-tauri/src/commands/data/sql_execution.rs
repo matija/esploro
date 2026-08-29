@@ -104,7 +104,7 @@ pub(super) async fn execute_sql_mysql(
     pool: std::sync::Arc<mysql_async::Pool>,
     sql: String,
 ) -> Result<Vec<QueryResult>, AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     let statements = split_sql_statements(&sql);
     let mut results: Vec<QueryResult> = vec![];

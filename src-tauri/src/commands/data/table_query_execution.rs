@@ -270,7 +270,7 @@ pub(super) async fn query_table_mysql(
     request: TableQueryRequest,
 ) -> Result<TableQueryResult, AppError> {
     // For MySQL, `schema` is the database name.
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     // Fetch column metadata from INFORMATION_SCHEMA
     let col_rows: Vec<mysql_async::Row> = conn
@@ -362,7 +362,7 @@ pub(super) async fn count_table_mysql(
     pool: std::sync::Arc<mysql_async::Pool>,
     request: TableQueryRequest,
 ) -> Result<TableCountResult, AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     let (where_clauses, param_values) = build_mysql_where_clause(&request.filters)?;
     let where_sql = build_where_sql(&where_clauses, &request.raw_where);

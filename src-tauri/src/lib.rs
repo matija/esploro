@@ -2,6 +2,7 @@
 // `integration-db` feature) can call the command functions directly with a
 // mock-runtime `State<AppState>`, bypassing the Tauri IPC layer.
 pub mod commands;
+pub mod db;
 mod error;
 
 pub use error::AppError;
@@ -112,8 +113,29 @@ fn export_typescript_bindings(builder: &tauri_specta::Builder<tauri::Wry>) {
         .expect("failed to export TypeScript bindings");
 }
 
+/// Route panics into the app log (and stderr) with a backtrace. Without this a
+/// panic on a background task leaves nothing behind but a vanished window,
+/// which is indistinguishable from a hang for anyone reporting the bug.
+fn install_panic_logger() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown location".into());
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        tauri_plugin_log::log::error!(
+            target: "panic",
+            "panic at {location}: {info}\n{backtrace}"
+        );
+        default_hook(info);
+    }));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_panic_logger();
+
     let specta_builder = specta_builder();
 
     #[cfg(debug_assertions)]

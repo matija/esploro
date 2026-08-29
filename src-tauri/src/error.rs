@@ -151,16 +151,33 @@ impl From<tokio_postgres::Error> for AppError {
         } else {
             // No server SQLSTATE → connection/protocol/IO-level failure
             // (broken pipe, connection closed/reset, unexpected EOF, …).
-            AppError::Connection(e.to_string())
+            // `to_string()` drops the source, so keep the cause too.
+            let mut msg = e.to_string();
+            if let Some(src) = std::error::Error::source(&e) {
+                msg = format!("{msg}: {src}");
+            }
+            AppError::Connection(crate::db::humanize_connection_error(msg))
         }
     }
 }
 
 impl From<deadpool_postgres::PoolError> for AppError {
     fn from(e: deadpool_postgres::PoolError) -> Self {
+        use deadpool_postgres::PoolError;
         match e {
-            deadpool_postgres::PoolError::Backend(e) => AppError::from(e),
-            other => AppError::Connection(other.to_string()),
+            PoolError::Backend(e) => AppError::from(e),
+            // Deadpool's own timeout text ("Timeout occurred while creating a
+            // new object") tells the user nothing; explain what to check.
+            // `deadpool::managed::TimeoutType` is not re-exported by
+            // deadpool-postgres, so discriminate on its Debug name.
+            PoolError::Timeout(t) if format!("{t:?}") == "Wait" => AppError::Connection(format!(
+                "All connections to this database are busy (waited {}s). Try again in a moment.",
+                crate::db::POOL_WAIT_TIMEOUT.as_secs()
+            )),
+            PoolError::Timeout(_) => AppError::Connection(crate::db::unreachable_message(
+                crate::db::CONNECT_TIMEOUT.as_secs(),
+            )),
+            other => AppError::Connection(crate::db::humanize_connection_error(other.to_string())),
         }
     }
 }
@@ -174,7 +191,7 @@ impl From<mysql_async::Error> for AppError {
                 message: e.to_string(),
             }
         } else {
-            AppError::Connection(e.to_string())
+            AppError::Connection(crate::db::humanize_connection_error(e.to_string()))
         }
     }
 }

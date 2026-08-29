@@ -9,6 +9,7 @@ use tauri_plugin_log::log::info;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
+use crate::db::{humanize_connection_error, mysql_conn, CONNECT_TIMEOUT, KEEPALIVE_IDLE, POOL_WAIT_TIMEOUT, RECYCLE_TIMEOUT};
 use crate::{AppError, AppState, DriverSession, SessionInfo};
 
 #[derive(Serialize, Deserialize, specta::Type, Clone, Debug, Default, PartialEq)]
@@ -75,12 +76,18 @@ pub struct ConnectionInput {
 // Error helpers
 // ---------------------------------------------------------------------------
 
+/// Flatten an error and its source chain into one line. Drivers often repeat
+/// part of the cause in their own `Display`, so segments already present are
+/// skipped rather than printed twice.
 fn error_chain(e: impl std::error::Error) -> String {
     let mut s = e.to_string();
     let mut src = e.source();
     while let Some(err) = src {
-        s.push_str(": ");
-        s.push_str(&err.to_string());
+        let segment = err.to_string();
+        if !s.contains(&segment) {
+            s.push_str(": ");
+            s.push_str(&segment);
+        }
         src = err.source();
     }
     s
@@ -142,9 +149,22 @@ fn build_pg_pool(
     cfg.user = Some(profile.username.clone());
     cfg.password = Some(password.to_string());
 
+    // Bound every phase of connection acquisition; without these a query
+    // against an unreachable host hangs forever instead of erroring.
+    cfg.connect_timeout = Some(CONNECT_TIMEOUT);
+    // Keepalives bound an *in-flight* query when the link dies mid-request
+    // (VPN drop): the socket errors out instead of waiting on the 2h default.
+    cfg.keepalives = Some(true);
+    cfg.keepalives_idle = Some(KEEPALIVE_IDLE);
+
     let max = pool_max_size(profile.pool_max_connections);
     cfg.pool = Some(deadpool_postgres::PoolConfig {
         max_size: max,
+        timeouts: deadpool_postgres::Timeouts {
+            wait: Some(POOL_WAIT_TIMEOUT),
+            create: Some(CONNECT_TIMEOUT),
+            recycle: Some(RECYCLE_TIMEOUT),
+        },
         ..Default::default()
     });
     cfg.manager = Some(ManagerConfig {
@@ -182,7 +202,8 @@ fn build_mysql_pool(
         .db_name(Some(profile.database.clone()))
         .user(Some(profile.username.clone()))
         .pass(Some(password.to_string()))
-        .pool_opts(pool_opts);
+        .pool_opts(pool_opts)
+        .tcp_keepalive(Some(KEEPALIVE_IDLE.as_millis() as u32));
     Ok(mysql_async::Pool::new(opts))
 }
 
@@ -322,22 +343,19 @@ pub async fn test_connection(input: ConnectionInput, password: String) -> Result
             let client = pool
                 .get()
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             client
                 .execute("SELECT 1", &[])
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
         }
         DbDriver::Mysql => {
             use mysql_async::prelude::Queryable;
             let pool = build_mysql_pool(&profile, &password)?;
-            let mut conn = pool
-                .get_conn()
-                .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            let mut conn = mysql_conn(&pool).await?;
             conn.query_drop("SELECT 1")
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
         }
     }
     Ok(start.elapsed().as_millis() as u64)
@@ -366,11 +384,11 @@ pub async fn connect(
             let client = pool
                 .get()
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             client
                 .execute("SELECT 1", &[])
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             drop(client);
             state.sessions.lock().await.insert(
                 session_id.clone(),
@@ -383,13 +401,10 @@ pub async fn connect(
         DbDriver::Mysql => {
             use mysql_async::prelude::Queryable;
             let pool = build_mysql_pool(profile, &password)?;
-            let mut conn = pool
-                .get_conn()
-                .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+            let mut conn = mysql_conn(&pool).await?;
             conn.query_drop("SELECT 1")
                 .await
-                .map_err(|e| AppError::Connection(error_chain(e)))?;
+                .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             drop(conn);
             state.sessions.lock().await.insert(
                 session_id.clone(),

@@ -325,7 +325,7 @@ pub async fn list_objects(
         }
         PoolHandle::Mysql(pool) => {
             // For MySQL, `schema` is the database name.
-            let mut conn = pool.get_conn().await?;
+            let mut conn = crate::db::mysql_conn(&pool).await?;
             let rows: Vec<mysql_async::Row> = conn
                 .exec(
                     "SELECT TABLE_NAME, TABLE_TYPE \
@@ -437,7 +437,7 @@ pub async fn list_columns(
         }
         PoolHandle::Mysql(pool) => {
             // For MySQL, `schema` is the database name.
-            let mut conn = pool.get_conn().await?;
+            let mut conn = crate::db::mysql_conn(&pool).await?;
             let rows: Vec<mysql_async::Row> = conn
                 .exec(
                     "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT \

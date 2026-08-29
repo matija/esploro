@@ -100,7 +100,7 @@ pub(super) async fn update_rows_mysql(
     pool: Arc<mysql_async::Pool>,
     request: UpdateRowsRequest,
 ) -> Result<(), AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     // Look up PK columns — required for MySQL (no ctid)
     let pk_cols: HashSet<String> = {
@@ -195,7 +195,7 @@ pub(super) async fn preview_update_rows_sql_mysql(
     pool: Arc<mysql_async::Pool>,
     request: UpdateRowsRequest,
 ) -> Result<String, AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     let pk_exists: bool = {
         let rows: Vec<mysql_async::Row> = conn
@@ -308,7 +308,7 @@ pub(super) async fn insert_rows_mysql(
     pool: Arc<mysql_async::Pool>,
     request: InsertRowsRequest,
 ) -> Result<Vec<InsertRowResult>, AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     let mut results = Vec::with_capacity(request.rows.len());
 
@@ -464,7 +464,7 @@ pub(super) async fn delete_rows_mysql(
     pool: Arc<mysql_async::Pool>,
     request: DeleteRowsRequest,
 ) -> Result<Vec<DeleteRowResult>, AppError> {
-    let mut conn = pool.get_conn().await?;
+    let mut conn = crate::db::mysql_conn(&pool).await?;
 
     let mut results = Vec::with_capacity(request.rows.len());
 
