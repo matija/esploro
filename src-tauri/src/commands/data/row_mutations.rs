@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use mysql_async::Value;
 
 use super::type_mapping::json_to_pg_array_literal;
-use super::{validate_column_identifier, DeleteRowRequest, RowChange};
+use super::{validate_column_identifier, DeleteRowRequest, NewRowValues, RowChange};
 
 #[cfg_attr(test, derive(Debug))]
 pub(super) struct PgMutationSql {
@@ -284,6 +284,104 @@ fn build_mysql_update_preview_statement(
     ))
 }
 
+pub(super) fn build_pg_insert_sql(
+    schema: &str,
+    table: &str,
+    row: &NewRowValues,
+    col_type_map: &HashMap<String, String>,
+    col_cast_map: &HashMap<String, String>,
+) -> Result<PgMutationSql, String> {
+    for cc in &row.column_values {
+        validate_column_identifier(&cc.column)?;
+    }
+
+    if row.column_values.is_empty() {
+        return Ok(PgMutationSql {
+            sql: format!("INSERT INTO \"{schema}\".\"{table}\" DEFAULT VALUES"),
+            params: vec![],
+        });
+    }
+
+    let mut params: Vec<String> = vec![];
+    let mut columns: Vec<String> = vec![];
+    let mut value_parts: Vec<String> = vec![];
+
+    for cc in &row.column_values {
+        columns.push(format!("\"{}\"", cc.column));
+        if let Some(ref val) = cc.value {
+            let udt = col_type_map
+                .get(&cc.column)
+                .map(|s| s.as_str())
+                .unwrap_or("text");
+            if udt.starts_with('_') {
+                let elem_type = udt.trim_start_matches('_');
+                params.push(json_to_pg_array_literal(val)?);
+                let p = params.len();
+                value_parts.push(format!("${}::text::{}[]", p, elem_type));
+            } else {
+                params.push(val.clone());
+                let p = params.len();
+                let cast = col_cast_map
+                    .get(&cc.column)
+                    .map(|s| s.as_str())
+                    .unwrap_or("text");
+                value_parts.push(format!("${}::text::{}", p, cast));
+            }
+        } else {
+            value_parts.push("NULL".to_string());
+        }
+    }
+
+    Ok(PgMutationSql {
+        sql: format!(
+            "INSERT INTO \"{schema}\".\"{table}\" ({}) VALUES ({})",
+            columns.join(", "),
+            value_parts.join(", ")
+        ),
+        params,
+    })
+}
+
+pub(super) fn build_mysql_insert_sql(
+    schema: &str,
+    table: &str,
+    row: &NewRowValues,
+) -> Result<MysqlMutationSql, String> {
+    for cc in &row.column_values {
+        validate_column_identifier(&cc.column)?;
+    }
+
+    if row.column_values.is_empty() {
+        return Ok(MysqlMutationSql {
+            sql: format!("INSERT INTO `{schema}`.`{table}` VALUES ()"),
+            params: vec![],
+        });
+    }
+
+    let mut params: Vec<Value> = vec![];
+    let mut columns: Vec<String> = vec![];
+    let mut value_parts: Vec<String> = vec![];
+
+    for cc in &row.column_values {
+        columns.push(format!("`{}`", cc.column));
+        if let Some(ref val) = cc.value {
+            value_parts.push("?".to_string());
+            params.push(Value::Bytes(val.as_bytes().to_vec()));
+        } else {
+            value_parts.push("NULL".to_string());
+        }
+    }
+
+    Ok(MysqlMutationSql {
+        sql: format!(
+            "INSERT INTO `{schema}`.`{table}` ({}) VALUES ({})",
+            columns.join(", "),
+            value_parts.join(", ")
+        ),
+        params,
+    })
+}
+
 pub(super) fn build_pg_delete_sql(
     schema: &str,
     table: &str,
@@ -491,7 +589,7 @@ fn build_pg_pk_inline_where<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::data::{ColumnChange, PkCondition};
+    use crate::commands::data::{ColumnChange, NewRowValues, PkCondition};
 
     fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs
@@ -962,6 +1060,116 @@ mod tests {
             build_mysql_delete_preview_sql("app", "people", std::slice::from_ref(&row)),
             "DELETE FROM `app`.`people` WHERE `id` = '7';"
         );
+    }
+
+    fn new_row(sets: Vec<ColumnChange>) -> NewRowValues {
+        NewRowValues {
+            column_values: sets,
+        }
+    }
+
+    #[test]
+    fn pg_insert_sql_uses_casted_params_for_each_column() {
+        let row = new_row(vec![
+            set("name", Some("O'Hara")),
+            set("age", Some("42")),
+            set("nickname", None),
+        ]);
+
+        let sql = build_pg_insert_sql(
+            "public",
+            "people",
+            &row,
+            &map(&[("name", "text"), ("age", "int4")]),
+            &map(&[("name", "text"), ("age", "int4")]),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"INSERT INTO "public"."people" ("name", "age", "nickname") VALUES ($1::text::text, $2::text::int4, NULL)"#
+        );
+        assert_eq!(
+            sql.params,
+            vec!["O'Hara".to_string(), "42".to_string()]
+        );
+    }
+
+    #[test]
+    fn pg_insert_sql_expands_array_columns_to_array_literals() {
+        let row = new_row(vec![set("tags", Some("[1, 2]"))]);
+
+        let sql = build_pg_insert_sql(
+            "public",
+            "people",
+            &row,
+            &map(&[("tags", "_int4")]),
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"INSERT INTO "public"."people" ("tags") VALUES ($1::text::int4[])"#
+        );
+        assert_eq!(sql.params, vec![r#"{"1","2"}"#.to_string()]);
+    }
+
+    #[test]
+    fn pg_insert_sql_uses_default_values_when_no_columns_are_set() {
+        let row = new_row(vec![]);
+
+        let sql = build_pg_insert_sql("public", "people", &row, &HashMap::new(), &HashMap::new())
+            .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"INSERT INTO "public"."people" DEFAULT VALUES"#
+        );
+        assert!(sql.params.is_empty());
+    }
+
+    #[test]
+    fn pg_insert_sql_rejects_unsafe_identifiers() {
+        let row = new_row(vec![set(r#"name" = 'x"#, None)]);
+
+        assert!(
+            build_pg_insert_sql("public", "people", &row, &HashMap::new(), &HashMap::new())
+                .unwrap_err()
+                .contains("Invalid identifier")
+        );
+    }
+
+    #[test]
+    fn mysql_insert_sql_binds_placeholders_for_each_column() {
+        let row = new_row(vec![set("name", Some("O'Hara")), set("nickname", None)]);
+
+        let sql = build_mysql_insert_sql("app", "people", &row).unwrap();
+
+        assert_eq!(
+            sql.sql,
+            "INSERT INTO `app`.`people` (`name`, `nickname`) VALUES (?, NULL)"
+        );
+        assert_eq!(sql.params, vec![bytes("O'Hara")]);
+    }
+
+    #[test]
+    fn mysql_insert_sql_uses_empty_values_when_no_columns_are_set() {
+        let row = new_row(vec![]);
+
+        let sql = build_mysql_insert_sql("app", "people", &row).unwrap();
+
+        assert_eq!(sql.sql, "INSERT INTO `app`.`people` VALUES ()");
+        assert!(sql.params.is_empty());
+    }
+
+    #[test]
+    fn mysql_insert_sql_rejects_unsafe_identifiers() {
+        let row = new_row(vec![set("name` = 'x", None)]);
+
+        assert!(build_mysql_insert_sql("app", "people", &row)
+            .unwrap_err()
+            .contains("Invalid identifier"));
     }
 
     #[test]
