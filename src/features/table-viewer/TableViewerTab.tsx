@@ -1723,7 +1723,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           key={vr.key}
                           role="row"
                           aria-rowindex={vr.index + 2}
-                          className="flex divide-x divide-separator/50 border-b border-separator/50 bg-[color-mix(in_srgb,var(--ds-success)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-success)_12%,transparent)] transition-colors"
+                          className="flex divide-x divide-separator/50 border-b border-separator/50 bg-accent/10 hover:bg-accent/15 transition-colors"
                           style={{
                             position: "absolute",
                             top: vr.start,
@@ -1736,10 +1736,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                             role="gridcell"
                             aria-colindex={1}
                             title="Unsaved new row — click × to discard"
-                            className="sticky left-0 z-10 flex items-center justify-between gap-1 px-1.5 shrink-0 select-none cursor-default border-r border-separator font-mono text-[10px] tabular-nums bg-sidebar text-[var(--ds-success)]"
+                            className="sticky left-0 z-10 flex items-center justify-between gap-1 px-1.5 shrink-0 select-none cursor-default border-r border-separator font-mono text-[10px] tabular-nums bg-sidebar text-accent"
                             style={{ width: gutterWidth, minWidth: gutterWidth, height: rowHeight }}
                           >
-                            <span className="leading-none" aria-label="New row">+</span>
+                            <span className="leading-none" aria-label="New unsaved row">+</span>
                             <button
                               type="button"
                               title="Discard new row"
@@ -1771,7 +1771,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                 className={cn(
                                   "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
                                   isSelected &&
-                                    "ring-2 ring-inset ring-[var(--ds-success)]/60 bg-[color-mix(in_srgb,var(--ds-success)_15%,transparent)]",
+                                    "ring-2 ring-inset ring-accent/60 bg-accent/15",
                                   !editable && "cursor-not-allowed",
                                 )}
                                 style={{
