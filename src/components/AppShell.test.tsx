@@ -129,6 +129,7 @@ function serveFixturePage(_sessionId: string, request: TableQueryRequest): Promi
     page: request.page,
     pageSize: request.pageSize,
     executionMs: 2,
+    hasMore: false,
   });
 }
 
