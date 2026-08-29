@@ -71,6 +71,10 @@ function buildTableRawWhereSql(
 // slow table doesn't look like a stuck one.
 const SLOW_QUERY_NOTICE_MS = 1000;
 
+// One row in the flattened, virtualized grid: either a persisted row (by index
+// into `rows`) or an unsaved draft row rendered right after its source row.
+type DisplayRow = { kind: "data"; rowIdx: number } | { kind: "draft"; draftId: string };
+
 // ─── TableViewerTab ───────────────────────────────────────────────────────────
 
 export function TableViewerTab({ tab }: { tab: Tab }) {
@@ -460,8 +464,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [getColKind],
   );
 
-  // draftId → new-row values, for rows duplicated from an existing row but not yet saved.
-  const [draftRows, setDraftRows] = useState<Map<string, CellValue[]>>(new Map());
+  // draftId → { sourceRowIdx, values }, for rows duplicated from an existing row
+  // but not yet saved. Rendered immediately after their source row.
+  const [draftRows, setDraftRows] = useState<
+    Map<string, { sourceRowIdx: number; values: CellValue[] }>
+  >(new Map());
 
   const duplicateRow = useCallback(
     (rowIdx: number) => {
@@ -478,12 +485,84 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       const draftId = crypto.randomUUID();
       setDraftRows((prev) => {
         const next = new Map(prev);
-        next.set(draftId, values);
+        next.set(draftId, { sourceRowIdx: rowIdx, values });
         return next;
       });
     },
     [rows, columns, getPendingValue],
   );
+
+  const discardDraftRow = useCallback((draftId: string) => {
+    setDraftRows((prev) => {
+      if (!prev.has(draftId)) return prev;
+      const next = new Map(prev);
+      next.delete(draftId);
+      return next;
+    });
+    setSelectedDraftCell((prev) => (prev?.draftId === draftId ? null : prev));
+    setDraftEditingCell((prev) => (prev?.draftId === draftId ? null : prev));
+    setDraftJsonEditorCell((prev) => (prev?.draftId === draftId ? null : prev));
+  }, []);
+
+  // ── Draft row cell editing state (mirrors the persisted-row editing state
+  // above, but writes directly into draftRows since a draft has no "original"
+  // value to diff against) ────────────────────────────────────────────────
+  const [selectedDraftCell, setSelectedDraftCell] = useState<{ draftId: string; col: number } | null>(null);
+  const [draftEditingCell, setDraftEditingCell] = useState<{ draftId: string; col: number } | null>(null);
+  const [draftEditDraft, setDraftEditDraft] = useState<string>("");
+  const [draftJsonEditorCell, setDraftJsonEditorCell] = useState<{ draftId: string; col: number } | null>(null);
+  const draftJsonEditorAnchorRef = useRef<Element | null>(null);
+  const draftEditInputRef = useRef<HTMLInputElement>(null);
+  const skipNextDraftBlurRef = useRef(false);
+
+  useEffect(() => {
+    if (draftEditingCell && draftEditInputRef.current) {
+      draftEditInputRef.current.focus();
+      draftEditInputRef.current.select();
+    }
+  }, [draftEditingCell]);
+
+  const commitDraftCellValue = useCallback((draftId: string, colIdx: number, value: string) => {
+    const normalised: CellValue = value.toLowerCase() === "null" ? { t: "null" } : { t: "text", v: value };
+    setDraftRows((prev) => {
+      const draft = prev.get(draftId);
+      if (!draft) return prev;
+      const next = new Map(prev);
+      const values = [...draft.values];
+      values[colIdx] = normalised;
+      next.set(draftId, { ...draft, values });
+      return next;
+    });
+  }, []);
+
+  const startDraftEdit = useCallback(
+    (draftId: string, colIdx: number, anchorEl?: Element | null) => {
+      const col = columns[colIdx];
+      if (!col) return;
+      const kind = getColKind(col.dataType);
+      if (kind === "none") return;
+      const draft = draftRows.get(draftId);
+      if (!draft) return;
+      const initial = cellToString(draft.values[colIdx] ?? { t: "null" }) ?? "NULL";
+      setSelectedDraftCell({ draftId, col: colIdx });
+      setSelectedCell(null);
+      if (kind === "json" || kind === "array") {
+        draftJsonEditorAnchorRef.current = anchorEl ?? null;
+        setDraftJsonEditorCell({ draftId, col: colIdx });
+        setDraftEditDraft(initial);
+      } else {
+        setDraftEditDraft(initial);
+        setDraftEditingCell({ draftId, col: colIdx });
+      }
+    },
+    [columns, getColKind, draftRows],
+  );
+
+  const cancelDraftEdit = useCallback(() => {
+    setDraftEditingCell(null);
+    setDraftEditDraft("");
+    setDraftJsonEditorCell(null);
+  }, []);
 
   // ── Edit lifecycle ─────────────────────────────────────────────────────────
 
@@ -584,6 +663,33 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
       setSelectedCell({ row: rowIdx, col: next });
     },
     [editingCell, editDraft, rows, commitEditDraft, findNextEditableCol, pendingEdits],
+  );
+
+  // Commit the current draft-row cell edit and optionally move to a different cell.
+  const commitDraftAndAdvance = useCallback(
+    (advance: "next" | "prev" | "none") => {
+      if (!draftEditingCell) return;
+      const { draftId, col: colIdx } = draftEditingCell;
+      commitDraftCellValue(draftId, colIdx, draftEditDraft);
+      if (advance === "none") {
+        setDraftEditingCell(null);
+        setDraftEditDraft("");
+        return;
+      }
+      const next = findNextEditableCol(colIdx, advance === "next" ? 1 : -1);
+      if (next === null) {
+        setDraftEditingCell(null);
+        setDraftEditDraft("");
+        return;
+      }
+      skipNextDraftBlurRef.current = true;
+      const draft = draftRows.get(draftId);
+      const initial = cellToString(draft?.values[next] ?? { t: "null" }) ?? "NULL";
+      setDraftEditDraft(initial);
+      setDraftEditingCell({ draftId, col: next });
+      setSelectedDraftCell({ draftId, col: next });
+    },
+    [draftEditingCell, draftEditDraft, commitDraftCellValue, findNextEditableCol, draftRows],
   );
 
   // ── Save handler ───────────────────────────────────────────────────────────
@@ -788,8 +894,28 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [data, ctx, buildDeleteRequest, pendingEdits, confirm, toast, refetch],
   );
 
+  // Flattened list of grid rows: each persisted row followed immediately by any
+  // draft rows duplicated from it, so draft rows render right after their source.
+  const displayRows = useMemo(() => {
+    const items: DisplayRow[] = [];
+    const draftsBySource = new Map<number, string[]>();
+    draftRows.forEach((draft, draftId) => {
+      const arr = draftsBySource.get(draft.sourceRowIdx) ?? [];
+      arr.push(draftId);
+      draftsBySource.set(draft.sourceRowIdx, arr);
+    });
+    rows.forEach((_, rowIdx) => {
+      items.push({ kind: "data", rowIdx });
+      const drafts = draftsBySource.get(rowIdx);
+      if (drafts) {
+        for (const draftId of drafts) items.push({ kind: "draft", draftId });
+      }
+    });
+    return items;
+  }, [rows, draftRows]);
+
   const rowVirtualizer = useVirtualizer({
-    count: rows.length,
+    count: displayRows.length,
     getScrollElement: () => bodyRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
@@ -814,6 +940,10 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const selectionAnchorRef = useRef<number | null>(null);
   useEffect(() => setSelectedRows(new Set()), [dataUpdatedAt]);
+  // Draft rows are anchored to a source row index, which becomes stale once
+  // the underlying page is refetched — drop them rather than let them drift
+  // to the wrong row.
+  useEffect(() => setDraftRows(new Map()), [dataUpdatedAt]);
 
   // fromGutter: plain click selects only that row (spreadsheet semantics);
   // cell-based gestures (shift/cmd-click on cells) keep toggle behavior.
@@ -1582,9 +1712,126 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                   }}
                 >
                   {rowVirtualizer.getVirtualItems().map((vr) => {
-                    const rowData = rows[vr.index];
-                    const rowHasEdits = pendingEdits.has(vr.index);
-                    const rowSelected = selectedRows.has(vr.index);
+                    const item = displayRows[vr.index];
+                    if (!item) return null;
+
+                    if (item.kind === "draft") {
+                      const draft = draftRows.get(item.draftId);
+                      if (!draft) return null;
+                      return (
+                        <div
+                          key={vr.key}
+                          role="row"
+                          aria-rowindex={vr.index + 2}
+                          className="flex divide-x divide-separator/50 border-b border-separator/50 bg-[color-mix(in_srgb,var(--ds-success)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-success)_12%,transparent)] transition-colors"
+                          style={{
+                            position: "absolute",
+                            top: vr.start,
+                            height: rowHeight,
+                            width: "100%",
+                          }}
+                        >
+                          {/* Row-number gutter cell — draft rows have no persisted number yet */}
+                          <div
+                            role="gridcell"
+                            aria-colindex={1}
+                            title="Unsaved new row — click × to discard"
+                            className="sticky left-0 z-10 flex items-center justify-between gap-1 px-1.5 shrink-0 select-none cursor-default border-r border-separator font-mono text-[10px] tabular-nums bg-sidebar text-[var(--ds-success)]"
+                            style={{ width: gutterWidth, minWidth: gutterWidth, height: rowHeight }}
+                          >
+                            <span className="leading-none" aria-label="New row">+</span>
+                            <button
+                              type="button"
+                              title="Discard new row"
+                              onClick={() => discardDraftRow(item.draftId)}
+                              className="text-tertiary hover:text-destructive transition-colors cursor-default"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                          {displayColumnIndexes.map((ci, pos) => {
+                            const col = columns[ci];
+                            if (!col) return null;
+
+                            const isSelected =
+                              selectedDraftCell?.draftId === item.draftId &&
+                              selectedDraftCell?.col === ci;
+                            const isEditing =
+                              draftEditingCell?.draftId === item.draftId &&
+                              draftEditingCell?.col === ci;
+                            const editable = isColEditable(col.dataType);
+                            const displayCell: CellValue = draft.values[ci] ?? { t: "null" };
+                            return (
+                              <div
+                                key={col.name}
+                                role="gridcell"
+                                aria-colindex={pos + 2}
+                                aria-selected={isSelected}
+                                tabIndex={-1}
+                                className={cn(
+                                  "relative flex items-center px-2 overflow-hidden shrink-0 cursor-default",
+                                  isSelected &&
+                                    "ring-2 ring-inset ring-[var(--ds-success)]/60 bg-[color-mix(in_srgb,var(--ds-success)_15%,transparent)]",
+                                  !editable && "cursor-not-allowed",
+                                )}
+                                style={{
+                                  width: colWidths[col.name] ?? COL_WIDTH,
+                                  minWidth: colWidths[col.name] ?? COL_WIDTH,
+                                  height: rowHeight,
+                                }}
+                                onClick={() => {
+                                  setSelectedDraftCell({ draftId: item.draftId, col: ci });
+                                  setSelectedCell(null);
+                                }}
+                                onDoubleClick={(e) => {
+                                  if (editable) startDraftEdit(item.draftId, ci, e.currentTarget);
+                                }}
+                              >
+                                {isEditing ? (
+                                  <input
+                                    aria-label="Edit new row cell value"
+                                    ref={draftEditInputRef}
+                                    type="text"
+                                    value={draftEditDraft}
+                                    onChange={(e) => setDraftEditDraft(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        cancelDraftEdit();
+                                      } else if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        commitDraftAndAdvance("none");
+                                      } else if (e.key === "Tab") {
+                                        e.preventDefault();
+                                        commitDraftAndAdvance(e.shiftKey ? "prev" : "next");
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      if (skipNextDraftBlurRef.current) {
+                                        skipNextDraftBlurRef.current = false;
+                                        return;
+                                      }
+                                      commitDraftAndAdvance("none");
+                                    }}
+                                    className="w-full bg-transparent text-xs text-label outline-none font-mono"
+                                  />
+                                ) : (
+                                  <CellRenderer
+                                    cell={displayCell}
+                                    isEnum={enumCols.has(ci)}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    const rowIdx = item.rowIdx;
+                    const rowData = rows[rowIdx];
+                    const rowHasEdits = pendingEdits.has(rowIdx);
+                    const rowSelected = selectedRows.has(rowIdx);
                     return (
                       <div
                         key={vr.key}
@@ -1592,7 +1839,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                         aria-rowindex={vr.index + 2}
                         className={cn(
                           "flex divide-x divide-separator/50 border-b border-separator/50 hover:bg-subtle/60 transition-colors",
-                          vr.index % 2 === 1 && "bg-subtle/30",
+                          rowIdx % 2 === 1 && "bg-subtle/30",
                           rowSelected && "bg-accent/10 hover:bg-accent/15",
                           rowHasEdits &&
                             "bg-[color-mix(in_srgb,var(--ds-warning)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--ds-warning)_12%,transparent)]",
@@ -1613,7 +1860,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               ? "Unsaved changes — click to select row"
                               : "Click to select row (⇧ range, ⌘ toggle)"
                           }
-                          onClick={(e) => handleRowSelectClick(vr.index, e, true)}
+                          onClick={(e) => handleRowSelectClick(rowIdx, e, true)}
                           className={cn(
                             "sticky left-0 z-10 flex items-center justify-end gap-1 px-1.5 shrink-0 select-none cursor-default",
                             "border-r border-separator font-mono text-[10px] tabular-nums",
@@ -1628,19 +1875,19 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               ●
                             </span>
                           )}
-                          {firstRowNumber + vr.index}
+                          {firstRowNumber + rowIdx}
                         </div>
                         {displayColumnIndexes.map((ci, pos) => {
                           const col = columns[ci];
                           if (!col) return null;
 
                           const isSelected =
-                            selectedCell?.row === vr.index &&
+                            selectedCell?.row === rowIdx &&
                             selectedCell?.col === ci;
                           const isEditing =
-                            editingCell?.row === vr.index &&
+                            editingCell?.row === rowIdx &&
                             editingCell?.col === ci;
-                          const pending = getPendingValue(vr.index, ci);
+                          const pending = getPendingValue(rowIdx, ci);
                           const isEdited = pending.has;
                           const editable = isColEditable(col.dataType);
                           // Cell to render: pending edit overrides original
@@ -1652,7 +1899,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                           return (
                             <div
                               key={col.name}
-                              id={cellDomId(vr.index, ci)}
+                              id={cellDomId(rowIdx, ci)}
                               role="gridcell"
                               aria-colindex={pos + 2}
                               aria-selected={isSelected}
@@ -1674,22 +1921,22 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                               onClick={(e) => {
                                 if (e.shiftKey || e.metaKey || e.ctrlKey) {
                                   e.preventDefault();
-                                  handleRowSelectClick(vr.index, e);
+                                  handleRowSelectClick(rowIdx, e);
                                   return;
                                 }
                                 if (selectedRows.size > 0) setSelectedRows(new Set());
-                                setSelectedCell({ row: vr.index, col: ci });
+                                setSelectedCell({ row: rowIdx, col: ci });
                               }}
                               onDoubleClick={(e) => {
-                                if (editable) startEdit(vr.index, ci, e.currentTarget);
+                                if (editable) startEdit(rowIdx, ci, e.currentTarget);
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                setSelectedCell({ row: vr.index, col: ci });
+                                setSelectedCell({ row: rowIdx, col: ci });
                                 setCellMenu({
                                   rowData,
-                                  rowIdx: vr.index,
+                                  rowIdx,
                                   colIdx: ci,
                                   x: e.clientX,
                                   y: e.clientY,
@@ -1740,11 +1987,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                                   className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-secondary hover:text-primary transition-colors cursor-default"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    copyCell(vr.index, ci, data!.rows);
+                                    copyCell(rowIdx, ci, data!.rows);
                                   }}
                                   tabIndex={-1}
                                 >
-                                  {copiedCell?.row === vr.index && copiedCell?.col === ci
+                                  {copiedCell?.row === rowIdx && copiedCell?.col === ci
                                     ? <ClipboardCheck size={12} className="text-accent" />
                                     : <ClipboardCopy size={12} />}
                                 </button>
@@ -1879,6 +2126,30 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             onCancel={() => {
               setJsonEditorCell(null);
               setEditDraft("");
+            }}
+          />
+        );
+      })()}
+
+      {/* JSON / Array inline editor popover — draft rows */}
+      {draftJsonEditorCell !== null && (() => {
+        const col = columns[draftJsonEditorCell.col];
+        if (!col) return null;
+        const kind = getColKind(col.dataType);
+        if (kind !== "json" && kind !== "array") return null;
+        return (
+          <JsonArrayEditor
+            kind={kind}
+            anchorEl={draftJsonEditorAnchorRef.current}
+            initialValue={draftEditDraft}
+            onCommit={(value) => {
+              commitDraftCellValue(draftJsonEditorCell.draftId, draftJsonEditorCell.col, value);
+              setDraftJsonEditorCell(null);
+              setDraftEditDraft("");
+            }}
+            onCancel={() => {
+              setDraftJsonEditorCell(null);
+              setDraftEditDraft("");
             }}
           />
         );
