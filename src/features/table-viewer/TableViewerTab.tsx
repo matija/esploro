@@ -128,7 +128,13 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   const [isSaving, setIsSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
-  const hasPendingEdits = pendingEdits.size > 0;
+  // draftId → { sourceRowIdx, values }, for rows duplicated from an existing row
+  // but not yet saved. Rendered immediately after their source row.
+  const [draftRows, setDraftRows] = useState<
+    Map<string, { sourceRowIdx: number; values: CellValue[] }>
+  >(new Map());
+
+  const hasPendingEdits = pendingEdits.size > 0 || draftRows.size > 0;
 
   const totalPendingChanges = useMemo(() => {
     let count = 0;
@@ -463,12 +469,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     (dataType: string): boolean => getColKind(dataType) !== "none",
     [getColKind],
   );
-
-  // draftId → { sourceRowIdx, values }, for rows duplicated from an existing row
-  // but not yet saved. Rendered immediately after their source row.
-  const [draftRows, setDraftRows] = useState<
-    Map<string, { sourceRowIdx: number; values: CellValue[] }>
-  >(new Map());
 
   const duplicateRow = useCallback(
     (rowIdx: number) => {
@@ -2017,6 +2017,11 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             {totalPendingChanges} unsaved change{totalPendingChanges === 1 ? "" : "s"}
             {pendingEdits.size > 1 && (
               <span className="text-secondary"> in {pendingEdits.size} rows</span>
+            )}
+            {draftRows.size > 0 && (
+              <span className="text-secondary">
+                , {draftRows.size} new row{draftRows.size === 1 ? "" : "s"}
+              </span>
             )}
           </span>
           <div className="flex items-center gap-2">
