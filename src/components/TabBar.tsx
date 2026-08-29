@@ -3,11 +3,28 @@ import { createPortal } from "react-dom";
 import { X, Loader2, Database, Terminal, Settings, AlertCircle, User, Layers } from "lucide-react";
 import { useAppStore, type Tab } from "../store";
 import { cn, truncateSmart } from "../lib/utils";
+import { useConfirm } from "./ConfirmDialog";
 
 type ContextMenuState = { tab: Tab; x: number; y: number };
 
 const menuItemClass =
   "flex w-full items-center px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors duration-[var(--motion-fast)] text-left disabled:opacity-40 disabled:cursor-not-allowed";
+
+// Prompts to discard unsaved edits (including draft rows, reflected in tab.isDirty)
+// before closing a dirty tab. Resolves true if it's safe to proceed.
+async function guardTabClose(
+  tab: Tab,
+  confirm: ReturnType<typeof useConfirm>,
+): Promise<boolean> {
+  if (!tab.isDirty) return true;
+  return confirm({
+    title: "Discard unsaved changes?",
+    description: `"${tab.title}" has unsaved changes. They will be lost if you close it.`,
+    confirmLabel: "Discard",
+    cancelLabel: "Cancel",
+    destructive: true,
+  });
+}
 
 function TabContextMenu({
   menu,
@@ -19,6 +36,7 @@ function TabContextMenu({
   onClose: () => void;
 }) {
   const { closeTab, closeOtherTabs, closeTabsToRight } = useAppStore();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const onDown = () => onClose();
@@ -46,9 +64,11 @@ function TabContextMenu({
     >
       <button
         type="button"
-        onClick={() => {
-          closeTab(tab.id);
+        onClick={async () => {
           onClose();
+          if (await guardTabClose(tab, confirm)) {
+            closeTab(tab.id);
+          }
         }}
         className={menuItemClass}
       >
@@ -122,6 +142,7 @@ function TabItem({
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
   const { setActiveTab, closeTab } = useAppStore();
+  const confirm = useConfirm();
 
   return (
     <div
@@ -163,9 +184,11 @@ function TabItem({
       )}
       <button
         type="button"
-        onClick={(e) => {
+        onClick={async (e) => {
           e.stopPropagation();
-          closeTab(tab.id);
+          if (await guardTabClose(tab, confirm)) {
+            closeTab(tab.id);
+          }
         }}
         className={cn(
           "rounded p-0.5 transition-colors duration-[var(--motion-fast)] shrink-0 ml-0.5",

@@ -162,6 +162,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
   const discardEdits = useCallback(() => {
     setPendingEdits(new Map());
+    setDraftRows(new Map());
     setEditingCell(null);
     setJsonEditorCell(null);
   }, []);
