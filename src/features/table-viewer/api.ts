@@ -3,6 +3,8 @@ import { normalizeError } from "../../lib/ipc";
 import type {
   DeleteRowResult,
   DeleteRowsRequest,
+  InsertRowResult,
+  InsertRowsRequest,
   TableCountResult,
   TableQueryRequest,
   TableQueryResult,
@@ -59,5 +61,11 @@ export const tableApi = {
   },
   previewDeleteRowsSql(sessionId: string, request: DeleteRowsRequest): Promise<string> {
     return normalizeCommandError(commands.previewDeleteRowsSql(sessionId, request));
+  },
+  insertRows(sessionId: string, request: InsertRowsRequest): Promise<InsertRowResult[]> {
+    return normalizeCommandError(commands.insertRows(sessionId, request));
+  },
+  previewInsertRowsSql(sessionId: string, request: InsertRowsRequest): Promise<string> {
+    return normalizeCommandError(commands.previewInsertRowsSql(sessionId, request));
   },
 };

@@ -17,6 +17,8 @@ export const commands = {
 	previewUpdateRowsSql: (sessionId: string, request: UpdateRowsRequest) => __TAURI_INVOKE<string>("preview_update_rows_sql", { sessionId, request }),
 	deleteRows: (sessionId: string, request: DeleteRowsRequest) => __TAURI_INVOKE<DeleteRowResult[]>("delete_rows", { sessionId, request }),
 	previewDeleteRowsSql: (sessionId: string, request: DeleteRowsRequest) => __TAURI_INVOKE<string>("preview_delete_rows_sql", { sessionId, request }),
+	insertRows: (sessionId: string, request: InsertRowsRequest) => __TAURI_INVOKE<InsertRowResult[]>("insert_rows", { sessionId, request }),
+	previewInsertRowsSql: (sessionId: string, request: InsertRowsRequest) => __TAURI_INVOKE<string>("preview_insert_rows_sql", { sessionId, request }),
 	executeSql: (sessionId: string, sql: string) => __TAURI_INVOKE<QueryResult[]>("execute_sql", { sessionId, sql }),
 	saveQuery: (id: string | null, name: string, folder: string | null, sql: string) => __TAURI_INVOKE<string>("save_query", { id, name, folder, sql }),
 	listSavedQueries: () => __TAURI_INVOKE<SavedQuery[]>("list_saved_queries"),
@@ -193,6 +195,17 @@ export type FunctionSummary = {
 	resultType: string,
 };
 
+export type InsertRowResult = {
+	sql: string,
+	error: string | null,
+};
+
+export type InsertRowsRequest = {
+	schema: string,
+	table: string,
+	rows: NewRowValues[],
+};
+
 export type JsonValue = "Null" | boolean | number | null | string | JsonValue[] | { [key in string]: JsonValue };
 
 export type LicenseStatus = {
@@ -217,6 +230,10 @@ export type MembershipResult = {
 	role: string,
 	member: string,
 	error: string | null,
+};
+
+export type NewRowValues = {
+	columnValues: ColumnChange[],
 };
 
 export type PkCondition = {

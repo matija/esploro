@@ -25,6 +25,7 @@ import {
   type RowChange,
   type DeleteRowRequest,
   type EditableKind,
+  type NewRowValues,
   OP_LABELS,
   cellToString,
   detectEnumColumns,
@@ -733,33 +734,87 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     return changes;
   }, [data, pendingEdits, columns, ctids]);
 
+  // Build the NewRowValues[] payload from draftRows, paired with the draftId
+  // each entry came from so results (returned in the same order) can be
+  // matched back to the row that produced them. A primary key still holding
+  // its cleared-on-duplicate NULL is omitted entirely so the database assigns
+  // it (e.g. via a serial default) instead of receiving an explicit NULL.
+  const buildInsertRows = useCallback((): { draftId: string; row: NewRowValues }[] => {
+    return Array.from(draftRows.entries()).map(([draftId, draft]) => {
+      const columnValues = columns
+        .map((col, colIdx) => ({ col, cell: draft.values[colIdx] ?? { t: "null" as const } }))
+        .filter(({ col, cell }) => !(col.isPrimaryKey && cell.t === "null"))
+        .map(({ col, cell }) => ({ column: col.name, value: cellToString(cell) }));
+      return { draftId, row: { columnValues } };
+    });
+  }, [draftRows, columns]);
+
   const handleSave = useCallback(async () => {
-    if (!data || !ctx || pendingEdits.size === 0) return;
+    if (!data || !ctx || (pendingEdits.size === 0 && draftRows.size === 0)) return;
     setIsSaving(true);
     try {
       const changes = buildRowChanges();
+      const inserts = buildInsertRows();
+      let anySucceeded = false;
+      const failedErrors: string[] = [];
 
-      await withSessionRetry(ctx.connectionId, (sid) =>
-        tableApi.updateRows(sid, {
-          schema: ctx.schema,
-          table: ctx.table,
-          changes,
-        }),
-        toast,
-      );
+      if (changes.length > 0) {
+        await withSessionRetry(ctx.connectionId, (sid) =>
+          tableApi.updateRows(sid, {
+            schema: ctx.schema,
+            table: ctx.table,
+            changes,
+          }),
+          toast,
+        );
+        anySucceeded = true;
+        const n = totalPendingChanges;
+        setPendingEdits(new Map());
+        setEditingCell(null);
+        setEditDraft("");
+        toast(`Saved ${n} change${n === 1 ? "" : "s"}`, "success");
+      }
 
-      const n = totalPendingChanges;
-      setPendingEdits(new Map());
-      setEditingCell(null);
-      setEditDraft("");
-      toast(`Saved ${n} change${n === 1 ? "" : "s"}`, "success");
-      await refetch();
+      if (inserts.length > 0) {
+        const results = await withSessionRetry(ctx.connectionId, (sid) =>
+          tableApi.insertRows(sid, {
+            schema: ctx.schema,
+            table: ctx.table,
+            rows: inserts.map((i) => i.row),
+          }),
+          toast,
+        );
+
+        const succeededIds = new Set<string>();
+        results.forEach((result, i) => {
+          const { draftId } = inserts[i];
+          if (result.error) {
+            failedErrors.push(result.error);
+          } else {
+            succeededIds.add(draftId);
+          }
+        });
+
+        if (succeededIds.size > 0) {
+          anySucceeded = true;
+          setDraftRows((prev) => {
+            const next = new Map(prev);
+            succeededIds.forEach((id) => next.delete(id));
+            return next;
+          });
+          const n = succeededIds.size;
+          toast(`Inserted ${n} row${n === 1 ? "" : "s"}`, "success");
+        }
+        failedErrors.forEach((err) => toast(`Insert failed: ${err}`, "error"));
+      }
+
+      if (anySucceeded) await refetch();
     } catch (e) {
       toast(`Save failed: ${e instanceof Error ? e.message : String(e)}`, "error");
     } finally {
       setIsSaving(false);
     }
-  }, [data, ctx, pendingEdits, buildRowChanges, totalPendingChanges, toast, refetch]);
+  }, [data, ctx, pendingEdits, draftRows, buildRowChanges, buildInsertRows, totalPendingChanges, toast, refetch]);
 
   // ── Open as SQL handler ────────────────────────────────────────────────────
   // Pending edits are kept; user can run the SQL from the new tab, then click
