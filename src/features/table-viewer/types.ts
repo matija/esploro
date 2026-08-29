@@ -31,6 +31,50 @@ export function cellToString(cell: CellValue): string | null {
   return String(cell.v);
 }
 
+// Converts a PostgreSQL array text literal (e.g. `{1,2,3}`, `{}`, `{"a","b"}`)
+// into the JSON array syntax the row-mutation SQL builders and JsonArrayEditor
+// expect (e.g. `[1,2,3]`). Array columns are fetched via `::text` cast, so a
+// duplicated row's untouched array cell holds this literal form rather than
+// JSON — without converting it, sending it straight through as an insert
+// value produces invalid JSON (e.g. `{}` parses as an empty object, not an
+// array).
+export function pgArrayLiteralToJson(literal: string): string {
+  const s = literal.trim();
+  if (!s.startsWith("{") || !s.endsWith("}")) return literal;
+  const inner = s.slice(1, -1);
+  const elements: (string | null)[] = [];
+  let i = 0;
+  while (i < inner.length) {
+    if (inner[i] === ",") {
+      i++;
+      continue;
+    }
+    if (inner[i] === '"') {
+      let val = "";
+      i++;
+      while (i < inner.length && inner[i] !== '"') {
+        if (inner[i] === "\\" && i + 1 < inner.length) {
+          val += inner[i + 1];
+          i += 2;
+        } else {
+          val += inner[i];
+          i++;
+        }
+      }
+      i++; // closing quote
+      elements.push(val);
+    } else {
+      let val = "";
+      while (i < inner.length && inner[i] !== ",") {
+        val += inner[i];
+        i++;
+      }
+      elements.push(val === "NULL" ? null : val);
+    }
+  }
+  return JSON.stringify(elements);
+}
+
 export type EditableKind = "scalar" | "json" | "array" | "none";
 
 export function editableKind(udt: string, driver: "postgres" | "mysql"): EditableKind {

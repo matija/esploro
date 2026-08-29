@@ -28,6 +28,7 @@ import {
   type NewRowValues,
   OP_LABELS,
   cellToString,
+  pgArrayLiteralToJson,
   detectEnumColumns,
   editableKind,
   getIdentifierFirstColumnIndexes,
@@ -482,7 +483,15 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         if (pending.has) {
           return pending.value === null ? { t: "null" } : { t: "text", v: pending.value };
         }
-        return sourceRow[colIdx] ?? { t: "null" };
+        const cell = sourceRow[colIdx] ?? { t: "null" };
+        // Array columns are fetched as raw PostgreSQL array literal text
+        // (e.g. `{1,2}`), not JSON — convert so the duplicated row's insert
+        // SQL and any later edit via JsonArrayEditor see valid JSON syntax.
+        if (getColKind(col.dataType) === "array" && cell.t !== "null") {
+          const raw = cellToString(cell);
+          return raw === null ? { t: "null" } : { t: "text", v: pgArrayLiteralToJson(raw) };
+        }
+        return cell;
       });
       const draftId = crypto.randomUUID();
       setDraftRows((prev) => {
@@ -491,7 +500,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
         return next;
       });
     },
-    [rows, columns, getPendingValue],
+    [rows, columns, getPendingValue, getColKind],
   );
 
   const discardDraftRow = useCallback((draftId: string) => {
