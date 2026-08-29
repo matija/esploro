@@ -1890,6 +1890,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           rowData={cellMenu.rowData}
           columns={columns}
           colIdx={cellMenu.colIdx}
+          rowIdx={cellMenu.rowIdx}
           x={cellMenu.x}
           y={cellMenu.y}
           onClose={() => setCellMenu(null)}
@@ -1901,6 +1902,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                 : [cellMenu.rowIdx],
             )
           }
+          onDuplicateRow={duplicateRow}
           canDelete={columns.some((c) => c.isPrimaryKey) || !!ctids[cellMenu.rowIdx]}
         />
       )}

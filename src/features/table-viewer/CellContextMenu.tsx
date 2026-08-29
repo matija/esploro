@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Filter, Trash2 } from "lucide-react";
+import { Copy, Filter, Trash2 } from "lucide-react";
 import type { CellValue, ResultColumn } from "./types";
 import { cellToString } from "./types";
 import { useClampedMenuPosition } from "./useClampedMenuPosition";
@@ -11,9 +11,11 @@ export function CellContextMenu({
   colIdx,
   x,
   y,
+  rowIdx,
   onClose,
   onFilterByValue,
   onDeleteRow,
+  onDuplicateRow,
   canDelete,
 }: {
   rowData: CellValue[];
@@ -21,9 +23,11 @@ export function CellContextMenu({
   colIdx: number;
   x: number;
   y: number;
+  rowIdx: number;
   onClose: () => void;
   onFilterByValue: (colName: string, value: string | null) => void;
   onDeleteRow: () => void;
+  onDuplicateRow: (rowIdx: number) => void;
   canDelete: boolean;
 }) {
   const { ref: menuRef, pos } = useClampedMenuPosition(x, y);
@@ -87,6 +91,11 @@ export function CellContextMenu({
   const deleteRow = () => {
     if (!canDelete) return;
     onDeleteRow();
+    onClose();
+  };
+
+  const duplicateRow = () => {
+    onDuplicateRow(rowIdx);
     onClose();
   };
 
@@ -158,6 +167,14 @@ export function CellContextMenu({
         </button>
       )}
       <div className="my-1 border-t border-separator" />
+      <button
+        type="button"
+        onClick={duplicateRow}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-label hover:bg-hover transition-colors text-left"
+      >
+        <Copy size={10} className="text-secondary shrink-0" />
+        <span>Duplicate row</span>
+      </button>
       <button
         type="button"
         onClick={deleteRow}
