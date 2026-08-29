@@ -26,6 +26,8 @@ vi.mock("./api", () => ({
     previewUpdateRowsSql: () => Promise.resolve(""),
     deleteRows: () => Promise.resolve([]),
     previewDeleteRowsSql: () => Promise.resolve(""),
+    insertRows: () => Promise.resolve([]),
+    previewInsertRowsSql: () => Promise.resolve(""),
   },
 }));
 

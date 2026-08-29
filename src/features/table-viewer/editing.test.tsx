@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "../../components/Toast";
 import { ConfirmProvider } from "../../components/ConfirmDialog";
@@ -11,6 +11,8 @@ import type {
   CellValue,
   DeleteRowResult,
   DeleteRowsRequest,
+  InsertRowResult,
+  InsertRowsRequest,
   ResultColumn,
   TableQueryRequest,
   TableQueryResult,
@@ -26,6 +28,8 @@ const queryTableData = vi.fn<(sessionId: string, request: TableQueryRequest) => 
 const queryTableCount = vi.fn<(sessionId: string, request: TableQueryRequest) => Promise<{ count: number; isEstimate: boolean }>>();
 const deleteRows = vi.fn<(sessionId: string, request: DeleteRowsRequest) => Promise<DeleteRowResult[]>>();
 const previewDeleteRowsSql = vi.fn<(sessionId: string, request: DeleteRowsRequest) => Promise<string>>();
+const insertRows = vi.fn<(sessionId: string, request: InsertRowsRequest) => Promise<InsertRowResult[]>>();
+const previewInsertRowsSql = vi.fn<(sessionId: string, request: InsertRowsRequest) => Promise<string>>();
 
 vi.mock("./api", () => ({
   tableApi: {
@@ -36,6 +40,9 @@ vi.mock("./api", () => ({
     deleteRows: (sessionId: string, request: DeleteRowsRequest) => deleteRows(sessionId, request),
     previewDeleteRowsSql: (sessionId: string, request: DeleteRowsRequest) =>
       previewDeleteRowsSql(sessionId, request),
+    insertRows: (sessionId: string, request: InsertRowsRequest) => insertRows(sessionId, request),
+    previewInsertRowsSql: (sessionId: string, request: InsertRowsRequest) =>
+      previewInsertRowsSql(sessionId, request),
   },
 }));
 
@@ -220,6 +227,23 @@ async function clickGutter(
   await user.keyboard(`{/${modifier}}`);
 }
 
+function columnHeader(name: string): HTMLElement {
+  const header = screen.getByTitle(`Filter by ${name}`).closest('[role="columnheader"]');
+  if (!header) throw new Error(`no column header for ${name}`);
+  return header as HTMLElement;
+}
+
+/** Opens the cell context menu on a body cell, the way a right-click does. */
+function openCellMenu(rowIdx: number, colIdx: number) {
+  fireEvent.contextMenu(cell(rowIdx, colIdx));
+}
+
+/** Duplicates a row via its context menu, the way a user does. */
+async function duplicateRowViaMenu(user: ReturnType<typeof userEvent.setup>, rowIdx: number) {
+  openCellMenu(rowIdx, 1);
+  await user.click(screen.getByRole("button", { name: "Duplicate row" }));
+}
+
 beforeAll(() => {
   // Radix popovers and dialogs position through floating-ui, which observes
   // its elements.
@@ -242,6 +266,14 @@ beforeEach(() => {
   previewDeleteRowsSql.mockReset();
   previewDeleteRowsSql.mockResolvedValue(
     `DELETE FROM "public"."users" WHERE "id" = 1;`,
+  );
+  insertRows.mockReset();
+  insertRows.mockImplementation((_sessionId, request) =>
+    Promise.resolve(request.rows.map(() => ({ sql: "INSERT …", error: null }))),
+  );
+  previewInsertRowsSql.mockReset();
+  previewInsertRowsSql.mockResolvedValue(
+    `INSERT INTO "public"."users" ("email") VALUES ('user1@example.com');`,
   );
   useAppStore.setState({
     profiles: [PROFILE],
@@ -549,5 +581,125 @@ describe("row deletion", () => {
     await waitFor(() => expect(deleteRows).toHaveBeenCalledTimes(1));
     expect(await screen.findByText(/violates foreign key constraint/)).toBeDefined();
     expect(screen.queryByText("Row deleted")).toBe(null);
+  });
+});
+
+// ─── Duplicate row ───────────────────────────────────────────────────────────
+
+describe("duplicate row", () => {
+  it("creates a visually distinct row right after the source, with the PK cell empty", async () => {
+    const user = await renderTableViewer();
+
+    await duplicateRowViaMenu(user, 0);
+
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+    const draftRow = bodyRows()[1];
+    expect(within(draftRow).getByLabelText("New unsaved row")).toBeDefined();
+    expect(draftRow.className).toContain("bg-accent");
+    // PK is cleared so the database assigns it — rendered as the NULL badge.
+    expect(cell(1, 1).textContent).toBe("NULL");
+    // Non-PK columns carry over the source row's values.
+    expect(cell(1, 2).textContent).toBe("user1@example.com");
+    expect(cell(1, 3).textContent).toBe("2026-01-01T00:00:01Z");
+    // The source row itself is untouched.
+    expect(cell(0, 1).textContent).toBe("1");
+  });
+
+  it("edits a draft row's cells the same way as a persisted row", async () => {
+    const user = await renderTableViewer();
+    await duplicateRowViaMenu(user, 0);
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+
+    await user.dblClick(cell(1, 2));
+    const input = await screen.findByLabelText("Edit new row cell value");
+    expect((input as HTMLInputElement).value).toBe("user1@example.com");
+    await user.clear(input);
+    await user.type(input, "duplicate@example.com{Enter}");
+
+    await waitFor(() => expect(screen.queryByLabelText("Edit new row cell value")).toBe(null));
+    expect(cell(1, 2).textContent).toBe("duplicate@example.com");
+  });
+
+  it("reflects draft rows in the unsaved bar", async () => {
+    const user = await renderTableViewer();
+
+    await duplicateRowViaMenu(user, 0);
+
+    expect(await screen.findByText(/1 new row/)).toBeDefined();
+    expect(screen.getByRole("button", { name: /Save/ })).toBeDefined();
+  });
+
+  it("invokes insertRows on Save and removes the draft on success", async () => {
+    const user = await renderTableViewer();
+    await duplicateRowViaMenu(user, 0);
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+
+    await user.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() => expect(insertRows).toHaveBeenCalledTimes(1));
+    expect(insertRows.mock.calls[0]).toEqual([
+      "session-1",
+      {
+        schema: "public",
+        table: "users",
+        rows: [
+          {
+            columnValues: [
+              { column: "email", value: "user1@example.com" },
+              { column: "created_at", value: "2026-01-01T00:00:01Z" },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(await screen.findByText("Inserted 1 row")).toBeDefined();
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS));
+    expect(screen.queryByText(/new row/)).toBe(null);
+  });
+
+  it("keeps the draft and surfaces the error when its insert fails", async () => {
+    insertRows.mockResolvedValue([
+      { sql: "INSERT …", error: "duplicate key value violates unique constraint" },
+    ]);
+    const user = await renderTableViewer();
+    await duplicateRowViaMenu(user, 0);
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+
+    await user.click(screen.getByRole("button", { name: /Save/ }));
+
+    await waitFor(() => expect(insertRows).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/duplicate key value violates unique constraint/)).toBeDefined();
+    // The failed draft survives so the user can fix and retry.
+    expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1);
+    expect(screen.getByText(/1 new row/)).toBeDefined();
+  });
+
+  it("clears drafts when Discard is clicked", async () => {
+    const user = await renderTableViewer();
+    await duplicateRowViaMenu(user, 0);
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS));
+    expect(screen.queryByText(/new row/)).toBe(null);
+    expect(insertRows).not.toHaveBeenCalled();
+  });
+
+  it("fires the navigation guard when a draft row is pending", async () => {
+    const user = await renderTableViewer();
+    await duplicateRowViaMenu(user, 0);
+    await waitFor(() => expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1));
+
+    await user.click(columnHeader("email"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Discard unsaved changes?")).toBeDefined();
+
+    // Cancelling leaves the draft in place.
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBe(null));
+    expect(bodyRows()).toHaveLength(TOTAL_ROWS + 1);
   });
 });
