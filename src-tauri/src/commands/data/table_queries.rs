@@ -493,7 +493,10 @@ mod tests {
 
         let wire = tagged(&cell);
         assert_eq!(wire["t"], "truncated");
-        assert!(wire["v"]["value"].as_str().unwrap().starts_with(r#"{"k":"b"#));
+        assert!(wire["v"]["value"]
+            .as_str()
+            .unwrap()
+            .starts_with(r#"{"k":"b"#));
         assert_eq!(
             wire["v"]["value"].as_str().unwrap().len(),
             MAX_CELL_VALUE_BYTES

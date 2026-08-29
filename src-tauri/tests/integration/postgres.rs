@@ -28,9 +28,7 @@ async fn schema_introspection_and_row_mutations_round_trip() {
     // frontend calls.
     let create = data::execute_sql(
         session_id.clone(),
-        format!(
-            "CREATE TABLE public.\"{table}\" (id serial primary key, name text not null)"
-        ),
+        format!("CREATE TABLE public.\"{table}\" (id serial primary key, name text not null)"),
         state.clone(),
     )
     .await
@@ -39,9 +37,14 @@ async fn schema_introspection_and_row_mutations_round_trip() {
 
     // Schema introspection: the freshly created table must show up, with the
     // `id` column recognised as the primary key.
-    let objects = schema::list_objects(session_id.clone(), database.clone(), "public".into(), state.clone())
-        .await
-        .expect("list_objects failed");
+    let objects = schema::list_objects(
+        session_id.clone(),
+        database.clone(),
+        "public".into(),
+        state.clone(),
+    )
+    .await
+    .expect("list_objects failed");
     let table_names: Vec<&str> = objects.tables.iter().map(|t| t.name.as_str()).collect();
     assert!(
         table_names.contains(&table.as_str()),
@@ -124,10 +127,14 @@ async fn schema_introspection_and_row_mutations_round_trip() {
         .await
         .expect("update_rows failed");
 
-    let after_update = data::query_table_data(session_id.clone(), query_request.clone(), state.clone())
-        .await
-        .expect("query_table_data after update failed");
-    assert_eq!(cell_as_string(&after_update.rows[0][name_idx]), "alpha-updated");
+    let after_update =
+        data::query_table_data(session_id.clone(), query_request.clone(), state.clone())
+            .await
+            .expect("query_table_data after update failed");
+    assert_eq!(
+        cell_as_string(&after_update.rows[0][name_idx]),
+        "alpha-updated"
+    );
 
     // delete_rows: remove the row we just updated and confirm the count drops.
     let delete_request = DeleteRowsRequest {
@@ -144,7 +151,10 @@ async fn schema_introspection_and_row_mutations_round_trip() {
     let delete_results = data::delete_rows(session_id.clone(), delete_request, state.clone())
         .await
         .expect("delete_rows failed");
-    let delete_errors: Vec<&String> = delete_results.iter().filter_map(|r| r.error.as_ref()).collect();
+    let delete_errors: Vec<&String> = delete_results
+        .iter()
+        .filter_map(|r| r.error.as_ref())
+        .collect();
     assert!(delete_errors.is_empty(), "{delete_errors:?}");
 
     let count = data::query_table_count(session_id.clone(), query_request, state.clone())
@@ -159,7 +169,11 @@ async fn schema_introspection_and_row_mutations_round_trip() {
     )
     .await
     .expect("drop table failed");
-    assert!(sql_errors(&cleanup).is_empty(), "{:?}", sql_errors(&cleanup));
+    assert!(
+        sql_errors(&cleanup).is_empty(),
+        "{:?}",
+        sql_errors(&cleanup)
+    );
 }
 
 fn cell_as_string(cell: &data::CellValue) -> String {

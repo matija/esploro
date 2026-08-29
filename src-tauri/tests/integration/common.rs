@@ -40,8 +40,11 @@ pub fn pg_pool(url: &str) -> deadpool_postgres::Pool {
     cfg.manager = Some(deadpool_postgres::ManagerConfig {
         recycling_method: deadpool_postgres::RecyclingMethod::Verified,
     });
-    cfg.create_pool(Some(deadpool_postgres::Runtime::Tokio1), tokio_postgres::NoTls)
-        .expect("failed to build Postgres pool from ESPLORO_TEST_POSTGRES_URL")
+    cfg.create_pool(
+        Some(deadpool_postgres::Runtime::Tokio1),
+        tokio_postgres::NoTls,
+    )
+    .expect("failed to build Postgres pool from ESPLORO_TEST_POSTGRES_URL")
 }
 
 pub fn mysql_pool(url: &str) -> mysql_async::Pool {

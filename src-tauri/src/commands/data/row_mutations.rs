@@ -394,7 +394,9 @@ pub(super) fn build_pg_insert_preview_statement(
     }
 
     if row.column_values.is_empty() {
-        return Ok(format!("INSERT INTO \"{schema}\".\"{table}\" DEFAULT VALUES;"));
+        return Ok(format!(
+            "INSERT INTO \"{schema}\".\"{table}\" DEFAULT VALUES;"
+        ));
     }
 
     let mut columns: Vec<String> = vec![];
@@ -1223,10 +1225,7 @@ mod tests {
             sql.sql,
             r#"INSERT INTO "public"."people" ("name", "age", "nickname") VALUES ($1::text::text, $2::text::int4, NULL)"#
         );
-        assert_eq!(
-            sql.params,
-            vec!["O'Hara".to_string(), "42".to_string()]
-        );
+        assert_eq!(sql.params, vec!["O'Hara".to_string(), "42".to_string()]);
     }
 
     #[test]
@@ -1256,10 +1255,7 @@ mod tests {
         let sql = build_pg_insert_sql("public", "people", &row, &HashMap::new(), &HashMap::new())
             .unwrap();
 
-        assert_eq!(
-            sql.sql,
-            r#"INSERT INTO "public"."people" DEFAULT VALUES"#
-        );
+        assert_eq!(sql.sql, r#"INSERT INTO "public"."people" DEFAULT VALUES"#);
         assert!(sql.params.is_empty());
     }
 
@@ -1272,6 +1268,75 @@ mod tests {
                 .unwrap_err()
                 .contains("Invalid identifier")
         );
+    }
+
+    #[test]
+    fn pg_insert_sql_omits_the_pk_column_when_the_row_leaves_it_unset() {
+        // Serial/identity PKs are never sent by the grid, so the generated
+        // INSERT must simply not mention them and let the database default fill in.
+        let row = new_row(vec![set("name", Some("Ada")), set("age", Some("36"))]);
+
+        let sql = build_pg_insert_sql(
+            "public",
+            "people",
+            &row,
+            &map(&[("id", "int4"), ("name", "text"), ("age", "int4")]),
+            &map(&[("id", "int4"), ("name", "text"), ("age", "int4")]),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"INSERT INTO "public"."people" ("name", "age") VALUES ($1::text::text, $2::text::int4)"#
+        );
+        assert!(!sql.sql.contains("\"id\""));
+        assert_eq!(sql.params, vec!["Ada".to_string(), "36".to_string()]);
+    }
+
+    #[test]
+    fn pg_insert_sql_does_not_append_a_returning_clause() {
+        // Inserts are executed with `execute`, which discards rows, so the
+        // builder must not emit RETURNING; generated PKs come back on refresh.
+        let with_columns = new_row(vec![set("name", Some("Ada"))]);
+        let without_columns = new_row(vec![]);
+
+        let sql = build_pg_insert_sql(
+            "public",
+            "people",
+            &with_columns,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap();
+        let default_values = build_pg_insert_sql(
+            "public",
+            "people",
+            &without_columns,
+            &HashMap::new(),
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            sql.sql,
+            r#"INSERT INTO "public"."people" ("name") VALUES ($1::text::text)"#
+        );
+        assert!(!sql.sql.contains("RETURNING"));
+        assert!(!default_values.sql.contains("RETURNING"));
+    }
+
+    #[test]
+    fn mysql_insert_sql_omits_the_pk_column_when_the_row_leaves_it_unset() {
+        let row = new_row(vec![set("name", Some("Ada")), set("age", Some("36"))]);
+
+        let sql = build_mysql_insert_sql("app", "people", &row).unwrap();
+
+        assert_eq!(
+            sql.sql,
+            "INSERT INTO `app`.`people` (`name`, `age`) VALUES (?, ?)"
+        );
+        assert!(!sql.sql.contains("`id`"));
+        assert_eq!(sql.params, vec![bytes("Ada"), bytes("36")]);
     }
 
     #[test]
@@ -1311,5 +1376,4 @@ mod tests {
         assert_eq!(sql_escape_string("O'Hara"), "O''Hara");
         assert_eq!(sql_escape_string("plain"), "plain");
     }
-
 }
