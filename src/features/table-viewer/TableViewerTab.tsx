@@ -460,6 +460,31 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     [getColKind],
   );
 
+  // draftId → new-row values, for rows duplicated from an existing row but not yet saved.
+  const [draftRows, setDraftRows] = useState<Map<string, CellValue[]>>(new Map());
+
+  const duplicateRow = useCallback(
+    (rowIdx: number) => {
+      const sourceRow = rows[rowIdx];
+      if (!sourceRow) return;
+      const values: CellValue[] = columns.map((col, colIdx) => {
+        if (col.isPrimaryKey) return { t: "null" };
+        const pending = getPendingValue(rowIdx, colIdx);
+        if (pending.has) {
+          return pending.value === null ? { t: "null" } : { t: "text", v: pending.value };
+        }
+        return sourceRow[colIdx] ?? { t: "null" };
+      });
+      const draftId = crypto.randomUUID();
+      setDraftRows((prev) => {
+        const next = new Map(prev);
+        next.set(draftId, values);
+        return next;
+      });
+    },
+    [rows, columns, getPendingValue],
+  );
+
   // ── Edit lifecycle ─────────────────────────────────────────────────────────
 
   const startEdit = useCallback((rowIdx: number, colIdx: number, anchorEl?: Element | null) => {
