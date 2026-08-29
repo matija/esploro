@@ -820,28 +820,47 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
   // Pending edits are kept; user can run the SQL from the new tab, then click
   // Discard once it succeeds. Errors leave pending state untouched.
   const handleOpenAsSql = useCallback(async () => {
-    if (!data || !ctx || pendingEdits.size === 0) return;
+    if (!data || !ctx || (pendingEdits.size === 0 && draftRows.size === 0)) return;
     try {
       const changes = buildRowChanges();
-      const sql = await withSessionRetry(ctx.connectionId, (sid) =>
-        tableApi.previewUpdateRowsSql(sid, {
-          schema: ctx.schema,
-          table: ctx.table,
-          changes,
-        }),
-        toast,
-      );
+      const inserts = buildInsertRows();
+      const sqlParts: string[] = [];
+
+      if (changes.length > 0) {
+        const updateSql = await withSessionRetry(ctx.connectionId, (sid) =>
+          tableApi.previewUpdateRowsSql(sid, {
+            schema: ctx.schema,
+            table: ctx.table,
+            changes,
+          }),
+          toast,
+        );
+        sqlParts.push(updateSql);
+      }
+
+      if (inserts.length > 0) {
+        const insertSql = await withSessionRetry(ctx.connectionId, (sid) =>
+          tableApi.previewInsertRowsSql(sid, {
+            schema: ctx.schema,
+            table: ctx.table,
+            rows: inserts.map((i) => i.row),
+          }),
+          toast,
+        );
+        sqlParts.push(insertSql);
+      }
+
       addTab({
         type: "query",
         title: `Edit ${ctx.schema}.${ctx.table}`,
         sessionId: useAppStore.getState().activeSessions[ctx.connectionId] ?? tabSessionId,
-        queryContext: { sql, connectionId: ctx.connectionId },
+        queryContext: { sql: sqlParts.join("\n\n"), connectionId: ctx.connectionId },
         isDirty: true,
       });
     } catch (e) {
       toast(`Open as SQL failed: ${e instanceof Error ? e.message : String(e)}`, "error");
     }
-  }, [data, ctx, pendingEdits, buildRowChanges, tabSessionId, toast, addTab]);
+  }, [data, ctx, pendingEdits, draftRows, buildRowChanges, buildInsertRows, tabSessionId, toast, addTab]);
 
   // ── Delete row handler ──────────────────────────────────────────────────────
   const [deleteResults, setDeleteResults] = useState<
@@ -2092,7 +2111,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
               type="button"
               onClick={() => void handleOpenAsSql()}
               disabled={isSaving}
-              title="Open the generated UPDATE statements in a new query editor tab"
+              title="Open the generated UPDATE and INSERT statements in a new query editor tab"
               className="px-3 py-1 rounded-[var(--radius-control)] text-secondary hover:text-label hover:bg-control transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="inline-flex items-center gap-1.5"><FileCode2 size={12} /> Open as SQL</span>
