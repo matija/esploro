@@ -164,6 +164,27 @@ pub struct DeleteRowResult {
     pub error: Option<String>,
 }
 
+#[derive(Deserialize, specta::Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NewRowValues {
+    pub column_values: Vec<ColumnChange>,
+}
+
+#[derive(Deserialize, specta::Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct InsertRowsRequest {
+    pub schema: String,
+    pub table: String,
+    pub rows: Vec<NewRowValues>,
+}
+
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct InsertRowResult {
+    pub sql: String,
+    pub error: Option<String>,
+}
+
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableCountResult {
