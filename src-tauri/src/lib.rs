@@ -61,6 +61,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::data::preview_update_rows_sql,
             commands::data::delete_rows,
             commands::data::preview_delete_rows_sql,
+            commands::data::insert_rows,
+            commands::data::preview_insert_rows_sql,
             commands::data::execute_sql,
             commands::saved_queries::save_query,
             commands::saved_queries::list_saved_queries,

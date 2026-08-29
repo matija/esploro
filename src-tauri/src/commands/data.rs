@@ -12,8 +12,9 @@ mod type_mapping;
 mod where_clauses;
 
 use self::row_mutation_execution::{
-    delete_rows_mysql, delete_rows_pg, preview_delete_rows_sql_pg, preview_update_rows_sql_mysql,
-    preview_update_rows_sql_pg, update_rows_mysql, update_rows_pg,
+    delete_rows_mysql, delete_rows_pg, insert_rows_mysql, insert_rows_pg,
+    preview_delete_rows_sql_pg, preview_insert_rows_sql_mysql, preview_insert_rows_sql_pg,
+    preview_update_rows_sql_mysql, preview_update_rows_sql_pg, update_rows_mysql, update_rows_pg,
 };
 use self::sql_execution::{execute_sql_mysql, execute_sql_pg};
 use self::table_query_execution::{
@@ -371,6 +372,45 @@ pub async fn preview_delete_rows_sql(
             &request.table,
             &request.rows,
         )),
+    }
+}
+
+// ─── insert_rows ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn insert_rows(
+    session_id: String,
+    request: InsertRowsRequest,
+    state: State<'_, AppState>,
+) -> Result<Vec<InsertRowResult>, AppError> {
+    validate_identifier(&request.schema)?;
+    validate_identifier(&request.table)?;
+
+    with_pool(
+        &state,
+        &session_id,
+        |pool| insert_rows_pg(pool, request.clone()),
+        |pool| insert_rows_mysql(pool, request.clone()),
+    )
+    .await
+}
+
+// ─── preview_insert_rows_sql ─────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_insert_rows_sql(
+    session_id: String,
+    request: InsertRowsRequest,
+    state: State<'_, AppState>,
+) -> Result<String, AppError> {
+    validate_identifier(&request.schema)?;
+    validate_identifier(&request.table)?;
+
+    match lock_pool(&state, &session_id).await? {
+        PoolHandle::Pg(pool) => preview_insert_rows_sql_pg(pool, request).await,
+        PoolHandle::Mysql(pool) => preview_insert_rows_sql_mysql(pool, request).await,
     }
 }
 
