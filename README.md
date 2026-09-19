@@ -1,44 +1,49 @@
 # Esploro
 
-Modern, sleek, fast SQL client for Mac.
+Esploro is an open source SQL client for Mac. It supports PostgreSQL, MySQL, and MariaDB in one focused app.
 
-Esploro is an open source database client for PostgreSQL, MySQL, and MariaDB. It is built to feel local, quick, and focused, without the cruft of heavier database tools.
+[Website](https://esploro.app) · [Download](https://github.com/matija/esploro/releases) · [Issues](https://github.com/matija/esploro/issues)
 
-[Website](https://esploro.app) · [Download](https://github.com/matija/esploro/releases)
+![Esploro table browser](https://esploro.app/assets/screenshots/browse.png)
+
+The website screenshot uses fictional database names, table names, column names, and values.
+
+## Why Esploro?
+
+Esploro focuses on the database work that Mac developers do each day. It gives you a clear interface for PostgreSQL, MySQL, and MariaDB.
 
 ## Features
 
 - Browse connections, schemas, tables, views, sequences, and roles
-- Inspect table data in a fast grid
-- Write and run SQL
-- Filter tables and copy the generated SQL
+- Inspect and edit table data in a fast grid
+- Write and run SQL queries
+- Filter table data and copy the generated SQL
+- Copy values, columns, and rows as JSON or CSV
 - Save queries for repeated work
-- Review roles and permissions
+- Review roles and table privileges
+- Choose themes, fonts, row density, and rows per page
+- Store database passwords in the macOS Keychain
 
 ## Download
 
 Esploro supports macOS 13 or later. Apple Silicon and Intel builds are available on [GitHub Releases](https://github.com/matija/esploro/releases).
 
+Personal, non-commercial use is free. Paid work requires a commercial license. See the [pricing page](https://esploro.app/pricing) for current options.
+
 Linux and Windows builds are planned.
 
-## Development
+## Privacy
+
+Esploro connects from your Mac to your database server. Queries and results do not pass through an Esploro cloud service.
+
+Esploro stores database passwords in macOS Keychain. Commercial license checks use an online service. Read the [privacy policy](https://esploro.app/privacy) for website analytics, payments, license checks, and support information.
+
+## Source
 
 Esploro uses [Tauri 2](https://tauri.app/), Rust, React, and TypeScript.
 
-```sh
-npm install
-npm run tauri dev
-```
-
-Useful commands:
-
-```sh
-npm run type-check
-npm run lint
-npm run build
-npm run tauri build
-```
+Issues and pull requests are welcome on [GitHub](https://github.com/matija/esploro).
 
 ## License
 
-The source code is MIT licensed. The app is free for personal use; commercial use requires a license.
+The source code uses the MIT License. Commercial use of distributed Esploro builds requires a paid license.
