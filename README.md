@@ -4,7 +4,7 @@ Esploro is an open source SQL client for Mac. It supports PostgreSQL, MySQL, and
 
 [Website](https://esploro.app) · [Download](https://github.com/matija/esploro/releases) · [Issues](https://github.com/matija/esploro/issues)
 
-![Esploro table browser](https://esploro.app/assets/screenshots/browse.png)
+![Esploro table browser](assets/readme/table-browser.png)
 
 The website screenshot uses fictional database names, table names, column names, and values.
 
