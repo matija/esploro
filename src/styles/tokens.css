@@ -148,6 +148,39 @@
   --ds-syntax-comment:   #78716c;
 }
 
+:root[data-theme="dark"][data-palette="polar-aurora"] {
+  --ds-content-bg:       #101318;
+  --ds-sidebar-bg:       #0b0e13;
+  --ds-bg-subtle:        #1a2532;
+  --ds-bg-active:        #233446;
+  --ds-separator:        #1e2a38;
+  --ds-border-strong:    #4b586b;
+  --ds-control-bg:       #161d25;
+  --ds-label:            #d8dfe5;
+  --ds-secondary:        #8a9bad;
+  --ds-tertiary:         #5c6b80;
+  --ds-text-inverse:     #101318;
+  --ds-accent:           #92eebb;
+  --ds-accent-hover:     #7bdca9;
+  --ds-accent-subtle:    #1b3a2f;
+  --ds-success:          #7bdca9;
+  --ds-warning:          #e2c676;
+  --ds-destructive:      #de7d8c;
+  --ds-syntax-keyword:   #a28ae7;
+  --ds-syntax-type:      #e2c676;
+  --ds-syntax-string:    #b58ad9;
+  --ds-syntax-number:    #e5a178;
+  --ds-syntax-enum:      #71a3e0;
+  --ds-syntax-special:   #de7d8c;
+  --ds-syntax-operator:  #71cfd5;
+  --ds-syntax-comment:   #66788c;
+  --editor-syntax-function: #71a3e0;
+  --editor-syntax-variable: #71cfd5;
+  --editor-syntax-punctuation: #d8dfe5;
+  --editor-caret:        #92eebb;
+  --editor-selection:    #233446;
+}
+
 /* ── Tokyo Night Storm (dark) ────────────────────────────────────────────── */
 :root[data-theme="dark"][data-palette="tokyo-night"] {
   --ds-content-bg:       #24283b;

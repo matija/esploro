@@ -4,6 +4,7 @@ export const uiThemeValues = [
   "system",
   "macos-light",
   "macos-dark",
+  "polar-aurora",
   "tokyo-night",
   "tokyo-night-day",
   "github-dark",
@@ -210,6 +211,7 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
     case "catppuccin-latte":
     case "rose-pine-dawn":
       return "light";
+    case "polar-aurora":
     case "tairiki-dark":
     case "macos-dark":
     case "tokyo-night":
@@ -227,6 +229,8 @@ export function themeToDomAttribute(theme: unknown): "light" | "dark" | null {
 
 function themeToPaletteAttribute(theme: unknown): string | null {
   switch (normalizeTheme(theme)) {
+    case "polar-aurora":
+      return "polar-aurora";
     case "tokyo-night":
       return "tokyo-night";
     case "tokyo-night-day":

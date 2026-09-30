@@ -334,6 +334,13 @@ export function CommandPalette() {
       action: () => setTheme("system"),
     },
     {
+      id: "theme-polar-aurora",
+      group: "Settings",
+      icon: <Moon size={13} />,
+      title: "Theme: Polar Aurora",
+      action: () => setTheme("polar-aurora"),
+    },
+    {
       id: "theme-tokyo-night",
       group: "Settings",
       icon: <Moon size={13} />,

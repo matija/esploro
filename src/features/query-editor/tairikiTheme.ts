@@ -16,14 +16,14 @@ const tairikiEditorTheme = EditorView.theme({
     fontFeatureSettings: '"liga", "calt"',
   },
   ".cm-content": {
-    caretColor: "var(--text-primary)",
+    caretColor: "var(--editor-caret, var(--text-primary))",
     padding: "12px 0",
   },
   ".cm-cursor, .cm-dropCursor": {
-    borderLeftColor: "var(--text-primary)",
+    borderLeftColor: "var(--editor-caret, var(--text-primary))",
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-    backgroundColor: "color-mix(in srgb, var(--ds-accent) 24%, transparent)",
+    backgroundColor: "var(--editor-selection, color-mix(in srgb, var(--ds-accent) 24%, transparent))",
   },
   ".cm-activeLine": {
     backgroundColor: "var(--surface-hover)",
@@ -146,7 +146,7 @@ const tairikiHighlightStyle = HighlightStyle.define([
   },
   {
     tag: [tags.number, tags.integer, tags.float],
-    color: "var(--editor-syntax-function)",
+    color: "var(--ds-syntax-number)",
   },
   {
     tag: [tags.typeName, tags.className, tags.typeOperator, tags.namespace],
@@ -157,8 +157,12 @@ const tairikiHighlightStyle = HighlightStyle.define([
     color: "var(--editor-syntax-constant)",
   },
   {
-    tag: [tags.operator, tags.punctuation, tags.separator, tags.bracket, tags.angleBracket, tags.squareBracket, tags.paren],
+    tag: tags.operator,
     color: "var(--editor-syntax-operator)",
+  },
+  {
+    tag: [tags.punctuation, tags.separator, tags.bracket, tags.angleBracket, tags.squareBracket, tags.paren],
+    color: "var(--editor-syntax-punctuation, var(--editor-syntax-operator))",
   },
   {
     tag: [tags.comment, tags.lineComment, tags.blockComment, tags.docComment],
@@ -180,7 +184,7 @@ const tairikiHighlightStyle = HighlightStyle.define([
   },
   {
     tag: [tags.variableName, tags.propertyName, tags.attributeName],
-    color: "var(--text-primary)",
+    color: "var(--editor-syntax-variable, var(--text-primary))",
   },
 ]);
 

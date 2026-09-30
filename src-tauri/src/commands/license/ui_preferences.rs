@@ -101,6 +101,7 @@ fn normalize_theme(theme: &str) -> String {
         | "system"
         | "macos-light"
         | "macos-dark"
+        | "polar-aurora"
         | "tokyo-night"
         | "tokyo-night-day"
         | "github-dark"
