@@ -185,7 +185,7 @@ beforeEach(() => {
 
 describe("saving a query", () => {
   it.each(["button", "shortcut"])("updates an opened saved query using the %s", async (action) => {
-    const user = await renderEditor({ ...TAB, queryContext: { ...TAB.queryContext, savedQueryId: "saved-1" } });
+    const user = await renderEditor({ ...TAB, queryContext: { sql: SQL, connectionId: "conn-1", savedQueryId: "saved-1" } });
     const editor = screen.getByLabelText("SQL editor");
     await user.clear(editor);
     await user.type(editor, "select 2;");
