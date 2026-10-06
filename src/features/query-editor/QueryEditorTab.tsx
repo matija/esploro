@@ -627,6 +627,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const dragStart = useRef(0);
   const dragStartH = useRef(0);
   const savedSql = useRef(tab.queryContext?.sql ?? "");
+  const savedQueryId = useRef(tab.queryContext?.savedQueryId);
   const runStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Use connectionId from queryContext — always looks up the live session from the store
@@ -727,7 +728,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const handleSave = useCallback(
     async (name: string, folder: string) => {
       try {
-        await savedQueriesApi.save({ name, folder: folder || undefined, sql });
+        savedQueryId.current = await savedQueriesApi.save({ id: savedQueryId.current, name, folder: folder || undefined, sql });
         await rqClient.invalidateQueries({ queryKey: ["saved-queries"] });
         savedSql.current = sql;
         setTabDirty(tab.id, false);
@@ -739,6 +740,19 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
     },
     [sql, rqClient, tab.id, setTabDirty, toast],
   );
+
+  const requestSave = useCallback(async () => {
+    if (!savedQueryId.current) {
+      setSaveOpen(true);
+      return;
+    }
+    try {
+      const query = await savedQueriesApi.get(savedQueryId.current);
+      await handleSave(query.name, query.folder ?? "");
+    } catch {
+      toast("Failed to load saved query", "error");
+    }
+  }, [handleSave, toast]);
 
   // Track dirty state vs saved SQL
   useEffect(() => {
@@ -766,12 +780,12 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        setSaveOpen(true);
+        void requestSave();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [requestSave]);
 
   // Drag handle for resizing result panel
   const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -846,7 +860,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
         {/* Save button */}
         <button
           type="button"
-          onClick={() => setSaveOpen(true)}
+          onClick={() => void requestSave()}
           className={cn(
             "flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors",
             isDirty

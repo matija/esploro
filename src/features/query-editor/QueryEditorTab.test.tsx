@@ -6,13 +6,14 @@ import { ToastProvider } from "../../components/Toast";
 import { useAppStore, type Tab } from "../../store";
 import type { ConnectionProfile } from "../../lib/bindings";
 import type { CellValue, ResultColumn } from "../table-viewer/types";
-import type { QueryResult } from "./types";
+import type { QueryResult, SavedQuery } from "./types";
 import { QueryEditorTab } from "./QueryEditorTab";
 
 // The tab's only backend call is `executeSql`; faking it lets the tests describe
 // what a run sends and what the result pane makes of the statements it gets back.
 const executeSql = vi.fn<(sessionId: string, sql: string) => Promise<QueryResult[]>>();
-const saveQuery = vi.fn<(params: { name: string; folder?: string; sql: string }) => Promise<string>>();
+const saveQuery = vi.fn<(params: { id?: string; name: string; folder?: string; sql: string }) => Promise<string>>();
+const getSavedQuery = vi.fn<(id: string) => Promise<SavedQuery>>();
 
 vi.mock("./api", () => ({
   queryEditorApi: {
@@ -21,7 +22,7 @@ vi.mock("./api", () => ({
   savedQueriesApi: {
     list: () => Promise.resolve([]),
     save: (params: { name: string; folder?: string; sql: string }) => saveQuery(params),
-    get: () => Promise.reject(new Error("not stubbed")),
+    get: (id: string) => getSavedQuery(id),
     delete: () => Promise.resolve(),
   },
 }));
@@ -168,6 +169,8 @@ beforeEach(() => {
   executeSql.mockResolvedValue([selectResult()]);
   saveQuery.mockReset();
   saveQuery.mockResolvedValue("saved-1");
+  getSavedQuery.mockReset();
+  getSavedQuery.mockResolvedValue({ id: "saved-1", name: "Users", folder: "Reports", sql: SQL } as SavedQuery);
   useAppStore.setState({
     profiles: [PROFILE],
     activeSessions: { "conn-1": "session-1" },
@@ -179,6 +182,20 @@ beforeEach(() => {
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
+
+describe("saving a query", () => {
+  it.each(["button", "shortcut"])("updates an opened saved query using the %s", async (action) => {
+    const user = await renderEditor({ ...TAB, queryContext: { ...TAB.queryContext, savedQueryId: "saved-1" } });
+    const editor = screen.getByLabelText("SQL editor");
+    await user.clear(editor);
+    await user.type(editor, "select 2;");
+    if (action === "button") await user.click(screen.getByTitle("Save query (⌘S)"));
+    else await user.keyboard("{Control>}s{/Control}");
+    await waitFor(() => expect(saveQuery).toHaveBeenCalledWith({ id: "saved-1", name: "Users", folder: "Reports", sql: "select 2;" }));
+    expect(screen.queryByRole("dialog", { name: "Save query" })).toBeNull();
+    expect(getSavedQuery).toHaveBeenCalledWith("saved-1");
+  });
+});
 
 describe("running a query", () => {
   it("shows no result pane until the first run", async () => {
