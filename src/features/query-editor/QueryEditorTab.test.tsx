@@ -252,11 +252,22 @@ describe("running a query", () => {
     expect(runButton().disabled).toBe(true);
   });
 
-  it("refuses to render at all without a connection", async () => {
-    renderWithProviders(<QueryEditorTab tab={{ ...TAB, queryContext: { sql: SQL } }} />);
+  it("shows saved SQL without a connection and allows choosing one", async () => {
+    const user = await renderEditor({ ...TAB, sessionId: undefined, queryContext: { sql: SQL } });
 
-    expect(await screen.findByText("No connection — pick one")).toBeDefined();
-    expect(screen.queryByTitle("Run query (⌘↵)")).toBe(null);
+    expect((screen.getByLabelText("SQL editor") as HTMLTextAreaElement).value).toBe(SQL);
+    expect(runButton().disabled).toBe(true);
+    await user.selectOptions(screen.getByLabelText("Query connection"), "conn-1");
+    await user.click(runButton());
+    await waitFor(() => expect(executeSql).toHaveBeenCalledWith("session-1", SQL));
+  });
+
+  it("resolves a saved query's session to its connection", async () => {
+    const user = await renderEditor({ ...TAB, sessionId: "session-1", queryContext: { sql: SQL } });
+
+    expect(executeSql).not.toHaveBeenCalled();
+    await user.click(runButton());
+    await waitFor(() => expect(executeSql).toHaveBeenCalledWith("session-1", SQL));
   });
 });
 

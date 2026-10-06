@@ -17,7 +17,6 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  ChevronDown,
   Check,
   X,
   Terminal,
@@ -632,12 +631,11 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
 
   // Use connectionId from queryContext — always looks up the live session from the store
   // so stale tab.sessionId values don't cause "Session not found" failures.
-  const connectionId = tab.queryContext?.connectionId ?? null;
+  const [connectionId, setConnectionId] = useState<string | null>(
+    tab.queryContext?.connectionId ??
+      Object.entries(activeSessions).find(([, id]) => id === tab.sessionId)?.[0] ?? null,
+  );
   const sessionId = connectionId ? (activeSessions[connectionId] ?? null) : null;
-
-  const connectionLabel = connectionId
-    ? (profiles.find((p) => p.id === connectionId)?.displayName ?? "Unknown")
-    : "No connection";
 
   // Build schema completions from React Query cache
   const schemaCompletions = useMemo(() => {
@@ -811,14 +809,6 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
   const isDirty = sql !== savedSql.current;
   const showResultPane = hasResults || hasEverRun;
 
-  if (!connectionId) {
-    return (
-      <div className="flex items-center justify-center h-full text-secondary text-sm">
-        No connection — pick one
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
@@ -831,8 +821,17 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
               sessionId ? "bg-query-succeeded" : "bg-secondary opacity-40",
             )}
           />
-          <span className="truncate">{connectionLabel}</span>
-          <ChevronDown size={9} className="ml-0.5 shrink-0 opacity-60" />
+          <select
+            aria-label="Query connection"
+            value={connectionId ?? ""}
+            onChange={(event) => setConnectionId(event.target.value || null)}
+            className="min-w-0 bg-transparent text-xs"
+          >
+            <option value="">No connection — pick one</option>
+            {profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>{profile.displayName}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex-1" />
