@@ -4,6 +4,9 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	getMcpStatus: () => __TAURI_INVOKE<McpStatus>("get_mcp_status"),
+	getMcpEndpoint: () => __TAURI_INVOKE<string>("get_mcp_endpoint"),
+	getMcpToken: () => __TAURI_INVOKE<string>("get_mcp_token"),
 	listConnections: () => __TAURI_INVOKE<ConnectionProfile[]>("list_connections"),
 	createConnection: (input: ConnectionInput, password: string) => __TAURI_INVOKE<string>("create_connection", { input, password }),
 	updateConnection: (id: string, input: ConnectionInput, password: string | null) => __TAURI_INVOKE<null>("update_connection", { id, input, password }),
@@ -218,6 +221,8 @@ export type LicenseStatus = {
 };
 
 export type LicenseTier = "Personal" | "Commercial" | "Unlicensed";
+
+export type McpStatus = { state: "starting" } | { state: "running" } | { state: "error"; message: string } | { state: "stopped" };
 
 export type MembershipOp = {
 	op: string,

@@ -1,3 +1,4 @@
+pub mod lifecycle;
 pub mod server;
 pub use server::McpListener;
 pub mod token;

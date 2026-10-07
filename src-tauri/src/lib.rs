@@ -3,15 +3,15 @@
 // mock-runtime `State<AppState>`, bypassing the Tauri IPC layer.
 pub mod commands;
 pub mod db;
-pub mod mcp;
 mod error;
+pub mod mcp;
 
 pub use error::AppError;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tauri_plugin_log::{log::LevelFilter, RotationStrategy, Target, TargetKind};
 use tokio::sync::Mutex;
 
@@ -50,6 +50,9 @@ impl Default for AppState {
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(tauri_specta::collect_commands![
+            mcp::lifecycle::get_mcp_status,
+            mcp::lifecycle::get_mcp_endpoint,
+            mcp::lifecycle::get_mcp_token,
             commands::connections::list_connections,
             commands::connections::create_connection,
             commands::connections::update_connection,
@@ -159,7 +162,12 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
+        .manage(mcp::lifecycle::McpLifecycle::<mcp::McpListener>::default())
         .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                handle.state::<mcp::lifecycle::McpLifecycle>().start().await;
+            });
             // Native macOS menu bar
             let mut app_submenu = SubmenuBuilder::new(app, "Esploro").item(&MenuItem::with_id(
                 app,
@@ -244,8 +252,15 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(specta_builder.invoke_handler())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                tauri::async_runtime::block_on(
+                    app.state::<mcp::lifecycle::McpLifecycle>().shutdown(),
+                );
+            }
+        });
 }
 
 #[cfg(test)]

@@ -25,6 +25,9 @@ export type FakeCommands = { [K in keyof RealCommands]: Mock<RealCommands[K]> };
  * the Rust side resolves to `null`, matching the generated signatures.
  */
 const defaultImpls: RealCommands = {
+  getMcpStatus: () => Promise.resolve({ state: "stopped" }),
+  getMcpEndpoint: () => Promise.resolve("http://127.0.0.1:19482/mcp"),
+  getMcpToken: () => Promise.resolve("test-token"),
   listConnections: () => Promise.resolve([]),
   createConnection: () => Promise.resolve("new-connection"),
   updateConnection: () => Promise.resolve(null),
