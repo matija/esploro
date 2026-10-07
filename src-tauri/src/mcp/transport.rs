@@ -46,6 +46,171 @@ where
     Ok(Request::from_parts(parts, body))
 }
 
+pub const PROTOCOL_VERSION: &str = "2025-06-18";
+
+pub async fn handle<B: Body>(request: Request<B>, token: &str) -> http::Response<Vec<u8>>
+where
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    use serde_json::{json, Value};
+    let request = match guard(request, token).await {
+        Ok(request) => request,
+        Err(status) => return response(status, None),
+    };
+    if request.uri().path() != "/mcp" {
+        return response(StatusCode::NOT_FOUND, None);
+    }
+    if request.method() != http::Method::POST {
+        let mut result = response(StatusCode::METHOD_NOT_ALLOWED, None);
+        result
+            .headers_mut()
+            .insert(header::ALLOW, "POST".parse().unwrap());
+        return result;
+    }
+    let headers = request.headers();
+    let single_header = |name: &str| {
+        let mut values = headers.get_all(name).iter();
+        let value = values.next()?.to_str().ok()?;
+        if values.next().is_some() {
+            None
+        } else {
+            Some(value)
+        }
+    };
+    if !single_header("content-type").is_some_and(|value| {
+        value
+            .split(';')
+            .next()
+            .unwrap()
+            .trim()
+            .eq_ignore_ascii_case("application/json")
+    }) {
+        return response(StatusCode::UNSUPPORTED_MEDIA_TYPE, None);
+    }
+    let accepts = |media: &str| {
+        headers.get_all(header::ACCEPT).iter().any(|value| {
+            value.to_str().is_ok_and(|value| {
+                value.split(',').any(|entry| {
+                    let mut parts = entry.split(';');
+                    parts.next().unwrap().trim().eq_ignore_ascii_case(media)
+                        && parts.all(|part| {
+                            !part.trim().starts_with("q=")
+                                || part.trim()[2..]
+                                    .parse::<f32>()
+                                    .is_ok_and(|q| q > 0.0 && q <= 1.0)
+                        })
+                })
+            })
+        })
+    };
+    if !accepts("application/json") || !accepts("text/event-stream") {
+        return response(StatusCode::NOT_ACCEPTABLE, None);
+    }
+    if headers.contains_key("mcp-protocol-version")
+        && single_header("mcp-protocol-version") != Some(PROTOCOL_VERSION)
+    {
+        return response(StatusCode::BAD_REQUEST, None);
+    }
+    let message: Value = match serde_json::from_slice(request.body()) {
+        Ok(message) => message,
+        Err(_) => return rpc_error(StatusCode::BAD_REQUEST, Value::Null, -32700, "Parse error"),
+    };
+    let id = message.get("id").cloned();
+    let valid_id = id
+        .as_ref()
+        .is_none_or(|id| id.is_string() || id.as_i64().is_some() || id.as_u64().is_some());
+    let method = message.get("method").and_then(Value::as_str);
+    if !message.is_object()
+        || message["jsonrpc"] != "2.0"
+        || !valid_id
+        || method.is_none()
+        || message.get("result").is_some()
+        || message.get("error").is_some()
+        || message
+            .get("params")
+            .is_some_and(|params| !params.is_object())
+    {
+        return rpc_error(
+            StatusCode::BAD_REQUEST,
+            Value::Null,
+            -32600,
+            "Invalid Request",
+        );
+    }
+    let method = method.unwrap();
+    if method != "initialize" && !headers.contains_key("mcp-protocol-version") {
+        return response(StatusCode::BAD_REQUEST, None);
+    }
+    if id.is_none() {
+        if method == "initialize" {
+            return rpc_error(
+                StatusCode::BAD_REQUEST,
+                Value::Null,
+                -32600,
+                "Invalid Request",
+            );
+        }
+        return response(StatusCode::ACCEPTED, None);
+    }
+    let id = id.unwrap();
+    let params = &message["params"];
+    let result = match method {
+        "initialize" => {
+            if !params["protocolVersion"].is_string()
+                || !params["capabilities"].is_object()
+                || !params["clientInfo"]["name"].is_string()
+                || !params["clientInfo"]["version"].is_string()
+            {
+                return rpc_error(StatusCode::OK, id, -32602, "Invalid params");
+            }
+            json!({"protocolVersion": PROTOCOL_VERSION, "capabilities": {"tools": {}},
+                "serverInfo": {"name": "esploro", "version": env!("CARGO_PKG_VERSION")}})
+        }
+        "ping" => json!({}),
+        "tools/list" => {
+            if params
+                .get("cursor")
+                .is_some_and(|cursor| !cursor.is_string())
+            {
+                return rpc_error(StatusCode::OK, id, -32602, "Invalid params");
+            }
+            json!({"tools": []})
+        }
+        _ => return rpc_error(StatusCode::OK, id, -32601, "Method not found"),
+    };
+    response(
+        StatusCode::OK,
+        Some(json!({"jsonrpc": "2.0", "id": id, "result": result})),
+    )
+}
+
+fn response(status: StatusCode, body: Option<serde_json::Value>) -> http::Response<Vec<u8>> {
+    let mut builder = http::Response::builder().status(status);
+    if body.is_some() {
+        builder = builder.header(header::CONTENT_TYPE, "application/json");
+    }
+    builder
+        .body(
+            body.map(|body| serde_json::to_vec(&body).unwrap())
+                .unwrap_or_default(),
+        )
+        .unwrap()
+}
+
+fn rpc_error(
+    status: StatusCode,
+    id: serde_json::Value,
+    code: i32,
+    message: &str,
+) -> http::Response<Vec<u8>> {
+    response(
+        status,
+        Some(
+            serde_json::json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}}),
+        ),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,6 +224,135 @@ mod tests {
             .uri("/mcp")
             .header(header::HOST, "127.0.0.1:19482")
             .header(header::AUTHORIZATION, format!("Bearer {TOKEN}"))
+    }
+
+    async fn post(body: &str) -> http::Response<Vec<u8>> {
+        handle(
+            request()
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ACCEPT, "application/json, text/event-stream")
+                .header("mcp-protocol-version", PROTOCOL_VERSION)
+                .body(Full::new(body.as_bytes()))
+                .unwrap(),
+            TOKEN,
+        )
+        .await
+    }
+
+    fn json(response: &http::Response<Vec<u8>>) -> serde_json::Value {
+        serde_json::from_slice(response.body()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn handshake_and_version_negotiation() {
+        for version in [PROTOCOL_VERSION, "unknown"] {
+            let body = serde_json::json!({"jsonrpc":"2.0", "id":1, "method":"initialize",
+                "params":{"protocolVersion":version,"capabilities":{},"clientInfo":{"name":"test","version":"1"}}}).to_string();
+            let response = handle(
+                request()
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::ACCEPT, "application/json, text/event-stream")
+                    .body(Full::new(body.as_bytes()))
+                    .unwrap(),
+                TOKEN,
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                json(&response)["result"]["protocolVersion"],
+                PROTOCOL_VERSION
+            );
+            assert_eq!(
+                json(&response)["result"]["capabilities"],
+                serde_json::json!({"tools":{}})
+            );
+            assert!(!response.headers().contains_key("mcp-session-id"));
+        }
+    }
+
+    #[tokio::test]
+    async fn notifications_ping_and_discovery() {
+        for method in ["notifications/initialized", "notifications/unknown"] {
+            let response = post(&format!(r#"{{"jsonrpc":"2.0","method":"{method}"}}"#)).await;
+            assert_eq!(response.status(), StatusCode::ACCEPTED);
+            assert!(response.body().is_empty());
+        }
+        for (method, result) in [
+            ("ping", serde_json::json!({})),
+            ("tools/list", serde_json::json!({"tools":[]})),
+        ] {
+            let response = post(&format!(
+                r#"{{"jsonrpc":"2.0","id":"abc","method":"{method}"}}"#
+            ))
+            .await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+            assert_eq!(
+                json(&response),
+                serde_json::json!({"jsonrpc":"2.0","id":"abc","result":result})
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn protocol_errors() {
+        for (body, code) in [
+            ("{", -32700),
+            ("[]", -32600),
+            ("null", -32600),
+            (r#"{"jsonrpc":"1.0","id":1,"method":"ping"}"#, -32600),
+            (r#"{"jsonrpc":"2.0","id":null,"method":"ping"}"#, -32600),
+            (r#"{"jsonrpc":"2.0","id":true,"method":"ping"}"#, -32600),
+            (r#"{"jsonrpc":"2.0","id":1,"method":"unknown"}"#, -32601),
+            (
+                r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+                -32602,
+            ),
+            (
+                r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"cursor":1}}"#,
+                -32602,
+            ),
+        ] {
+            assert_eq!(json(&post(body).await)["error"]["code"], code, "{body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn transport_headers_and_guard() {
+        for (name, value, status) in [
+            (
+                "content-type",
+                "text/plain",
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            ),
+            ("accept", "application/json", StatusCode::NOT_ACCEPTABLE),
+            (
+                "accept",
+                "application/json, text/event-stream;q=0",
+                StatusCode::NOT_ACCEPTABLE,
+            ),
+            ("mcp-protocol-version", "unknown", StatusCode::BAD_REQUEST),
+            ("authorization", "Bearer wrong", StatusCode::UNAUTHORIZED),
+        ] {
+            let mut req = request()
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ACCEPT, "application/json, text/event-stream")
+                .header("mcp-protocol-version", PROTOCOL_VERSION)
+                .body(Full::new(&b"{}"[..]))
+                .unwrap();
+            req.headers_mut().insert(
+                http::HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                value.parse().unwrap(),
+            );
+            assert_eq!(handle(req, TOKEN).await.status(), status);
+        }
+        let response = handle(
+            request().method("GET").body(Full::new(&b""[..])).unwrap(),
+            TOKEN,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(response.headers()[header::ALLOW], "POST");
     }
 
     #[tokio::test]
