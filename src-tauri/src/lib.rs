@@ -3,6 +3,7 @@
 // mock-runtime `State<AppState>`, bypassing the Tauri IPC layer.
 pub mod commands;
 pub mod db;
+pub mod mcp;
 mod error;
 
 pub use error::AppError;
