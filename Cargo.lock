@@ -1524,6 +1524,9 @@ version = "0.8.6"
 dependencies = [
  "chrono",
  "deadpool-postgres",
+ "http",
+ "http-body",
+ "http-body-util",
  "keyring",
  "mysql_async",
  "serde",
@@ -1531,6 +1534,7 @@ dependencies = [
  "specta",
  "specta-typescript",
  "sqlparser",
+ "subtle",
  "tauri",
  "tauri-build",
  "tauri-plugin-log",

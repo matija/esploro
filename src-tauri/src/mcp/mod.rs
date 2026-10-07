@@ -1,4 +1,5 @@
 pub mod token;
+pub mod transport;
 
 use sqlparser::ast::{Expr, Query, SetExpr, Statement, TableFactor, Visit, Visitor};
 use sqlparser::dialect::{Dialect, MySqlDialect, PostgreSqlDialect};
