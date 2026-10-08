@@ -50,6 +50,8 @@ impl Default for AppState {
 fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new()
         .commands(tauri_specta::collect_commands![
+            commands::activity::get_mcp_history,
+            commands::activity::clear_mcp_history,
             mcp::lifecycle::get_mcp_status,
             mcp::lifecycle::get_mcp_endpoint,
             mcp::lifecycle::get_mcp_token,
@@ -164,6 +166,9 @@ pub fn run() {
         .manage(AppState::default())
         .manage(mcp::lifecycle::McpLifecycle::<mcp::McpListener>::default())
         .setup(|app| {
+            app.manage(mcp::activity::ActivityStore::open(
+                app.path().app_data_dir()?.join("mcp_activity.json"),
+            )?);
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 handle

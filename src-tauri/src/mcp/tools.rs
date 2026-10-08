@@ -109,9 +109,23 @@ pub async fn call(
     if !valid {
         return Err("Unknown tool or invalid arguments");
     }
+    let mut activity = None;
+    let started = std::time::Instant::now();
     let result = async {
         let app = app.ok_or_else(|| AppError::Connection("Application is unavailable".into()))?;
-        let profiles = connections::load_profiles(app).await?;
+        let profiles = connections::load_profiles(app).await;
+        if name == "execute_query" {
+            let store = app.state::<super::activity::ActivityStore>();
+            let id = arguments["connectionId"].as_str().unwrap();
+            let label = profiles
+                .as_ref()
+                .ok()
+                .and_then(|profiles| profiles.iter().find(|p| p.id == id))
+                .map(|p| p.display_name.clone());
+            activity =
+                Some(store.begin(Some(app), id, label, arguments["sql"].as_str().unwrap())?);
+        }
+        let profiles = profiles?;
         match name {
             "list_connections" => Ok(discovery(&profiles)),
             "execute_query" => {
@@ -120,6 +134,14 @@ pub async fn call(
                     .iter()
                     .find(|p| p.id == id)
                     .ok_or_else(|| AppError::Connection("Connection not found".into()))?;
+                super::validate_sql(
+                    arguments["sql"].as_str().unwrap(),
+                    match profile.driver {
+                        connections::DbDriver::Postgres => super::SqlDialect::Postgres,
+                        connections::DbDriver::Mysql => super::SqlDialect::Mysql,
+                    },
+                )
+                .map_err(AppError::Validation)?;
                 let state = app.state::<AppState>();
                 let session = connections::ensure_session(profile, &state).await?;
                 let driver = match &state
@@ -148,6 +170,19 @@ pub async fn call(
         }
     }
     .await;
+    let result = if let (Some(app), Some(id)) = (app, activity) {
+        match app.state::<super::activity::ActivityStore>().finish(
+            Some(app),
+            &id,
+            started.elapsed().as_millis() as u64,
+            &result,
+        ) {
+            Ok(()) => result,
+            Err(error) => Err(error),
+        }
+    } else {
+        result
+    };
     Ok(match result {
         Ok(value) => {
             json!({"content":[{"type":"text","text":value.to_string()}],"structuredContent": if name == "list_connections" { json!({"connections":value}) } else { value },"isError":false})
