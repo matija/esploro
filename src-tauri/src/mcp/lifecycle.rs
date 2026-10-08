@@ -67,7 +67,7 @@ impl<L> McpLifecycle<L> {
 }
 
 impl McpLifecycle {
-    pub async fn start(&self) {
+    pub async fn start(&self, app: tauri::AppHandle) {
         let token = tauri::async_runtime::spawn_blocking(super::token::load_or_create)
             .await
             .map_err(|_| "MCP token task failed".to_string())
@@ -75,7 +75,7 @@ impl McpLifecycle {
                 result.map_err(|_| "Cannot access MCP token in Keychain".to_string())
             });
         self.start_with(token, |token| async {
-            McpListener::bind(token)
+            McpListener::bind(token, app)
                 .await
                 .map_err(|error| error.to_string())
         })

@@ -166,7 +166,10 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                handle.state::<mcp::lifecycle::McpLifecycle>().start().await;
+                handle
+                    .state::<mcp::lifecycle::McpLifecycle>()
+                    .start(handle.clone())
+                    .await;
             });
             // Native macOS menu bar
             let mut app_submenu = SubmenuBuilder::new(app, "Esploro").item(&MenuItem::with_id(

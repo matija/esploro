@@ -14,11 +14,15 @@ pub struct McpListener {
 }
 
 impl McpListener {
-    pub async fn bind(token: String) -> io::Result<Self> {
-        Self::bind_at("127.0.0.1:19482".parse().unwrap(), token).await
+    pub async fn bind(token: String, app: tauri::AppHandle) -> io::Result<Self> {
+        Self::bind_at("127.0.0.1:19482".parse().unwrap(), token, Some(app)).await
     }
 
-    async fn bind_at(address: SocketAddr, token: String) -> io::Result<Self> {
+    async fn bind_at(
+        address: SocketAddr,
+        token: String,
+        app: Option<tauri::AppHandle>,
+    ) -> io::Result<Self> {
         let listener = TcpListener::bind(address).await.map_err(|error| {
             io::Error::new(error.kind(), format!("Cannot bind MCP listener at {address}: {error}. Stop the process using this port and retry; MCP will not use another port."))
         })?;
@@ -36,11 +40,13 @@ impl McpListener {
                             Err(error) => break Err(error),
                         };
                         let token = token.clone();
+                        let app = app.clone();
                         connections.spawn(async move {
                             let service = service_fn(move |request| {
                                 let token = token.clone();
+                                let app = app.clone();
                                 async move {
-                                    Ok::<_, Infallible>(super::transport::handle(request, &token).await
+                                    Ok::<_, Infallible>(super::transport::handle_with_app(request, &token, app.as_ref()).await
                                         .map(|body| Full::new(hyper::body::Bytes::from(body))))
                                 }
                             });
@@ -96,7 +102,7 @@ mod tests {
         let address = reserved.local_addr().unwrap();
         drop(reserved);
         (
-            McpListener::bind_at(address, "test-token".into())
+            McpListener::bind_at(address, "test-token".into(), None)
                 .await
                 .unwrap(),
             address,
@@ -107,7 +113,7 @@ mod tests {
     async fn port_conflict_is_actionable() {
         let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = occupied.local_addr().unwrap();
-        let error = McpListener::bind_at(address, "test-token".into())
+        let error = McpListener::bind_at(address, "test-token".into(), None)
             .await
             .err()
             .unwrap();

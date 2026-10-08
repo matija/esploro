@@ -9,7 +9,10 @@ use tauri_plugin_log::log::info;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-use crate::db::{humanize_connection_error, mysql_conn, CONNECT_TIMEOUT, KEEPALIVE_IDLE, POOL_WAIT_TIMEOUT, RECYCLE_TIMEOUT};
+use crate::db::{
+    humanize_connection_error, mysql_conn, CONNECT_TIMEOUT, KEEPALIVE_IDLE, POOL_WAIT_TIMEOUT,
+    RECYCLE_TIMEOUT,
+};
 use crate::{AppError, AppState, DriverSession, SessionInfo};
 
 #[derive(Serialize, Deserialize, specta::Type, Clone, Debug, Default, PartialEq)]
@@ -111,7 +114,7 @@ async fn connections_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(dir.join("connections.json"))
 }
 
-async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
+pub(crate) async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
     let path = connections_path(app).await?;
     let data = match tokio::fs::read_to_string(&path).await {
         Ok(data) => data,
@@ -374,8 +377,31 @@ pub async fn connect(
         .find(|p| p.id == id)
         .ok_or_else(|| format!("Connection {id} not found"))?;
 
-    let password = keychain_entry(&id)?.get_password()?;
+    ensure_session(profile, &state).await
+}
 
+pub(crate) async fn ensure_session(
+    profile: &ConnectionProfile,
+    state: &AppState,
+) -> Result<String, AppError> {
+    ensure_session_with_password(profile, state, || {
+        keychain_entry(&profile.id)?.get_password().map_err(|_| {
+            AppError::Connection(format!("Credentials unavailable for connection {}. Save its password in Keychain and retry.", profile.id))
+        })
+    }).await
+}
+
+async fn ensure_session_with_password(
+    profile: &ConnectionProfile,
+    state: &AppState,
+    password: impl FnOnce() -> Result<String, AppError>,
+) -> Result<String, AppError> {
+    let id = &profile.id;
+    let mut sessions = state.sessions.lock().await;
+    if let Some((session_id, _)) = sessions.iter().find(|(_, info)| info.connection_id == *id) {
+        return Ok(session_id.clone());
+    }
+    let password = password()?;
     let session_id = Uuid::new_v4().to_string();
 
     match profile.driver {
@@ -390,7 +416,7 @@ pub async fn connect(
                 .await
                 .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             drop(client);
-            state.sessions.lock().await.insert(
+            sessions.insert(
                 session_id.clone(),
                 SessionInfo {
                     driver: DriverSession::Postgres(Arc::new(pool)),
@@ -406,7 +432,7 @@ pub async fn connect(
                 .await
                 .map_err(|e| AppError::Connection(humanize_connection_error(error_chain(e))))?;
             drop(conn);
-            state.sessions.lock().await.insert(
+            sessions.insert(
                 session_id.clone(),
                 SessionInfo {
                     driver: DriverSession::Mysql(Arc::new(pool)),
@@ -434,4 +460,77 @@ pub async fn disconnect(session_id: String, state: State<'_, AppState>) -> Resul
         "closed session session_id={session_id} removed={removed}",
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn profile(driver: DbDriver, port: u16) -> ConnectionProfile {
+        ConnectionProfile {
+            id: Uuid::new_v4().to_string(),
+            display_name: "Test".into(),
+            color: None,
+            folder: None,
+            driver,
+            host: Some("127.0.0.1".into()),
+            port,
+            socket_path: None,
+            database: "app".into(),
+            username: "test".into(),
+            ssl_mode: SslMode::Disable,
+            pool_max_connections: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn unreachable_databases_leave_no_sessions_for_both_drivers() {
+        let reserved = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = reserved.local_addr().unwrap().port();
+        drop(reserved);
+        for driver in [DbDriver::Postgres, DbDriver::Mysql] {
+            let state = AppState::default();
+            let error = ensure_session_with_password(&profile(driver, port), &state, || {
+                Ok("test-password".into())
+            })
+            .await
+            .unwrap_err()
+            .to_string();
+            assert!(error.to_lowercase().contains("refused"), "{error}");
+            assert!(!error.contains("test-password"));
+            assert!(state.sessions.lock().await.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_requests_reuse_one_session_without_reading_credentials() {
+        for driver in [DbDriver::Postgres, DbDriver::Mysql] {
+            let profile = profile(driver, 1);
+            let state = AppState::default();
+            let pool = match profile.driver {
+                DbDriver::Postgres => {
+                    DriverSession::Postgres(Arc::new(build_pg_pool(&profile, "test").unwrap()))
+                }
+                DbDriver::Mysql => {
+                    DriverSession::Mysql(Arc::new(build_mysql_pool(&profile, "test").unwrap()))
+                }
+            };
+            state.sessions.lock().await.insert(
+                "existing".into(),
+                SessionInfo {
+                    driver: pool,
+                    connection_id: profile.id.clone(),
+                },
+            );
+            let (first, second) = tokio::join!(
+                ensure_session_with_password(&profile, &state, || panic!("must reuse session")),
+                ensure_session_with_password(&profile, &state, || panic!("must reuse session")),
+            );
+            assert_eq!(first.unwrap(), "existing");
+            assert_eq!(second.unwrap(), "existing");
+            assert_eq!(state.sessions.lock().await.len(), 1);
+        }
+    }
 }

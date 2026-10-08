@@ -52,6 +52,17 @@ pub async fn handle<B: Body>(request: Request<B>, token: &str) -> http::Response
 where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
+    handle_with_app(request, token, None).await
+}
+
+pub async fn handle_with_app<B: Body>(
+    request: Request<B>,
+    token: &str,
+    app: Option<&tauri::AppHandle>,
+) -> http::Response<Vec<u8>>
+where
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     use serde_json::{json, Value};
     let request = match guard(request, token).await {
         Ok(request) => request,
@@ -174,7 +185,20 @@ where
             {
                 return rpc_error(StatusCode::OK, id, -32602, "Invalid params");
             }
-            json!({"tools": []})
+            json!({"tools": super::tools::definitions()})
+        }
+        "tools/call" => {
+            let Some(name) = params["name"].as_str() else {
+                return rpc_error(StatusCode::OK, id, -32602, "Invalid params");
+            };
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            match super::tools::call(app, name, &arguments).await {
+                Ok(result) => result,
+                Err(error) => return rpc_error(StatusCode::OK, id, -32602, error),
+            }
         }
         _ => return rpc_error(StatusCode::OK, id, -32601, "Method not found"),
     };
@@ -244,6 +268,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tools_require_authentication_and_validate_arguments() {
+        for (name, arguments) in [
+            ("list_connections", serde_json::json!({})),
+            (
+                "inspect_schema",
+                serde_json::json!({"connectionId":"saved"}),
+            ),
+        ] {
+            let body = serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":name,"arguments":arguments}}).to_string();
+            let unauthorized = handle(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp")
+                    .header(header::HOST, "127.0.0.1:19482")
+                    .header(header::AUTHORIZATION, "Bearer wrong")
+                    .body(Full::new(body.as_bytes()))
+                    .unwrap(),
+                TOKEN,
+            )
+            .await;
+            assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+            assert!(unauthorized.body().is_empty());
+            let authenticated = post(&body).await;
+            assert_eq!(json(&authenticated)["result"]["isError"], true);
+            assert!(json(&authenticated)["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Application is unavailable"));
+        }
+        for params in [
+            serde_json::json!({"name":"inspect_schema","arguments":{}}),
+            serde_json::json!({"name":"inspect_schema","arguments":{"connectionId":""}}),
+            serde_json::json!({"name":"inspect_schema","arguments":{"connectionId":1}}),
+            serde_json::json!({"name":"inspect_schema","arguments":{"sessionId":"saved"}}),
+            serde_json::json!({"name":"list_connections","arguments":{"password":"secret"}}),
+            serde_json::json!({"name":"unknown"}),
+        ] {
+            let response = post(
+                &serde_json::json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":params})
+                    .to_string(),
+            )
+            .await;
+            assert_eq!(json(&response)["error"]["code"], -32602);
+        }
+    }
+
+    #[tokio::test]
     async fn handshake_and_version_negotiation() {
         for version in [PROTOCOL_VERSION, "unknown"] {
             let body = serde_json::json!({"jsonrpc":"2.0", "id":1, "method":"initialize",
@@ -279,7 +350,10 @@ mod tests {
         }
         for (method, result) in [
             ("ping", serde_json::json!({})),
-            ("tools/list", serde_json::json!({"tools":[]})),
+            (
+                "tools/list",
+                serde_json::json!({"tools":super::super::tools::definitions()}),
+            ),
         ] {
             let response = post(&format!(
                 r#"{{"jsonrpc":"2.0","id":"abc","method":"{method}"}}"#

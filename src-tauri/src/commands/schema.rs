@@ -206,11 +206,16 @@ pub async fn list_schemas(
     database: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, AppError> {
-    let sessions = state.sessions.lock().await;
-    let info = sessions.get(&session_id).ok_or(AppError::SessionNotFound)?;
+    schemas(&session_id, &database, &state).await
+}
 
-    match &info.driver {
-        DriverSession::Postgres(pool) => {
+pub(crate) async fn schemas(
+    session_id: &str,
+    database: &str,
+    state: &AppState,
+) -> Result<Vec<String>, AppError> {
+    match pool_for(state, session_id).await? {
+        PoolHandle::Pg(pool) => {
             let client = pool.get().await?;
             let rows = client
                 .query(
@@ -227,10 +232,10 @@ pub async fn list_schemas(
                 .await?;
             Ok(rows.iter().map(|r| r.get::<_, String>(0)).collect())
         }
-        DriverSession::Mysql(_) => {
+        PoolHandle::Mysql(_) => {
             // MySQL has no schema level; return the database name as pseudo-schema
             // so the tree can fetch objects without additional branching.
-            Ok(vec![database])
+            Ok(vec![database.to_string()])
         }
     }
 }
@@ -245,6 +250,15 @@ pub async fn list_objects(
     schema: String,
     state: State<'_, AppState>,
 ) -> Result<SchemaObjects, AppError> {
+    objects(session_id, database, schema, &state).await
+}
+
+pub(crate) async fn objects(
+    session_id: String,
+    database: String,
+    schema: String,
+    state: &AppState,
+) -> Result<SchemaObjects, AppError> {
     let key = SchemaCacheKey {
         session_id: session_id.clone(),
         database,
@@ -254,7 +268,7 @@ pub async fn list_objects(
         return Ok(cached);
     }
 
-    let objects = match pool_for(&state, &session_id).await? {
+    let objects = match pool_for(state, &session_id).await? {
         PoolHandle::Pg(pool) => {
             let client = pool.get().await?;
 
@@ -375,6 +389,16 @@ pub async fn list_columns(
     table: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<ColumnDef>, AppError> {
+    columns(session_id, database, schema, table, &state).await
+}
+
+pub(crate) async fn columns(
+    session_id: String,
+    database: String,
+    schema: String,
+    table: String,
+    state: &AppState,
+) -> Result<Vec<ColumnDef>, AppError> {
     let key = SchemaCacheKey {
         session_id: session_id.clone(),
         database,
@@ -384,7 +408,7 @@ pub async fn list_columns(
         return Ok(cached);
     }
 
-    let columns: Vec<ColumnDef> = match pool_for(&state, &session_id).await? {
+    let columns: Vec<ColumnDef> = match pool_for(state, &session_id).await? {
         PoolHandle::Pg(pool) => {
             let client = pool.get().await?;
             let rows = client
