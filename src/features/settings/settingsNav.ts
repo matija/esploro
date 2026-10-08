@@ -4,6 +4,7 @@ export type SettingsSection =
   | "grid"
   | "connections"
   | "licensing"
+  | "mcp"
   | "advanced"
   | "about";
 
@@ -18,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "grid", label: "Data Grid" },
   { id: "connections", label: "Connections" },
   { id: "licensing", label: "Licensing" },
+  { id: "mcp", label: "MCP" },
   { id: "advanced", label: "Advanced" },
   { id: "about", label: "About" },
 ];
@@ -29,6 +31,7 @@ export const TITLE_TO_SECTION: Record<string, SettingsSection> = {
   Connections: "connections",
   License: "licensing",
   Licensing: "licensing",
+  MCP: "mcp",
   Advanced: "advanced",
   About: "about",
 };

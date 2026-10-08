@@ -7,6 +7,7 @@ import { ConnectionsSettings } from "./ConnectionsSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { AboutSettings } from "./AboutSettings";
 import { LicenseSettings } from "../license/LicenseSettings";
+import { McpSettings } from "./McpSettings";
 import { NAV_ITEMS, type SettingsSection } from "./settingsNav";
 
 const SECTION_ICON: Record<SettingsSection, LucideIcon> = {
@@ -15,6 +16,7 @@ const SECTION_ICON: Record<SettingsSection, LucideIcon> = {
   grid: Table2,
   connections: Database,
   licensing: KeyRound,
+  mcp: Code2,
   advanced: Settings,
   about: Info,
 };
@@ -66,6 +68,7 @@ export function SettingsView({ section, onSectionChange }: SettingsViewProps) {
           {section === "grid" && <DataGridSettings />}
           {section === "connections" && <ConnectionsSettings />}
           {section === "licensing" && <LicenseSettings />}
+          {section === "mcp" && <McpSettings />}
           {section === "advanced" && <AdvancedSettings />}
           {section === "about" && (
             <AboutSettings onNavigateToLicense={() => onSectionChange("licensing")} />
