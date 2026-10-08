@@ -8,6 +8,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 import { AboutSettings } from "./AboutSettings";
 import { LicenseSettings } from "../license/LicenseSettings";
 import { McpSettings } from "./McpSettings";
+import { McpActivitySettings } from "./McpActivitySettings";
 import { NAV_ITEMS, type SettingsSection } from "./settingsNav";
 
 const SECTION_ICON: Record<SettingsSection, LucideIcon> = {
@@ -17,6 +18,7 @@ const SECTION_ICON: Record<SettingsSection, LucideIcon> = {
   connections: Database,
   licensing: KeyRound,
   mcp: Code2,
+  "mcp-activity": Table2,
   advanced: Settings,
   about: Info,
 };
@@ -62,13 +64,14 @@ export function SettingsView({ section, onSectionChange }: SettingsViewProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-8">
-        <div className="max-w-md w-full">
+        <div className={section === "mcp-activity" ? "w-full" : "max-w-md w-full"}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "editor" && <EditorSettings />}
           {section === "grid" && <DataGridSettings />}
           {section === "connections" && <ConnectionsSettings />}
           {section === "licensing" && <LicenseSettings />}
           {section === "mcp" && <McpSettings />}
+          {section === "mcp-activity" && <McpActivitySettings />}
           {section === "advanced" && <AdvancedSettings />}
           {section === "about" && (
             <AboutSettings onNavigateToLicense={() => onSectionChange("licensing")} />
