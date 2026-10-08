@@ -49,10 +49,7 @@ pub(super) async fn execute_sql_pg(
                             }
                             rows.push(
                                 (0..row.len())
-                                    .map(|i| match row.get(i) {
-                                        None => CellValue::Null,
-                                        Some(s) => CellValue::Text(s.to_string()),
-                                    })
+                                    .map(|i| crate::db::pg_text_value(row.get(i)))
                                     .collect(),
                             );
                         }

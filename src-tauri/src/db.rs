@@ -9,6 +9,12 @@ use std::time::Duration;
 
 use crate::AppError;
 
+pub(crate) fn pg_text_value(value: Option<&str>) -> crate::commands::data::CellValue {
+    value.map_or(crate::commands::data::CellValue::Null, |s| {
+        crate::commands::data::CellValue::Text(s.to_string())
+    })
+}
+
 /// Max time to establish a brand-new connection (TCP + TLS + auth).
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -49,6 +55,18 @@ pub fn humanize_connection_error(raw: String) -> String {
     let mut parts: Vec<&str> = trimmed.split(": ").collect();
     parts.dedup();
     parts.join(": ")
+}
+
+pub(crate) struct IsolatedMysql(pub Option<mysql_async::Conn>);
+
+impl Drop for IsolatedMysql {
+    fn drop(&mut self) {
+        if let Some(conn) = self.0.take() {
+            tokio::spawn(async move {
+                let _ = tokio::time::timeout(RECYCLE_TIMEOUT, conn.disconnect()).await;
+            });
+        }
+    }
 }
 
 #[cfg(test)]

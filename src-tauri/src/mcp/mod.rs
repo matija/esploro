@@ -3,6 +3,7 @@ pub mod server;
 pub use server::McpListener;
 pub mod token;
 mod tools;
+pub mod query;
 pub mod transport;
 
 use sqlparser::ast::{Expr, Query, SetExpr, Statement, TableFactor, Visit, Visitor};

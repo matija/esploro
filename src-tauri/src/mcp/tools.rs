@@ -8,6 +8,7 @@ use tauri::Manager;
 pub fn definitions() -> Value {
     json!([
         {"name":"list_connections","description":"List all saved connection identifiers and labels without credentials. Does not connect to databases.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
+        {"name":"execute_query","description":"Execute one validated read-only SELECT. Results are bounded; busy errors are retryable.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1},"sql":{"type":"string","minLength":1}},"required":["connectionId","sql"],"additionalProperties":false}},
         {"name":"inspect_schema","description":"Inspect schemas, objects and table/view columns for a saved connection. Opens a session lazily using its Keychain password.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1}},"required":["connectionId"],"additionalProperties":false}}
     ])
 }
@@ -89,12 +90,19 @@ pub async fn call(
 ) -> Result<Value, &'static str> {
     let valid = arguments.as_object().is_some_and(|args| match name {
         "list_connections" => args.is_empty(),
-        "inspect_schema" => {
-            args.len() == 1
-                && args
-                    .get("connectionId")
-                    .and_then(Value::as_str)
-                    .is_some_and(|id| !id.is_empty())
+        "inspect_schema" | "execute_query" => {
+            (if name == "execute_query" {
+                args.len() == 2
+                    && args
+                        .get("sql")
+                        .and_then(Value::as_str)
+                        .is_some_and(|s| !s.is_empty())
+            } else {
+                args.len() == 1
+            }) && args
+                .get("connectionId")
+                .and_then(Value::as_str)
+                .is_some_and(|id| !id.is_empty())
         }
         _ => false,
     });
@@ -106,6 +114,29 @@ pub async fn call(
         let profiles = connections::load_profiles(app).await?;
         match name {
             "list_connections" => Ok(discovery(&profiles)),
+            "execute_query" => {
+                let id = arguments["connectionId"].as_str().unwrap();
+                let profile = profiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .ok_or_else(|| AppError::Connection("Connection not found".into()))?;
+                let state = app.state::<AppState>();
+                let session = connections::ensure_session(profile, &state).await?;
+                let driver = match &state
+                    .sessions
+                    .lock()
+                    .await
+                    .get(&session)
+                    .ok_or_else(|| AppError::Connection("Session not found".into()))?
+                    .driver
+                {
+                    crate::DriverSession::Postgres(pool) => {
+                        crate::DriverSession::Postgres(pool.clone())
+                    }
+                    crate::DriverSession::Mysql(pool) => crate::DriverSession::Mysql(pool.clone()),
+                };
+                super::query::execute(&driver, arguments["sql"].as_str().unwrap()).await
+            }
             _ => {
                 inspect(
                     &profiles,
@@ -121,7 +152,9 @@ pub async fn call(
         Ok(value) => {
             json!({"content":[{"type":"text","text":value.to_string()}],"structuredContent": if name == "list_connections" { json!({"connections":value}) } else { value },"isError":false})
         }
-        Err(error) => json!({"content":[{"type":"text","text":error.to_string()}],"isError":true}),
+        Err(error) => {
+            json!({"content":[{"type":"text","text":error.to_string()}],"structuredContent":{"error":error.to_string(),"retryable":error.to_string().starts_with("busy:")},"isError":true})
+        }
     })
 }
 

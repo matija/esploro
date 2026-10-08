@@ -176,7 +176,7 @@ pub(super) fn pg_cell_value(row: &tokio_postgres::Row, i: usize, udt: &str) -> C
     }
 }
 
-pub(super) fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue {
+pub(crate) fn mysql_cell_value(row: &mysql_async::Row, idx: usize) -> CellValue {
     match row.as_ref(idx) {
         None => CellValue::Null,
         Some(value) => mysql_value_to_cell(value),

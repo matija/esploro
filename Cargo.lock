@@ -1524,6 +1524,7 @@ version = "0.8.6"
 dependencies = [
  "chrono",
  "deadpool-postgres",
+ "futures-util",
  "http",
  "http-body",
  "http-body-util",
