@@ -18,10 +18,10 @@ impl McpListener {
         Self::bind_at("127.0.0.1:19482".parse().unwrap(), token, Some(app)).await
     }
 
-    async fn bind_at(
+    pub async fn bind_at<R: tauri::Runtime>(
         address: SocketAddr,
         token: String,
-        app: Option<tauri::AppHandle>,
+        app: Option<tauri::AppHandle<R>>,
     ) -> io::Result<Self> {
         let listener = TcpListener::bind(address).await.map_err(|error| {
             io::Error::new(error.kind(), format!("Cannot bind MCP listener at {address}: {error}. Stop the process using this port and retry; MCP will not use another port."))
@@ -102,7 +102,7 @@ mod tests {
         let address = reserved.local_addr().unwrap();
         drop(reserved);
         (
-            McpListener::bind_at(address, "test-token".into(), None)
+            McpListener::bind_at::<tauri::Wry>(address, "test-token".into(), None)
                 .await
                 .unwrap(),
             address,
@@ -113,7 +113,7 @@ mod tests {
     async fn port_conflict_is_actionable() {
         let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = occupied.local_addr().unwrap();
-        let error = McpListener::bind_at(address, "test-token".into(), None)
+        let error = McpListener::bind_at::<tauri::Wry>(address, "test-token".into(), None)
             .await
             .err()
             .unwrap();

@@ -52,13 +52,13 @@ pub async fn handle<B: Body>(request: Request<B>, token: &str) -> http::Response
 where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    handle_with_app(request, token, None).await
+    handle_with_app::<B, tauri::Wry>(request, token, None).await
 }
 
-pub async fn handle_with_app<B: Body>(
+pub async fn handle_with_app<B: Body, R: tauri::Runtime>(
     request: Request<B>,
     token: &str,
-    app: Option<&tauri::AppHandle>,
+    app: Option<&tauri::AppHandle<R>>,
 ) -> http::Response<Vec<u8>>
 where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,

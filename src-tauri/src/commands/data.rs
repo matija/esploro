@@ -20,8 +20,8 @@ use self::sql_execution::{execute_sql_mysql, execute_sql_pg};
 use self::table_query_execution::{
     count_table_mysql, count_table_pg, query_table_mysql, query_table_pg,
 };
-pub use self::type_mapping::CellValue;
 pub(crate) use self::type_mapping::mysql_cell_value;
+pub use self::type_mapping::CellValue;
 
 // Returns a plain-`String` error: these validators are shared with the
 // `String`-returning SQL builders; command-level callers convert the message

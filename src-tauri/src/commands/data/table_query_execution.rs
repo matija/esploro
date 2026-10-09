@@ -135,8 +135,7 @@ pub(super) async fn query_table_pg(
         include_ctid,
         &where_sql,
         &order_sql,
-        request.page,
-        request.page_size,
+        (request.page, request.page_size),
     );
 
     let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_values

@@ -13,6 +13,7 @@
 
 mod integration {
     mod common;
+    mod mcp_http;
     mod mcp_query;
     mod mysql;
     mod postgres;

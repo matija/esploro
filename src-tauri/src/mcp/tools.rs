@@ -83,8 +83,8 @@ async fn inspect_session(
     Ok(json!({"connectionId":id,"schemas":schemas}))
 }
 
-pub async fn call(
-    app: Option<&tauri::AppHandle>,
+pub async fn call<R: tauri::Runtime>(
+    app: Option<&tauri::AppHandle<R>>,
     name: &str,
     arguments: &Value,
 ) -> Result<Value, &'static str> {

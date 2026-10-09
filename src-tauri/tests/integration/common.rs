@@ -20,6 +20,10 @@ pub fn env_url(var: &str) -> Option<String> {
 /// Skips the current test with a message on stdout when `url` is `None`.
 /// Used as: `let Some(url) = common::env_url("...") else { return common::skip("...") };`
 pub fn skip(reason: &str) {
+    assert!(
+        std::env::var_os("ESPLORO_REQUIRE_DATABASES").is_none(),
+        "Database case skipped: {reason}"
+    );
     println!("skipping: {reason}");
 }
 

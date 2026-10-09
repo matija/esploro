@@ -108,13 +108,15 @@ fn keychain_entry(id: &str) -> Result<keyring::Entry, AppError> {
 // File-storage helpers
 // ---------------------------------------------------------------------------
 
-async fn connections_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+async fn connections_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<PathBuf, AppError> {
     let dir = app.path().app_data_dir()?;
     tokio::fs::create_dir_all(&dir).await?;
     Ok(dir.join("connections.json"))
 }
 
-pub(crate) async fn load_profiles(app: &AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
+pub(crate) async fn load_profiles<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<ConnectionProfile>, AppError> {
     let path = connections_path(app).await?;
     let data = match tokio::fs::read_to_string(&path).await {
         Ok(data) => data,

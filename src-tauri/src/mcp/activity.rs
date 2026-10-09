@@ -64,7 +64,7 @@ impl ActivityStore {
             path,
             entries: Mutex::new(entries),
         };
-        store.update(None, |_| {})?;
+        store.update::<tauri::Wry>(None, |_| {})?;
         Ok(store)
     }
 
@@ -72,9 +72,9 @@ impl ActivityStore {
         self.entries.lock().unwrap().clone()
     }
 
-    fn update(
+    fn update<R: tauri::Runtime>(
         &self,
-        app: Option<&tauri::AppHandle>,
+        app: Option<&tauri::AppHandle<R>>,
         change: impl FnOnce(&mut Vec<Activity>),
     ) -> Result<(), AppError> {
         let mut entries = self.entries.lock().unwrap();
@@ -94,9 +94,9 @@ impl ActivityStore {
         Ok(())
     }
 
-    pub fn begin(
+    pub fn begin<R: tauri::Runtime>(
         &self,
-        app: Option<&tauri::AppHandle>,
+        app: Option<&tauri::AppHandle<R>>,
         profile_id: &str,
         profile_label: Option<String>,
         sql: &str,
@@ -118,9 +118,9 @@ impl ActivityStore {
         Ok(id)
     }
 
-    pub fn finish(
+    pub fn finish<R: tauri::Runtime>(
         &self,
-        app: Option<&tauri::AppHandle>,
+        app: Option<&tauri::AppHandle<R>>,
         id: &str,
         duration_ms: u64,
         result: &Result<serde_json::Value, AppError>,
@@ -153,7 +153,10 @@ impl ActivityStore {
         })
     }
 
-    pub fn clear(&self, app: Option<&tauri::AppHandle>) -> Result<(), AppError> {
+    pub fn clear<R: tauri::Runtime>(
+        &self,
+        app: Option<&tauri::AppHandle<R>>,
+    ) -> Result<(), AppError> {
         self.update(app, Vec::clear)
     }
 }
@@ -177,24 +180,26 @@ pub fn clear_mcp_history(
 mod tests {
     use super::*;
 
+    const NO_APP: Option<&tauri::AppHandle> = None;
+
     #[test]
     fn completion_preserves_start_order_and_failed_writes_preserve_history() {
         let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
         let path = directory.join("mcp_activity.json");
         let store = ActivityStore::open(path.clone()).unwrap();
         let first = store
-            .begin(None, "a", Some("A".into()), "SELECT 1")
+            .begin(NO_APP, "a", Some("A".into()), "SELECT 1")
             .unwrap();
         let second = store
-            .begin(None, "b", Some("B".into()), "SELECT 2")
+            .begin(NO_APP, "b", Some("B".into()), "SELECT 2")
             .unwrap();
         let result = Ok(serde_json::json!({"rows": [], "truncated": false}));
-        store.finish(None, &second, 1, &result).unwrap();
-        store.finish(None, &first, 2, &result).unwrap();
+        store.finish(NO_APP, &second, 1, &result).unwrap();
+        store.finish(NO_APP, &first, 2, &result).unwrap();
         assert_eq!(store.history()[0].id, second);
         assert_eq!(store.history()[1].id, first);
         std::fs::create_dir(path.with_extension("json.tmp")).unwrap();
-        assert!(store.clear(None).is_err());
+        assert!(store.clear(NO_APP).is_err());
         assert_eq!(store.history().len(), 2);
         assert_eq!(
             ActivityStore::open(path.clone()).err().unwrap().kind(),
@@ -214,7 +219,7 @@ mod tests {
         for index in 0..25 {
             store
                 .begin(
-                    None,
+                    NO_APP,
                     "profile",
                     Some("Label".into()),
                     &format!("SELECT {index}"),
@@ -226,22 +231,22 @@ mod tests {
         assert_eq!(entries[0].sql, "SELECT 24");
         assert_eq!(entries[19].sql, "SELECT 5");
         let id = store
-            .begin(None, "profile", Some("Label".into()), "DELETE FROM users")
+            .begin(NO_APP, "profile", Some("Label".into()), "DELETE FROM users")
             .unwrap();
         let result =
             super::super::validate_sql("DELETE FROM users", super::super::SqlDialect::Postgres)
                 .map(|_| serde_json::json!({}))
                 .map_err(AppError::Validation);
-        store.finish(None, &id, 7, &result).unwrap();
+        store.finish(NO_APP, &id, 7, &result).unwrap();
         let reopened = ActivityStore::open(path.clone()).unwrap();
         assert_eq!(reopened.history()[0].status, ActivityStatus::Failed);
         assert_eq!(reopened.history()[0].sql, "DELETE FROM users");
         assert!(reopened.history()[0].error.is_some());
         assert_eq!(reopened.history()[1].status, ActivityStatus::Interrupted);
-        let id = reopened.begin(None, "profile", None, "SELECT 1").unwrap();
+        let id = reopened.begin(NO_APP, "profile", None, "SELECT 1").unwrap();
         reopened
             .finish(
-                None,
+                NO_APP,
                 &id,
                 3,
                 &Ok(serde_json::json!({"rows":[["private result"]],"truncated":true})),
@@ -252,8 +257,8 @@ mod tests {
         assert!(!std::fs::read_to_string(&path)
             .unwrap()
             .contains("private result"));
-        reopened.clear(None).unwrap();
-        reopened.finish(None, &id, 4, &result).unwrap();
+        reopened.clear(NO_APP).unwrap();
+        reopened.finish(NO_APP, &id, 4, &result).unwrap();
         assert!(ActivityStore::open(path).unwrap().history().is_empty());
         std::fs::remove_dir_all(directory).unwrap();
     }

@@ -69,15 +69,23 @@ impl Drop for IsolatedMysql {
     }
 }
 
+pub async fn mysql_conn(pool: &mysql_async::Pool) -> Result<mysql_async::Conn, AppError> {
+    match tokio::time::timeout(CONNECT_TIMEOUT, pool.get_conn()).await {
+        Ok(res) => res.map_err(AppError::from),
+        Err(_) => Err(AppError::Connection(unreachable_message(
+            CONNECT_TIMEOUT.as_secs(),
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn timeout_becomes_an_actionable_message() {
-        let msg = humanize_connection_error(
-            "error connecting to server: connection timed out".into(),
-        );
+        let msg =
+            humanize_connection_error("error connecting to server: connection timed out".into());
         assert!(msg.contains("Could not reach the database server"));
         assert!(msg.contains("VPN"));
     }
@@ -96,16 +104,5 @@ mod tests {
             "Error occurred while creating a new object: password authentication failed".into(),
         );
         assert_eq!(msg, "password authentication failed");
-    }
-}
-
-/// Take a MySQL connection from the pool, bounded by [`CONNECT_TIMEOUT`].
-/// `mysql_async` has no TCP connect timeout of its own, so we impose one.
-pub async fn mysql_conn(pool: &mysql_async::Pool) -> Result<mysql_async::Conn, AppError> {
-    match tokio::time::timeout(CONNECT_TIMEOUT, pool.get_conn()).await {
-        Ok(res) => res.map_err(AppError::from),
-        Err(_) => Err(AppError::Connection(unreachable_message(
-            CONNECT_TIMEOUT.as_secs(),
-        ))),
     }
 }

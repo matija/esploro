@@ -171,8 +171,7 @@ pub(super) fn build_pg_data_sql(
     include_ctid: bool,
     where_sql: &str,
     order_sql: &str,
-    page: u32,
-    page_size: u32,
+    (page, page_size): (u32, u32),
 ) -> String {
     let offset = (page * page_size) as i64;
     let limit = page_size.saturating_add(1) as i64;
@@ -282,8 +281,7 @@ mod tests {
             true,
             r#"WHERE "name"::text LIKE $1"#,
             r#"ORDER BY "id" ASC"#,
-            2,
-            50,
+            (2, 50),
         );
 
         assert_eq!(
@@ -301,8 +299,7 @@ mod tests {
             false,
             "",
             "",
-            0,
-            25,
+            (0, 25),
         );
 
         assert_eq!(
@@ -430,7 +427,7 @@ mod tests {
 
     #[test]
     fn data_sql_differs_per_driver_for_the_same_page() {
-        let pg = build_pg_data_sql("public", "users", r#""id""#, false, "", "", 1, 10);
+        let pg = build_pg_data_sql("public", "users", r#""id""#, false, "", "", (1, 10));
         let mysql = build_mysql_data_sql("app", "users", "`id`", "", "", 1, 10);
 
         assert_eq!(

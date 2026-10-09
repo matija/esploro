@@ -4,6 +4,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	getMcpHistory: () => __TAURI_INVOKE<Activity[]>("get_mcp_history"),
+	clearMcpHistory: () => __TAURI_INVOKE<null>("clear_mcp_history"),
 	getMcpStatus: () => __TAURI_INVOKE<McpStatus>("get_mcp_status"),
 	getMcpEndpoint: () => __TAURI_INVOKE<string>("get_mcp_endpoint"),
 	getMcpToken: () => __TAURI_INVOKE<string>("get_mcp_token"),
@@ -66,6 +68,28 @@ export const commands = {
 };
 
 /* Types */
+export type Activity = {
+	id: string,
+	startedAt: string,
+	profileId: string,
+	profileLabel: string | null,
+	sql: string,
+	status: ActivityStatus,
+	durationMs: number | null,
+	returnedRowCount: number | null,
+	truncated: boolean,
+	error: ActivityError | null,
+};
+
+export type ActivityError = {
+	kind: string,
+	message: string,
+	code: string | null,
+	position: number | null,
+};
+
+export type ActivityStatus = "running" | "succeeded" | "failed" | "interrupted";
+
 export type AlterRoleRequest = {
 	isSuperuser?: boolean | null,
 	inherit?: boolean | null,
