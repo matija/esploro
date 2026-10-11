@@ -33,77 +33,13 @@ Personal, non-commercial use is free. Paid work requires a commercial license. S
 
 Linux and Windows builds are planned.
 
-## MCP access for AI agents
+## MCP
 
-Esploro exposes a local Model Context Protocol (MCP) server through Streamable HTTP. An external AI agent can use three tools:
+Esploro provides a local MCP server with three tools: `list_connections`, `inspect_schema`, and `execute_query` (read-only SQL).
 
-| Tool | Input | Function |
-| --- | --- | --- |
-| `list_connections` | `{}` | Lists saved connection IDs and labels without credentials. It does not report database health. |
-| `inspect_schema` | `connectionId` | Lists schemas, tables, views, sequences, functions, and table/view columns. Includes key flags, types, defaults, and estimated table row counts. |
-| `execute_query` | `connectionId`, `sql` | Runs one validated read-only `SELECT` and returns bounded results. |
+In **Settings → MCP**, copy the configuration into your agent client. Esploro must remain open. **Settings → MCP Activity** shows recent query attempts.
 
-Schema inspection and queries open database sessions with saved credentials from Keychain. MCP exposes tools only, without resources or prompts.
-
-### Connect an agent
-
-1. Keep Esploro open with your saved database connections.
-2. Open **Settings → MCP**.
-3. Click **Copy configuration**.
-4. Add the configuration to an agent client that supports Streamable HTTP and bearer authentication.
-5. Ask the agent to list connections, inspect a schema, or query a database.
-
-The MCP panel shows server status and provides controls to copy the endpoint, reveal or copy the token, and copy configuration.
-
-The endpoint is `http://127.0.0.1:19482/mcp`. Configuration formats differ between clients. A typical configuration is:
-
-```json
-{
-  "mcpServers": {
-    "esploro": {
-      "type": "http",
-      "url": "http://127.0.0.1:19482/mcp",
-      "headers": {
-        "Authorization": "Bearer <YOUR_TOKEN>"
-      }
-    }
-  }
-}
-```
-
-For example, ask: “Show the last 10 users in my sandbox database.” The agent inspects the schema and supplies SQL to Esploro.
-
-### Query support and limits
-
-MCP queries support PostgreSQL, MySQL, and MariaDB. Read-only queries can include CTEs, joins, subqueries, filters, grouping, sorting, pagination, and set operations.
-
-Allowed SQL functions are `count`, `sum`, `avg`, `min`, `max`, `abs`, `round`, `lower`, `upper`, `length`, `coalesce`, and `nullif`. Function names must be unquoted and unqualified.
-
-Esploro rejects writes, schema changes, multiple statements, row locks, arbitrary functions, and unsupported expressions. It uses SQL validation and database read-only transactions.
-
-Each query has these limits:
-
-- 1,000 returned rows
-- 1,000,000 bytes of result payload
-- A 30-second execution timeout
-- Two concurrent query executions
-- 64 KiB of SQL text.
-
-Results report truncation. Busy errors are retryable. Schema inspection returns all available schemas and columns, so large databases can produce large responses.
-
-### Query activity
-
-**Settings → MCP Activity** shows the latest 20 persisted query attempts. Each entry includes SQL, connection, status, duration, returned rows, and error details.
-
-**Clear History** removes the history. Esploro stores full SQL locally, including SQL literals, but does not store result data in this history.
-
-### Access boundary
-
-The bearer token persists across app restarts and grants read-only access to all saved connection profiles. Keep the token secret.
-
-The server accepts local clients, not direct browser requests. MCP does not expose tools to modify data, manage connection profiles, or change access permissions.
-
-Read-only access does not prevent data disclosure or guarantee absolute isolation. Query results can reach cloud agents. Use restricted database roles for sensitive databases.
+The token grants access to all saved connections. Query results can reach cloud agents. Use restricted database roles for sensitive data.
 
 ## Privacy
 
