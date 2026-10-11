@@ -17,14 +17,15 @@ except ImportError as e:
     print("Run: pip3 install cairosvg pillow --break-system-packages")
     raise
 
-# Rosé Pine Moon tones (sourced from src/styles/tokens.css)
-ROSE_PINE_MOON_BASE = "#232136"
-ROSE_PINE_MOON_SURFACE = "#2a273f"
-ROSE_PINE_MOON_OVERLAY = "#393552"
-ROSE_PINE_MOON_HIGHLIGHT_MED = "#44415a"
-ROSE_PINE_MOON_HIGHLIGHT_HIGH = "#56526e"
-ROSE_PINE_MOON_TEXT = "#e0def4"
-ICON_INNER_STROKE = "rgba(224,222,244,0.16)"
+POLAR_AURORA_BASE = "#101318"
+POLAR_AURORA_SURFACE = "#161d25"
+POLAR_AURORA_SIDEBAR = "#0b0e13"
+POLAR_AURORA_OVERLAY = "#1e2a38"
+POLAR_AURORA_HIGHLIGHT_MED = "#233446"
+POLAR_AURORA_HIGHLIGHT_HIGH = "#4b586b"
+POLAR_AURORA_GREEN = "#92eebb"
+POLAR_AURORA_GREEN_HOVER = "#7bdca9"
+ICON_INNER_STROKE = "rgba(216,223,229,0.16)"
 
 # Phosphor binoculars-bold path (256x256 viewBox). This is the same icon Phosphor
 # returns for the search query "explore" — see https://phosphoricons.com/?q=explore
@@ -61,20 +62,19 @@ def make_icon_svg(size: int) -> str:
 
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">
   <defs>
-    <!-- Diagonal Rosé Pine Moon gradient: surface to base -->
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="{ROSE_PINE_MOON_SURFACE}"/>
-      <stop offset="62%" stop-color="{ROSE_PINE_MOON_BASE}"/>
-      <stop offset="100%" stop-color="#1f1d2f"/>
+      <stop offset="0%"  stop-color="{POLAR_AURORA_SURFACE}"/>
+      <stop offset="62%" stop-color="{POLAR_AURORA_BASE}"/>
+      <stop offset="100%" stop-color="{POLAR_AURORA_SIDEBAR}"/>
     </linearGradient>
     <linearGradient id="glyph" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="{ROSE_PINE_MOON_TEXT}"/>
-      <stop offset="100%" stop-color="#d8d5ee"/>
+      <stop offset="0%" stop-color="{POLAR_AURORA_GREEN}"/>
+      <stop offset="100%" stop-color="{POLAR_AURORA_GREEN_HOVER}"/>
     </linearGradient>
     <radialGradient id="tonal-highlight" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%"   stop-color="{ROSE_PINE_MOON_HIGHLIGHT_HIGH}" stop-opacity="0.55"/>
-      <stop offset="58%"  stop-color="{ROSE_PINE_MOON_HIGHLIGHT_MED}" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="{ROSE_PINE_MOON_OVERLAY}" stop-opacity="0"/>
+      <stop offset="0%"   stop-color="{POLAR_AURORA_HIGHLIGHT_HIGH}" stop-opacity="0.55"/>
+      <stop offset="58%"  stop-color="{POLAR_AURORA_HIGHLIGHT_MED}" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="{POLAR_AURORA_OVERLAY}" stop-opacity="0"/>
     </radialGradient>
     <!-- Squircle clip so the lume doesn't bleed past the corners -->
     <clipPath id="squircle">
@@ -90,7 +90,6 @@ def make_icon_svg(size: int) -> str:
         rx="{radius}" ry="{radius}"
         fill="url(#bg)"/>
 
-  <!-- Monotone Moon highlight (clipped to the squircle) -->
   <g clip-path="url(#squircle)">
     <ellipse cx="{highlight_cx:.3f}" cy="{highlight_cy:.3f}"
              rx="{highlight_rx:.3f}" ry="{highlight_ry:.3f}"

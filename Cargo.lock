@@ -1520,7 +1520,7 @@ dependencies = [
 
 [[package]]
 name = "esploro"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "chrono",
  "deadpool-postgres",
