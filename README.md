@@ -1,71 +1,43 @@
 # Esploro
 
-Esploro is an open source SQL client for Mac. It supports PostgreSQL, MySQL, and MariaDB in one focused app.
+A SQL client for Mac. Browse and edit PostgreSQL, MySQL, and MariaDB databases, run queries, and give your AI agent read-only database access.
 
-[Website](https://esploro.app) · [Download](https://github.com/matija/esploro/releases) · [Issues](https://github.com/matija/esploro/issues)
+[Download for Mac](https://github.com/matija/esploro/releases) · [Website](https://esploro.app) · [Issues](https://github.com/matija/esploro/issues)
 
 ![Esploro table browser](assets/readme/table-browser.png)
 
-The website screenshot uses fictional database names, table names, column names, and values.
-
-## Why Esploro?
-
-Esploro focuses on the database work that Mac developers do each day. It gives you a clear interface for PostgreSQL, MySQL, and MariaDB.
-
 ## Features
 
-- Browse connections, schemas, tables, views, sequences, and roles
-- Inspect and edit table data in a fast grid
-- Write and run SQL queries
+- Browse schemas and edit table data in a grid
+- Write, run, and save SQL queries
+- Let AI agents inspect schemas and query saved databases through local MCP access
 - Filter table data and copy the generated SQL
 - Copy values, columns, and rows as JSON or CSV
-- Save queries for repeated work
-- Review roles and table privileges
-- Choose themes, fonts, row density, and rows per page
-- Store database passwords in the macOS Keychain
-- Connect AI agents through a local MCP server for schema inspection and read-only SQL
+- Review database roles and table privileges
+- Customize themes, fonts, and row density
+
+For MCP access, copy the configuration from **Settings → MCP** into your agent client. Keep Esploro open. **Settings → MCP Activity** shows recent query attempts.
 
 ## Download
 
 Esploro supports macOS 13 or later. Apple Silicon and Intel builds are available on [GitHub Releases](https://github.com/matija/esploro/releases).
 
-Personal, non-commercial use is free. Paid work requires a commercial license. See the [pricing page](https://esploro.app/pricing) for current options.
-
-Linux and Windows builds are planned.
-
-## MCP
-
-Esploro provides a local MCP server with three tools: `list_connections`, `inspect_schema`, and `execute_query` (read-only SQL).
-
-In **Settings → MCP**, copy the configuration into your agent client. Esploro must remain open. **Settings → MCP Activity** shows recent query attempts.
-
-The token grants access to all saved connections. Query results can reach cloud agents. Use restricted database roles for sensitive data.
+Personal, non-commercial use is free. Commercial use of distributed Esploro builds requires a paid license. See the [pricing page](https://esploro.app/pricing).
 
 ## Privacy
 
-Esploro connects from your Mac to your database server. Queries and results do not pass through an Esploro cloud service.
+Esploro connects directly from your Mac to your database server. Queries and results do not pass through an Esploro cloud service. Database passwords stay in macOS Keychain.
 
-Esploro stores database passwords in macOS Keychain. Commercial license checks use an online service. Read the [privacy policy](https://esploro.app/privacy) for website analytics, payments, license checks, and support information.
+MCP access covers all saved connections. Query results can reach cloud agents. Use restricted database roles for sensitive data.
 
-## Source
+Commercial license checks use an online service. See the [privacy policy](https://esploro.app/privacy) for details.
 
-Esploro uses [Tauri 2](https://tauri.app/), Rust, React, and TypeScript.
+## Development
 
-Issues and pull requests are welcome on [GitHub](https://github.com/matija/esploro).
+Esploro uses Tauri 2, Rust, React, and TypeScript. Issues and pull requests are welcome.
 
-## MCP acceptance tests
-
-On macOS, install Node.js, Rust, Xcode Command Line Tools, and Docker with a running daemon.
-
-```sh
-npm ci
-npm run verify:mcp
-```
-
-The command creates disposable PostgreSQL 17, MySQL 8.4, and MariaDB 11.4 containers. It runs authenticated HTTP tool calls, database acceptance tests, Rust checks, and frontend checks. Missing databases fail the command instead of silently skipping cases. The command removes its containers and database volumes on success or failure.
-
-The native app is `target/release/bundle/macos/Esploro.app`. This local build does not require an updater signing key.
+See the [development guide](docs/development.md) for local verification and MCP acceptance tests.
 
 ## License
 
-The source code uses the MIT License. Commercial use of distributed Esploro builds requires a paid license.
+The source code uses the [MIT License](LICENSE). Commercial use of distributed Esploro builds requires a paid license.
