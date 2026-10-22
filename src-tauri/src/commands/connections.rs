@@ -6,7 +6,6 @@ use deadpool_postgres::{Config as PoolConfig, ManagerConfig, RecyclingMethod, Ru
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_log::log::info;
-use tokio_postgres::NoTls;
 use uuid::Uuid;
 
 use crate::db::{
@@ -153,6 +152,27 @@ fn build_pg_pool(
     cfg.dbname = Some(profile.database.clone());
     cfg.user = Some(profile.username.clone());
     cfg.password = Some(password.to_string());
+    if cfg
+        .host
+        .as_deref()
+        .is_some_and(|host| host.starts_with('/'))
+        && matches!(profile.ssl_mode, SslMode::Require | SslMode::VerifyFull)
+    {
+        return Err(AppError::Validation(
+            "Required TLS needs a TCP host instead of a Unix socket".into(),
+        ));
+    }
+    cfg.ssl_mode = Some(match profile.ssl_mode {
+        SslMode::Disable => deadpool_postgres::SslMode::Disable,
+        SslMode::Prefer => deadpool_postgres::SslMode::Prefer,
+        SslMode::Require | SslMode::VerifyFull => deadpool_postgres::SslMode::Require,
+    });
+    let verify = profile.ssl_mode == SslMode::VerifyFull;
+    let tls = native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(!verify)
+        .danger_accept_invalid_hostnames(!verify)
+        .build()
+        .map_err(|error| AppError::Connection(error.to_string()))?;
 
     // Bound every phase of connection acquisition; without these a query
     // against an unreachable host hangs forever instead of erroring.
@@ -176,8 +196,11 @@ fn build_pg_pool(
         recycling_method: RecyclingMethod::Verified,
     });
 
-    cfg.create_pool(Some(Runtime::Tokio1), NoTls)
-        .map_err(AppError::from)
+    cfg.create_pool(
+        Some(Runtime::Tokio1),
+        postgres_native_tls::MakeTlsConnector::new(tls),
+    )
+    .map_err(AppError::from)
 }
 
 /// Per-profile pool size used when a profile leaves `pool_max_connections` unset.
