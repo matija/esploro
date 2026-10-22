@@ -109,7 +109,22 @@ pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppErro
                         "Unsupported server; read-only execution refused".into(),
                     ));
                 }
-                client.batch_execute("BEGIN READ ONLY").await?;
+                client
+                    .batch_execute(
+                        "BEGIN READ ONLY; SET LOCAL standard_conforming_strings = on; SET LOCAL client_encoding = 'UTF8'",
+                    )
+                    .await?;
+                let lexical = client
+                    .query_one(
+                        "SELECT current_setting('standard_conforming_strings'), current_setting('client_encoding')",
+                        &[],
+                    )
+                    .await?;
+                if lexical.get::<_, String>(0) != "on" || lexical.get::<_, String>(1) != "UTF8" {
+                    return Err(AppError::Connection(
+                        "SQL session settings do not match the validator; query refused".into(),
+                    ));
+                }
                 {
                     let stream = client.simple_query_raw(sql).await?;
                     pin_mut!(stream);
@@ -157,6 +172,14 @@ pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppErro
                 let major = version.split('.').next().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
                 if !(version.contains("MariaDB") && major >= 10 || !version.contains("MariaDB") && major >= 5 && comment.contains("MySQL")) {
                     return Err(AppError::Connection("Unsupported server; read-only execution refused".into()));
+                }
+                conn.query_drop("SET SESSION sql_mode = 'STRICT_ALL_TABLES'").await?;
+                conn.query_drop("SET NAMES utf8mb4").await?;
+                let lexical: Option<(String, String, String)> = conn.query_first(
+                    "SELECT @@session.sql_mode, @@session.character_set_client, @@session.character_set_connection",
+                ).await?;
+                if lexical != Some(("STRICT_ALL_TABLES".into(), "utf8mb4".into(), "utf8mb4".into())) {
+                    return Err(AppError::Connection("SQL session settings do not match the validator; query refused".into()));
                 }
                 conn.query_drop("START TRANSACTION READ ONLY").await?;
                 let mut result = conn.query_iter(sql).await?;
