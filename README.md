@@ -40,7 +40,7 @@ See the [development guide](docs/development.md) for local verification and MCP 
 
 ## Release
 
-From the app root, run `npm run release` to build, notarize, and publish Apple
+From the app root, run `make release` to build, notarize, and publish Apple
 Silicon and Intel builds, then update and push `../esploro.web`. GitHub Actions
 deploys the website. The website checkout must be clean and match its remote
 default branch. Both macOS Rust targets must be installed.
