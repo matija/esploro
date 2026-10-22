@@ -86,12 +86,12 @@ fn pg_cast_for_data_type(dt: &str) -> &'static str {
 // cast target so that "type" = $1::text::alert_action_type works instead of
 // the broken "type" = $1::text::text.
 pub(super) fn resolve_pg_cast(udt_name: &str, data_type: &str) -> String {
+    if data_type == "USER-DEFINED" {
+        return super::quote_pg_identifier(udt_name);
+    }
     let cast = pg_cast_for_udt(udt_name);
     if cast != "text" {
         return cast.to_string();
-    }
-    if data_type == "USER-DEFINED" {
-        return udt_name.to_string();
     }
     let dt_cast = pg_cast_for_data_type(data_type);
     dt_cast.to_string()
@@ -241,7 +241,7 @@ mod tests {
     fn user_defined_types_cast_to_the_udt_name() {
         assert_eq!(
             resolve_pg_cast("alert_action_type", "USER-DEFINED"),
-            "alert_action_type"
+            "\"alert_action_type\""
         );
     }
 

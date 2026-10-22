@@ -58,8 +58,8 @@ pub(super) fn build_pg_update_sql(
                 .get(&cc.column)
                 .map(|s| s.as_str())
                 .unwrap_or("text");
-            if udt.starts_with('_') {
-                let elem_type = udt.trim_start_matches('_');
+            if let Some(elem_type) = udt.strip_prefix('_') {
+                let elem_type = super::quote_pg_identifier(elem_type);
                 params.push(json_to_pg_array_literal(val)?);
                 let p = params.len();
                 set_parts.push(format!("\"{}\" = ${}::text::{}[]", cc.column, p, elem_type));
@@ -144,8 +144,8 @@ fn build_pg_update_preview_statement(
                     .get(&cc.column)
                     .map(|s| s.as_str())
                     .unwrap_or("text");
-                if udt.starts_with('_') {
-                    let elem_type = udt.trim_start_matches('_');
+                if let Some(elem_type) = udt.strip_prefix('_') {
+                    let elem_type = super::quote_pg_identifier(elem_type);
                     let pg_array = json_to_pg_array_literal(val)?;
                     format!(
                         "\"{}\" = '{}'::{}[]",
@@ -313,8 +313,8 @@ pub(super) fn build_pg_insert_sql(
                 .get(&cc.column)
                 .map(|s| s.as_str())
                 .unwrap_or("text");
-            if udt.starts_with('_') {
-                let elem_type = udt.trim_start_matches('_');
+            if let Some(elem_type) = udt.strip_prefix('_') {
+                let elem_type = super::quote_pg_identifier(elem_type);
                 params.push(json_to_pg_array_literal(val)?);
                 let p = params.len();
                 value_parts.push(format!("${}::text::{}[]", p, elem_type));
@@ -411,8 +411,8 @@ pub(super) fn build_pg_insert_preview_statement(
                     .get(&cc.column)
                     .map(|s| s.as_str())
                     .unwrap_or("text");
-                if udt.starts_with('_') {
-                    let elem_type = udt.trim_start_matches('_');
+                if let Some(elem_type) = udt.strip_prefix('_') {
+                    let elem_type = super::quote_pg_identifier(elem_type);
                     let pg_array = json_to_pg_array_literal(val)?;
                     format!("'{}'::{}[]", sql_escape_string(&pg_array), elem_type)
                 } else {
@@ -952,7 +952,7 @@ mod tests {
 
         assert_eq!(
             sql.sql,
-            r#"UPDATE "public"."people" SET "tags" = $1::text::int4[] WHERE "id" = $2::text::bigint"#
+            r#"UPDATE "public"."people" SET "tags" = $1::text::"int4"[] WHERE "id" = $2::text::bigint"#
         );
         assert_eq!(
             sql.params,
@@ -1098,7 +1098,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(sql.contains(r#"SET "tags" = '{"a''b"}'::text[]"#));
+        assert!(sql.contains(r#"SET "tags" = '{"a''b"}'::"text"[]"#));
     }
 
     #[test]
@@ -1243,7 +1243,7 @@ mod tests {
 
         assert_eq!(
             sql.sql,
-            r#"INSERT INTO "public"."people" ("tags") VALUES ($1::text::int4[])"#
+            r#"INSERT INTO "public"."people" ("tags") VALUES ($1::text::"int4"[])"#
         );
         assert_eq!(sql.params, vec![r#"{"1","2"}"#.to_string()]);
     }

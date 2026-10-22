@@ -1,5 +1,8 @@
 use super::type_mapping::{pg_native_udt, CellValue, TruncatedCell};
-use super::{validate_column_identifier, ResultColumn, SortDirection};
+use super::{
+    quote_mysql_identifier, quote_pg_identifier, validate_column_identifier, ResultColumn,
+    SortDirection,
+};
 
 // ─── serialised-payload guard ────────────────────────────────────────────────
 
@@ -144,9 +147,9 @@ pub(super) fn build_pg_select_list(
                 .map(|s| s.as_str())
                 .unwrap_or("text");
             if pg_native_udt(udt) {
-                format!("\"{}\"", c.name)
+                quote_pg_identifier(&c.name)
             } else {
-                format!("\"{}\"::text", c.name)
+                format!("{}::text", quote_pg_identifier(&c.name))
             }
         })
         .collect::<Vec<_>>()
@@ -156,7 +159,7 @@ pub(super) fn build_pg_select_list(
 pub(super) fn build_mysql_select_list(columns: &[ResultColumn]) -> String {
     columns
         .iter()
-        .map(|c| format!("`{}`", c.name))
+        .map(|c| quote_mysql_identifier(&c.name))
         .collect::<Vec<_>>()
         .join(", ")
 }

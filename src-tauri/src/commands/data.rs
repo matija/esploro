@@ -56,6 +56,14 @@ pub(super) fn validate_column_identifier(s: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn quote_pg_identifier(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+fn quote_mysql_identifier(s: &str) -> String {
+    format!("`{}`", s.replace('`', "``"))
+}
+
 #[derive(Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TableQueryRequest {
