@@ -36,23 +36,26 @@ ok "Built ${_c_dim}$DMG${_c_reset}"
 notarize_dmg "$DMG"
 
 step "Patching latest.json with darwin-x86_64 entry..."
+RELEASE_TMP=$(mktemp -d /tmp/esploro-release.XXXXXXXX)
+trap 'rm -rf "$RELEASE_TMP"' EXIT
+EXISTING_JSON="$RELEASE_TMP/latest.json"
 EXISTING_URL=$(gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json assets \
   --jq '.assets[] | select(.name=="latest.json") | .url')
 
 if [[ -n "$EXISTING_URL" ]]; then
   curl -fsSL -H "Authorization: token $(gh auth token)" \
     -H "Accept: application/octet-stream" \
-    "$EXISTING_URL" -o /tmp/latest_existing.json
+    "$EXISTING_URL" -o "$EXISTING_JSON"
 else
   warn "no existing latest.json on release; creating one with only darwin-x86_64."
   printf '{"version":"%s","notes":"","pub_date":"%s","platforms":{}}\n' \
-    "$RELEASE_VERSION" "$(date -u +%FT%TZ)" > /tmp/latest_existing.json
+    "$RELEASE_VERSION" "$(date -u +%FT%TZ)" > "$EXISTING_JSON"
 fi
 
-APP_TAR_SIG="$APP_TAR_SIG" LATEST_JSON="$LATEST_JSON" node -e '
+APP_TAR_SIG="$APP_TAR_SIG" LATEST_JSON="$LATEST_JSON" EXISTING_JSON="$EXISTING_JSON" node -e '
 const fs = require("fs");
 const sig = fs.readFileSync(process.env.APP_TAR_SIG, "utf8").trim();
-const manifest = JSON.parse(fs.readFileSync("/tmp/latest_existing.json", "utf8"));
+const manifest = JSON.parse(fs.readFileSync(process.env.EXISTING_JSON, "utf8"));
 manifest.platforms = manifest.platforms || {};
 manifest.platforms["darwin-x86_64"] = {
   signature: sig,
