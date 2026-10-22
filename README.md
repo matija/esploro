@@ -38,6 +38,22 @@ Esploro uses Tauri 2, Rust, React, and TypeScript. Issues and pull requests are 
 
 See the [development guide](docs/development.md) for local verification and MCP acceptance tests.
 
+## Release
+
+From the app root, run `npm run release` to build, notarize, and publish Apple
+Silicon and Intel builds, then update and push `../esploro.web`. GitHub Actions
+deploys the website. The website checkout must be clean and match its remote
+default branch. Both macOS Rust targets must be installed.
+
+To change the version, run `./build/bump.sh <version>`, then commit and push
+the bump before releasing. The existing signing environment is required.
+
+If only the website update fails, fix the error and run `npm run release:website`
+to retry without rebuilding the app. If a website push failed, push that commit
+from the website checkout first. `RELEASE_TAG` also applies to website updates.
+The separate `build/release.sh` and `build/release-intel.sh` commands remain
+available for recovery.
+
 ## License
 
 The source code uses the [MIT License](LICENSE). Commercial use of distributed Esploro builds requires a paid license.

@@ -6,6 +6,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "release": "bash build/release-all.sh",
+    "release:website": "node build/release-website.mjs",
     "preinstall": "node tools/check-dep-cooldown.mjs --npm",
     "deps:check": "node tools/check-dep-cooldown.mjs",
     "deps:unused": "npx --yes knip@5.46.0 --dependencies",
