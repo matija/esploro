@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod lifecycle;
+pub mod policy;
 pub mod server;
 pub use server::McpListener;
 pub mod query;
@@ -168,6 +169,73 @@ impl Visitor for ReadOnly {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn policy_defaults_persistence_and_fail_closed_errors() {
+        use policy::{McpPolicy, PolicyStore};
+
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("connections.json"), "[]").unwrap();
+        let path = directory.join("mcp_policy.json");
+        let store = PolicyStore::open(path.clone());
+        assert_eq!(store.get(), McpPolicy::default());
+        assert!(!store.permits("saved"));
+        let allowed = McpPolicy {
+            enabled: true,
+            permitted_connection_ids: vec!["saved".into()],
+            ..McpPolicy::default()
+        };
+        store.save(allowed.clone()).unwrap();
+        let reopened = PolicyStore::open(path.clone());
+        assert_eq!(reopened.get(), allowed);
+        assert!(reopened.permits("saved"));
+        assert!(!reopened.permits("other"));
+        let persisted: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(persisted["version"], 1);
+        assert_eq!(
+            persisted["permittedConnectionIds"],
+            serde_json::json!(["saved"])
+        );
+        store.save(McpPolicy::default()).unwrap();
+        assert!(!PolicyStore::open(path.clone()).permits("saved"));
+        for invalid in [
+            "{",
+            "{}",
+            r#"{"version":2,"enabled":true,"permittedConnectionIds":["saved"]}"#,
+            r#"{"version":1,"enabled":"true","permittedConnectionIds":["saved"]}"#,
+            r#"{"version":1,"enabled":true,"permittedConnectionIds":[""]}"#,
+        ] {
+            std::fs::write(&path, invalid).unwrap();
+            let failed = PolicyStore::open(path.clone());
+            assert_eq!(failed.get(), McpPolicy::default());
+            assert!(!failed.permits("saved"));
+        }
+        std::fs::write(&path, r#"{"version":1}"#).unwrap();
+        assert_eq!(PolicyStore::open(path.clone()).get(), McpPolicy::default());
+        store.save(allowed.clone()).unwrap();
+        let mut invalid = allowed.clone();
+        invalid.version = 2;
+        assert!(store.save(invalid).is_err());
+        assert!(!store.permits("saved"));
+        store.save(allowed.clone()).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert!(!PolicyStore::open(path.clone()).permits("saved"));
+        assert!(store.save(allowed.clone()).is_err());
+        assert_eq!(store.get(), McpPolicy::default());
+        assert!(!store.permits("saved"));
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        std::fs::remove_dir(&path).unwrap();
+        std::fs::remove_file(directory.join("connections.json")).unwrap();
+        std::fs::remove_dir(&directory).unwrap();
+        std::fs::write(&directory, "blocked parent").unwrap();
+        let blocked = PolicyStore::open(path);
+        assert!(blocked.save(allowed).is_err());
+        assert!(!blocked.permits("saved"));
+        std::fs::remove_file(directory).unwrap();
+    }
 
     #[test]
     fn accepts_read_queries() {

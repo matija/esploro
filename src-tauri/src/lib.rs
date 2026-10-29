@@ -166,6 +166,9 @@ pub fn run() {
         .manage(AppState::default())
         .manage(mcp::lifecycle::McpLifecycle::<mcp::McpListener>::default())
         .setup(|app| {
+            app.manage(mcp::policy::PolicyStore::open(
+                app.path().app_data_dir()?.join("mcp_policy.json"),
+            ));
             app.manage(mcp::activity::ActivityStore::open(
                 app.path().app_data_dir()?.join("mcp_activity.json"),
             )?);
