@@ -35,7 +35,9 @@ async fn request(address: SocketAddr, token: &str, message: Value) -> (u16, Valu
 }
 
 async fn call(address: SocketAddr, name: &str, arguments: Value) -> Value {
-    let (status, value) = request(address, "acceptance-token", json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":name,"arguments":arguments}})).await;
+    static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(100);
+    let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let (status, value) = request(address, "acceptance-token", json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}})).await;
     assert_eq!(status, 200, "{value}");
     assert!(value.get("error").is_none(), "{value}");
     value["result"].clone()
@@ -286,6 +288,52 @@ async fn authenticated_http_tools_against_all_databases() {
         .extend(sessions);
     let state = app.state::<AppState>();
     let held = state.sessions.lock().await;
+    let pending = json!({"jsonrpc":"2.0","id":"cancel-me","method":"tools/call","params":{"name":"inspect_schema","arguments":{"connectionId":"postgres"}}});
+    let work = tokio::spawn(request(address, "acceptance-token", pending.clone()));
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let duplicate = request(address, "acceptance-token", pending).await;
+    assert_eq!(duplicate.1["error"]["code"], -32600);
+    let cancel = json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"cancel-me"}});
+    assert_eq!(request(address, "wrong-token", cancel.clone()).await.0, 401);
+    assert!(!work.is_finished());
+    assert_eq!(request(address, "acceptance-token", cancel).await.0, 202);
+    let cancelled = tokio::time::timeout(Duration::from_secs(2), work)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(cancelled.1["error"]["code"], -32800);
+    let disconnected = json!({"jsonrpc":"2.0","id":"disconnected","method":"tools/call","params":{"name":"inspect_schema","arguments":{"connectionId":"postgres"}}});
+    let mut socket = TcpStream::connect(address).await.unwrap();
+    let body = disconnected.to_string();
+    socket.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer acceptance-token\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nMCP-Protocol-Version: 2025-06-18\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    drop(socket);
+    assert_eq!(
+        request(address, "acceptance-token", disconnected).await.1["error"]["code"],
+        -32600
+    );
+    let mut keep_alive = TcpStream::connect(address).await.unwrap();
+    for message in [
+        json!({"jsonrpc":"2.0","id":"ping","method":"ping"}),
+        json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"disconnected"}}),
+    ] {
+        let body = message.to_string();
+        keep_alive.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer acceptance-token\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nMCP-Protocol-Version: 2025-06-18\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+        let mut bytes = vec![0; 4096];
+        let size = tokio::time::timeout(Duration::from_secs(2), keep_alive.read(&mut bytes))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(&bytes[..size]).contains(if message.get("id").is_some() {
+                "200 OK"
+            } else {
+                "202 Accepted"
+            })
+        );
+    }
+    drop(keep_alive);
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let started = std::time::Instant::now();
     let inspection = tokio::spawn(call(
         address,
@@ -333,6 +381,94 @@ async fn authenticated_http_tools_against_all_databases() {
         assert_eq!(result["isError"], false, "{result}");
     }
     for id in ["postgres", "mysql", "mariadb"] {
+        let driver = {
+            let sessions = state.sessions.lock().await;
+            match &sessions[id].driver {
+                DriverSession::Postgres(pool) => DriverSession::Postgres(pool.clone()),
+                DriverSession::Mysql(pool) => DriverSession::Mysql(pool.clone()),
+            }
+        };
+        let sql = "SELECT c000 FROM t6_metadata.columns_page";
+        let pg_blocker;
+        let mut mysql_blocker;
+        match &driver {
+            DriverSession::Postgres(pool) => {
+                pg_blocker = Some(pool.get().await.unwrap());
+                pg_blocker
+                    .as_ref()
+                    .unwrap()
+                    .batch_execute(
+                        "BEGIN; LOCK TABLE t6_metadata.columns_page IN ACCESS EXCLUSIVE MODE",
+                    )
+                    .await
+                    .unwrap();
+                mysql_blocker = None;
+            }
+            DriverSession::Mysql(pool) => {
+                use mysql_async::prelude::Queryable;
+                pg_blocker = None;
+                let mut conn = pool.get_conn().await.unwrap();
+                conn.query_drop("LOCK TABLES t6_metadata.columns_page WRITE")
+                    .await
+                    .unwrap();
+                mysql_blocker = Some(conn);
+            }
+        }
+        let message = json!({"jsonrpc":"2.0","id":"database-cancel","method":"tools/call","params":{"name":"execute_query","arguments":{"connectionId":id,"sql":sql}}});
+        let work = tokio::spawn(request(address, "acceptance-token", message));
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!work.is_finished());
+        request(address, "acceptance-token", json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"database-cancel"}})).await;
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), work)
+                .await
+                .unwrap()
+                .unwrap()
+                .1["error"]["code"],
+            -32800
+        );
+        let until = tokio::time::Instant::now() + Duration::from_secs(8);
+        loop {
+            let active: i64 = if let Some(conn) = &pg_blocker {
+                conn.query_one("SELECT count(*) FROM pg_stat_activity WHERE query = $1 AND pid <> pg_backend_pid()", &[&sql]).await.unwrap().get(0)
+            } else {
+                use mysql_async::prelude::Queryable;
+                mysql_blocker
+                    .as_mut()
+                    .unwrap()
+                    .exec_first::<i64, _, _>(
+                        "SELECT count(*) FROM information_schema.PROCESSLIST WHERE INFO = ?",
+                        (sql,),
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap()
+            };
+            if active == 0 {
+                break;
+            }
+            assert!(
+                tokio::time::Instant::now() < until,
+                "Cancelled database work remains active: {id}"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if let Some(conn) = pg_blocker {
+            conn.batch_execute("ROLLBACK").await.unwrap();
+        }
+        if let Some(mut conn) = mysql_blocker {
+            use mysql_async::prelude::Queryable;
+            conn.query_drop("UNLOCK TABLES").await.unwrap();
+        }
+        assert_eq!(
+            call(
+                address,
+                "execute_query",
+                json!({"connectionId":id,"sql":"SELECT 1"})
+            )
+            .await["isError"],
+            false
+        );
         let schema = call(address, "inspect_schema", json!({"connectionId":id})).await;
         assert_ne!(schema["isError"], true, "{schema}");
         assert!(schema["structuredContent"]["schemas"].as_array().is_some());
@@ -507,7 +643,7 @@ async fn authenticated_http_tools_against_all_databases() {
         })
         .unwrap();
     let history = app.state::<ActivityStore>().history();
-    assert_eq!(history.len(), 17);
+    assert_eq!(history.len(), 20);
     assert_eq!(
         history
             .iter()

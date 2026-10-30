@@ -51,6 +51,49 @@ where
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 
+type RequestKey = (String, String);
+#[derive(Default)]
+struct Requests {
+    active: std::collections::HashMap<RequestKey, tokio::sync::watch::Sender<bool>>,
+    stopped: std::collections::HashSet<String>,
+}
+
+static ACTIVE: std::sync::LazyLock<std::sync::Mutex<Requests>> =
+    std::sync::LazyLock::new(Default::default);
+
+pub(crate) fn admit_token(token: &str) {
+    ACTIVE.lock().unwrap().stopped.remove(token);
+}
+
+struct ActiveRequest(RequestKey);
+
+impl Drop for ActiveRequest {
+    fn drop(&mut self) {
+        ACTIVE.lock().unwrap().active.remove(&self.0);
+    }
+}
+
+pub(crate) fn cancel_token(token: &str) {
+    let mut requests = ACTIVE.lock().unwrap();
+    requests.stopped.insert(token.into());
+    for ((owner, _), signal) in requests.active.iter() {
+        if owner == token {
+            signal.send_replace(true);
+        }
+    }
+}
+
+fn cancel_request(token: &str, id: &serde_json::Value) {
+    if let Some(signal) = ACTIVE
+        .lock()
+        .unwrap()
+        .active
+        .get(&(token.into(), id.to_string()))
+    {
+        signal.send_replace(true);
+    }
+}
+
 pub async fn handle<B: Body>(request: Request<B>, token: &str) -> http::Response<Vec<u8>>
 where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -170,9 +213,27 @@ where
                 "Invalid Request",
             );
         }
+        if method == "notifications/cancelled" {
+            if let Some(request_id) = message["params"].get("requestId") {
+                cancel_request(token, request_id);
+            }
+        }
         return response(StatusCode::ACCEPTED, None);
     }
     let id = id.unwrap();
+    let key = (token.to_string(), id.to_string());
+    let (signal, cancelled) = tokio::sync::watch::channel(false);
+    {
+        let mut active = ACTIVE.lock().unwrap();
+        if active.stopped.contains(token) {
+            return response(StatusCode::UNAUTHORIZED, None);
+        }
+        if active.active.contains_key(&key) {
+            return rpc_error(StatusCode::OK, id, -32600, "Duplicate active request ID");
+        }
+        active.active.insert(key.clone(), signal);
+    }
+    let active = ActiveRequest(key);
     let params = &message["params"];
     let result = match method {
         "initialize" => {
@@ -204,9 +265,27 @@ where
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            match super::tools::call(app, name, &arguments).await {
-                Ok(result) => result,
-                Err(error) => return rpc_error(StatusCode::OK, id, -32602, error),
+            let app = app.cloned();
+            let name = name.to_string();
+            let work = tokio::spawn(async move {
+                let _active = active;
+                super::tools::call_cancellable(app.as_ref(), &name, &arguments, cancelled).await
+            });
+            match work.await {
+                Ok(Ok(result)) => result,
+                Ok(Err(error)) => {
+                    return rpc_error(
+                        StatusCode::OK,
+                        id,
+                        if error == "Request cancelled" {
+                            -32800
+                        } else {
+                            -32602
+                        },
+                        error,
+                    )
+                }
+                Err(_) => return rpc_error(StatusCode::OK, id, -32603, "Request failed"),
             }
         }
         _ => return rpc_error(StatusCode::OK, id, -32601, "Method not found"),

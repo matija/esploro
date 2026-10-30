@@ -81,6 +81,19 @@ async fn inspect_page(
     request.execute(&driver).await
 }
 
+pub(crate) async fn call_cancellable<R: tauri::Runtime>(
+    app: Option<&tauri::AppHandle<R>>,
+    name: &str,
+    arguments: &Value,
+    mut cancelled: tokio::sync::watch::Receiver<bool>,
+) -> Result<Value, &'static str> {
+    tokio::select! {
+        biased;
+        _ = cancelled.changed() => Err("Request cancelled"),
+        result = call(app, name, arguments) => result,
+    }
+}
+
 pub async fn call<R: tauri::Runtime>(
     app: Option<&tauri::AppHandle<R>>,
     name: &str,

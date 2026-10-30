@@ -94,6 +94,38 @@ pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppErro
     .await
 }
 
+pub(crate) struct PgCancellation(pub tokio_postgres::CancelToken);
+
+impl Drop for PgCancellation {
+    fn drop(&mut self) {
+        let token = self.0.clone();
+        tokio::spawn(async move {
+            let _ = tokio::time::timeout(
+                crate::db::RECYCLE_TIMEOUT,
+                token.cancel_query(tokio_postgres::NoTls),
+            )
+            .await;
+        });
+    }
+}
+
+pub(crate) struct MysqlCancellation(pub std::sync::Arc<mysql_async::Pool>, pub u32);
+
+impl Drop for MysqlCancellation {
+    fn drop(&mut self) {
+        let pool = self.0.clone();
+        let id = self.1;
+        tokio::spawn(async move {
+            let _ = tokio::time::timeout(crate::db::RECYCLE_TIMEOUT, async {
+                if let Ok(mut conn) = pool.get_conn().await {
+                    let _ = conn.query_drop(format!("KILL CONNECTION {id}")).await;
+                }
+            })
+            .await;
+        });
+    }
+}
+
 pub(crate) async fn execute_until(
     driver: &DriverSession,
     sql: &str,
@@ -114,6 +146,7 @@ pub(crate) async fn execute_until(
                 .await
                 .map_err(|_| AppError::Connection("Query timed out".into()))??;
             let client = deadpool_postgres::Object::take(client);
+            let _cancel = PgCancellation(client.cancel_token());
             tokio::time::timeout_at(deadline, async {
                 client.batch_execute("ROLLBACK").await?;
                 let version: String = client.query_one("SELECT version()", &[]).await?.get(0);
@@ -185,6 +218,7 @@ pub(crate) async fn execute_until(
                 .map_err(|_| AppError::Connection("Query timed out".into()))??;
             let mut isolated = crate::db::IsolatedMysql(Some(conn));
             let conn = isolated.0.as_mut().unwrap();
+            let _cancel = MysqlCancellation(pool.clone(), conn.id());
             let result = tokio::time::timeout_at(deadline, async {
                 conn.query_drop("ROLLBACK").await?;
                 let (version, comment): (String, String) = conn.query_first("SELECT VERSION(), @@version_comment").await?.ok_or_else(|| AppError::Connection("Cannot identify server".into()))?;

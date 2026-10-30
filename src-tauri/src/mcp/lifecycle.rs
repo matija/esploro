@@ -49,6 +49,7 @@ impl<L> McpLifecycle<L> {
         match token {
             Ok(token) => {
                 inner.token = Some(token.clone());
+                super::transport::admit_token(&token);
                 match bind(token).await {
                     Ok(listener) => {
                         inner.listener = Some(listener);
@@ -77,6 +78,9 @@ impl<L> McpLifecycle<L> {
     async fn stop(&self) -> Option<L> {
         let mut inner = self.inner.lock().await;
         inner.status = McpStatus::Stopped;
+        if let Some(token) = &inner.token {
+            super::transport::cancel_token(token);
+        }
         inner.token = None;
         inner.listener.take()
     }
@@ -251,6 +255,105 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn policy_and_token_transitions_cancel_only_mcp_work() {
+        use http_body_util::Full;
+        use serde_json::json;
+        use tauri::Manager;
+        for transition in ["disable", "revoke", "replace"] {
+            let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+            let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+            context.config_mut().identifier = directory.to_string_lossy().into_owned();
+            let policy = super::super::policy::PolicyStore::open(directory.join("policy.json"));
+            policy
+                .save(super::super::policy::McpPolicy {
+                    enabled: true,
+                    permitted_connection_ids: vec!["saved".into()],
+                    ..Default::default()
+                })
+                .unwrap();
+            let app = tauri::test::mock_builder()
+                .manage(policy)
+                .manage(crate::AppState::default())
+                .build(context)
+                .unwrap();
+            let data = app.path().app_data_dir().unwrap();
+            std::fs::create_dir_all(&data).unwrap();
+            std::fs::write(data.join("connections.json"), json!([{"id":"saved","displayName":"test","driver":"postgres","host":"127.0.0.1","port":1,"database":"test","username":"test","sslMode":"disable","createdAt":"","updatedAt":""}]).to_string()).unwrap();
+            let held = app.state::<crate::AppState>();
+            let pool = deadpool_postgres::Pool::builder(deadpool_postgres::Manager::new(
+                tokio_postgres::Config::new(),
+                tokio_postgres::NoTls,
+            ))
+            .build()
+            .unwrap();
+            held.sessions.lock().await.insert(
+                "normal".into(),
+                crate::SessionInfo {
+                    driver: crate::DriverSession::Postgres(std::sync::Arc::new(pool)),
+                    connection_id: "normal".into(),
+                },
+            );
+            let sessions = held.sessions.lock().await;
+            let state = McpLifecycle::default();
+            let token = uuid::Uuid::new_v4().to_string();
+            state
+                .start_with(Ok(token.clone()), |token| async {
+                    McpListener::bind_at::<tauri::Wry>("127.0.0.1:0".parse().unwrap(), token, None)
+                        .await
+                        .map_err(|error| error.to_string())
+                })
+                .await;
+            let worker_app = app.handle().clone();
+            let worker_token = token.clone();
+            let work = tokio::spawn(async move {
+                let body = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_schema","arguments":{"connectionId":"saved"}}}).to_string();
+                let request = http::Request::post("/mcp")
+                    .header("Host", "127.0.0.1:19482")
+                    .header("Authorization", format!("Bearer {worker_token}"))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json, text/event-stream")
+                    .header("mcp-protocol-version", "2025-06-18")
+                    .body(Full::new(hyper::body::Bytes::from(body)))
+                    .unwrap();
+                super::super::transport::handle_with_app(request, &worker_token, Some(&worker_app))
+                    .await
+            });
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            assert!(!work.is_finished());
+            match transition {
+                "disable" => state.shutdown().await,
+                "replace" => {
+                    state
+                        .replace_with(|| async { Ok("replacement".into()) })
+                        .await
+                        .unwrap();
+                }
+                _ => state.stop_listener().await,
+            }
+            let store = app.state::<super::super::policy::PolicyStore>();
+            let mut policy = store.get();
+            if transition == "disable" {
+                policy.enabled = false;
+            }
+            if transition == "revoke" {
+                policy.permitted_connection_ids.clear();
+            }
+            store.save(policy).unwrap();
+            let response = tokio::time::timeout(std::time::Duration::from_secs(2), work)
+                .await
+                .unwrap()
+                .unwrap();
+            let result: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
+            assert_eq!(result["error"]["code"], -32800, "{transition}: {result}");
+            assert_eq!(sessions.len(), 1);
+            assert!(sessions.contains_key("normal"));
+            drop(sessions);
+            std::fs::remove_dir_all(&directory).unwrap();
+            std::fs::remove_dir_all(data).ok();
+        }
+    }
+
+    #[tokio::test]
     async fn repeated_transitions_conflict_retry_and_restart() {
         let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
         let path = directory.join("policy.json");
@@ -261,8 +364,8 @@ mod tests {
         policy.enabled = true;
         policy.permitted_connection_ids = vec!["saved".into()];
         store.save(policy.clone()).unwrap();
-        let address = "127.0.0.1:19482".parse().unwrap();
-        let conflict = tokio::net::TcpListener::bind(address).await.unwrap();
+        let conflict = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = conflict.local_addr().unwrap();
         assert!(state.prepare(store.get().enabled).await);
         state
             .start_with(Ok("secret".into()), |token| async {

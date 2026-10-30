@@ -92,7 +92,8 @@ impl Request {
         );
         let entries: Vec<Value> = match driver {
             DriverSession::Postgres(pool) => {
-                let client = pool.get().await?;
+                let client = deadpool_postgres::Object::take(pool.get().await?);
+                let _cancel = super::query::PgCancellation(client.cancel_token());
                 let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = match mode {
                     "schemas" => vec![],
                     "objects" => vec![&schema],
@@ -109,7 +110,10 @@ impl Request {
                     .collect::<Result<_, _>>()?
             }
             DriverSession::Mysql(pool) => {
-                let mut connection = crate::db::mysql_conn(pool).await?;
+                let mut isolated =
+                    crate::db::IsolatedMysql(Some(crate::db::mysql_conn(pool).await?));
+                let connection = isolated.0.as_mut().unwrap();
+                let _cancel = super::query::MysqlCancellation(pool.clone(), connection.id());
                 let fields = match mode {
                     "schemas" => "JSON_OBJECT('name', schema_name)",
                     "objects" => "JSON_OBJECT('name', table_name, 'kind', table_type)",
