@@ -1,12 +1,65 @@
 use http_body_util::Full;
 use hyper::{server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
-use std::{convert::Infallible, io, net::SocketAddr, sync::Arc, time::Duration};
-use tokio::{
-    net::TcpListener,
-    sync::oneshot,
-    task::{JoinHandle, JoinSet},
+use std::{
+    convert::Infallible,
+    io,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
 };
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    net::{TcpListener, TcpStream},
+    sync::{oneshot, watch, Semaphore},
+    task::{JoinHandle, JoinSet},
+    time::Instant,
+};
+
+struct TimedSocket {
+    socket: TcpStream,
+    deadline: watch::Sender<Option<(Instant, bool)>>,
+}
+
+impl AsyncRead for TimedSocket {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let before = buf.filled().len();
+        let result = Pin::new(&mut self.socket).poll_read(cx, buf);
+        if buf.filled().len() > before {
+            self.deadline.send_if_modified(|state| {
+                if state.is_some_and(|(_, idle)| idle) {
+                    *state = Some((Instant::now() + Duration::from_secs(5), false));
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+        result
+    }
+}
+
+impl AsyncWrite for TimedSocket {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.socket).poll_write(cx, buf)
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.socket).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.socket).poll_shutdown(cx)
+    }
+}
 
 pub struct McpListener {
     stop: Option<oneshot::Sender<()>>,
@@ -30,6 +83,7 @@ impl McpListener {
         let (stop, mut stopped) = oneshot::channel();
         let task = tokio::spawn(async move {
             let mut connections = JoinSet::new();
+            let capacity = Arc::new(Semaphore::new(16));
             let result = loop {
                 tokio::select! {
                     _ = &mut stopped => break Ok(()),
@@ -39,18 +93,44 @@ impl McpListener {
                             Ok(connection) => connection,
                             Err(error) => break Err(error),
                         };
+                        let Ok(permit) = capacity.clone().try_acquire_owned() else {
+                            drop(socket);
+                            continue;
+                        };
                         let token = token.clone();
                         let app = app.clone();
                         connections.spawn(async move {
+                            let _permit = permit;
+                            let (deadline, mut changes) = watch::channel(Some((Instant::now() + Duration::from_secs(5), false)));
+                            let socket = TimedSocket { socket, deadline: deadline.clone() };
                             let service = service_fn(move |request| {
+                                deadline.send_replace(None);
+                                let deadline = deadline.clone();
                                 let token = token.clone();
                                 let app = app.clone();
                                 async move {
-                                    Ok::<_, Infallible>(super::transport::handle_with_app(request, &token, app.as_ref()).await
-                                        .map(|body| Full::new(hyper::body::Bytes::from(body))))
+                                    let response = super::transport::handle_with_app(request, &token, app.as_ref()).await
+                                        .map(|body| Full::new(hyper::body::Bytes::from(body)));
+                                    deadline.send_replace(Some((Instant::now() + Duration::from_secs(15), true)));
+                                    Ok::<_, Infallible>(response)
                                 }
                             });
-                            let _ = http1::Builder::new().serve_connection(TokioIo::new(socket), service).await;
+                            let builder = http1::Builder::new();
+                            let connection = builder.serve_connection(TokioIo::new(socket), service);
+                            tokio::pin!(connection);
+                            loop {
+                                let deadline = *changes.borrow_and_update();
+                                tokio::select! {
+                                    _ = &mut connection => break,
+                                    _ = changes.changed() => {},
+                                    _ = async {
+                                        match deadline {
+                                            Some((at, _)) => tokio::time::sleep_until(at).await,
+                                            None => std::future::pending().await,
+                                        }
+                                    } => break,
+                                }
+                            }
                         });
                     }
                 }
@@ -109,6 +189,62 @@ mod tests {
         )
     }
 
+    async fn closed(socket: &mut TcpStream) {
+        let mut bytes = Vec::new();
+        let _ = tokio::time::timeout(Duration::from_secs(2), socket.read_to_end(&mut bytes))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn partial_requests_expire_and_capacity_recovers() {
+        let (server, address) = start().await;
+        let mut sockets = Vec::new();
+        for _ in 0..16 {
+            let mut socket = TcpStream::connect(address).await.unwrap();
+            socket.write_all(b"POST /mcp HTTP/1.1\r\n").await.unwrap();
+            sockets.push(socket);
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut excess = TcpStream::connect(address).await.unwrap();
+        closed(&mut excess).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        for socket in &mut sockets {
+            closed(socket).await;
+        }
+        let mut recovered = TcpStream::connect(address).await.unwrap();
+        recovered.write_all(b"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer test-token\r\nContent-Length: 100\r\n\r\n{").await.unwrap();
+        let mut response = String::new();
+        tokio::time::timeout(
+            Duration::from_secs(7),
+            recovered.read_to_string(&mut response),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(response.starts_with("HTTP/1.1 408"), "{response}");
+        server.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn keep_alive_expires_after_fifteen_seconds() {
+        let (server, address) = start().await;
+        let mut socket = TcpStream::connect(address).await.unwrap();
+        let body = r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#;
+        socket.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer test-token\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nMCP-Protocol-Version: 2025-06-18\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+        let mut response = [0; 4096];
+        let count = socket.read(&mut response).await.unwrap();
+        assert!(response[..count].starts_with(b"HTTP/1.1 200"));
+        assert!(
+            tokio::time::timeout(Duration::from_secs(6), socket.read(&mut response))
+                .await
+                .is_err()
+        );
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        closed(&mut socket).await;
+        server.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn port_conflict_is_actionable() {
         let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -150,14 +286,22 @@ mod tests {
     #[tokio::test]
     async fn shutdown_closes_idle_and_partial_connections_and_releases_port() {
         let (server, address) = start().await;
-        let mut idle = TcpStream::connect(address).await.unwrap();
-        let mut partial = TcpStream::connect(address).await.unwrap();
-        partial.write_all(b"POST /mcp HTTP/1.1\r\n").await.unwrap();
+        let mut sockets = Vec::new();
+        for index in 0..16 {
+            let mut socket = TcpStream::connect(address).await.unwrap();
+            match index % 3 {
+                0 => {},
+                1 => socket.write_all(b"POST /mcp HTTP/1.1\r\n").await.unwrap(),
+                _ => socket.write_all(b"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer test-token\r\nContent-Length: 100\r\n\r\n{").await.unwrap(),
+            }
+            sockets.push(socket);
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
         tokio::time::timeout(Duration::from_secs(3), server.shutdown())
             .await
             .unwrap()
             .unwrap();
-        for socket in [&mut idle, &mut partial] {
+        for socket in &mut sockets {
             let result = tokio::time::timeout(Duration::from_secs(1), socket.read(&mut [0]))
                 .await
                 .unwrap();

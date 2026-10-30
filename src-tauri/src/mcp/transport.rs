@@ -31,18 +31,21 @@ where
         return Err(StatusCode::UNAUTHORIZED);
     }
     let (parts, body) = request.into_parts();
-    let body = Limited::new(body, MAX_HTTP_BODY_BYTES)
-        .collect()
-        .await
-        .map_err(|error| {
-            if error.is::<http_body_util::LengthLimitError>() {
-                StatusCode::PAYLOAD_TOO_LARGE
-            } else {
-                StatusCode::BAD_REQUEST
-            }
-        })?
-        .to_bytes()
-        .to_vec();
+    let body = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        Limited::new(body, MAX_HTTP_BODY_BYTES).collect(),
+    )
+    .await
+    .map_err(|_| StatusCode::REQUEST_TIMEOUT)?
+    .map_err(|error| {
+        if error.is::<http_body_util::LengthLimitError>() {
+            StatusCode::PAYLOAD_TOO_LARGE
+        } else {
+            StatusCode::BAD_REQUEST
+        }
+    })?
+    .to_bytes()
+    .to_vec();
     Ok(Request::from_parts(parts, body))
 }
 
@@ -66,7 +69,13 @@ where
     use serde_json::{json, Value};
     let request = match guard(request, token).await {
         Ok(request) => request,
-        Err(status) => return response(status, None),
+        Err(status) => {
+            let mut result = response(status, None);
+            result
+                .headers_mut()
+                .insert(header::CONNECTION, "close".parse().unwrap());
+            return result;
+        }
     };
     if request.uri().path() != "/mcp" {
         return response(StatusCode::NOT_FOUND, None);
@@ -265,6 +274,32 @@ mod tests {
 
     fn json(response: &http::Response<Vec<u8>>) -> serde_json::Value {
         serde_json::from_slice(response.body()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn incomplete_body_expires_and_closes_connection() {
+        struct PendingBody;
+        impl Body for PendingBody {
+            type Data = hyper::body::Bytes;
+            type Error = std::convert::Infallible;
+            fn poll_frame(
+                self: std::pin::Pin<&mut Self>,
+                _: &mut std::task::Context<'_>,
+            ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>>
+            {
+                std::task::Poll::Pending
+            }
+        }
+        let started = tokio::time::Instant::now();
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(7),
+            handle(request().body(PendingBody).unwrap(), TOKEN),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+        assert_eq!(response.headers()[header::CONNECTION], "close");
+        assert!(started.elapsed() >= std::time::Duration::from_secs(5));
     }
 
     #[tokio::test]
