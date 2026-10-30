@@ -66,6 +66,160 @@ async fn traverse(address: SocketAddr, mut args: Value, mode: &str) -> Vec<Value
     panic!("Inspection did not terminate");
 }
 
+async fn verify_sdk_client(
+    app: &tauri::App<tauri::test::MockRuntime>,
+    server: McpListener,
+    address: SocketAddr,
+    directory: &std::path::Path,
+) {
+    use mysql_async::prelude::Queryable;
+    use std::{io, process::Stdio};
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let ids = ["postgres", "mysql", "mariadb"];
+    app.state::<PolicyStore>()
+        .save(McpPolicy {
+            enabled: true,
+            permitted_connection_ids: vec!["postgres".into()],
+            ..Default::default()
+        })
+        .unwrap();
+    server.shutdown().await.unwrap();
+    assert!(TcpStream::connect(address).await.is_err());
+    let address = "127.0.0.1:19482".parse().unwrap();
+    let mut listener = Some(
+        McpListener::bind_at(
+            address,
+            "acceptance-token".into(),
+            Some(app.handle().clone()),
+        )
+        .await
+        .unwrap(),
+    );
+    let script =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tools/mcp/verify-client.mjs");
+    let mut child = tokio::process::Command::new("node")
+        .arg(script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    let mut output = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut pg: Option<deadpool_postgres::ClientWrapper> = None;
+    let mut mysql: Option<mysql_async::Conn> = None;
+    let token_path = directory.join("sdk-token");
+    let result = tokio::time::timeout(Duration::from_secs(120), async {
+        input
+            .write_all(format!("{}\n", json!({"url":format!("http://{address}/mcp"),"token":"acceptance-token"})).as_bytes())
+            .await?;
+        while let Some(line) = output.next_line().await? {
+            let command: Value = serde_json::from_str(&line)?;
+            let mut response = json!({"ok":true});
+            match command["command"].as_str() {
+                Some("grant") => {
+                    app.state::<PolicyStore>().save(McpPolicy {
+                        enabled: true,
+                        permitted_connection_ids: ids.iter().map(|id| (*id).into()).collect(),
+                        ..Default::default()
+                    })?;
+                }
+                Some("lock") => {
+                    if pg.is_some() || mysql.is_some() {
+                        return Err(io::Error::other("Fixture lock already held").into());
+                    }
+                    let variable = match command["connectionId"].as_str() {
+                        Some("postgres") => "ESPLORO_TEST_POSTGRES_URL",
+                        Some("mysql") => "ESPLORO_TEST_MYSQL_URL",
+                        Some("mariadb") => "ESPLORO_TEST_MARIADB_URL",
+                        _ => return Err(io::Error::other("Unknown Database fixture").into()),
+                    };
+                    let url = std::env::var(variable)?;
+                    if variable == "ESPLORO_TEST_POSTGRES_URL" {
+                        let client = deadpool_postgres::Object::take(common::pg_pool(&url).get().await?);
+                        client.batch_execute("BEGIN; LOCK TABLE t6_metadata.columns_page IN ACCESS EXCLUSIVE MODE").await?;
+                        pg = Some(client);
+                    } else {
+                        let mut conn = mysql_async::Conn::new(mysql_async::Opts::from_url(&url)?).await?;
+                        conn.query_drop("LOCK TABLES t6_metadata.columns_page WRITE").await?;
+                        mysql = Some(conn);
+                    }
+                }
+                Some("active" | "cancelled") => {
+                    let expected_active = command["command"] == "active";
+                    let until = tokio::time::Instant::now() + Duration::from_secs(8);
+                    loop {
+                        let sql = "SELECT c000 FROM t6_metadata.columns_page";
+                        let active: i64 = if let Some(client) = &pg {
+                            client.batch_execute("SELECT pg_stat_clear_snapshot()").await?;
+                            client.query_one("SELECT count(*) FROM pg_stat_activity WHERE query = $1 AND pid <> pg_backend_pid()", &[&sql]).await?.get(0)
+                        } else if let Some(conn) = &mut mysql {
+                            conn.exec_first("SELECT count(*) FROM information_schema.PROCESSLIST WHERE INFO = ? OR INFO LIKE ?", (sql, format!("% FOR {sql}"))).await?.unwrap()
+                        } else {
+                            return Err(io::Error::other("No fixture lock held").into());
+                        };
+                        if (active > 0) == expected_active {
+                            break;
+                        }
+                        if tokio::time::Instant::now() >= until {
+                            return Err(io::Error::other(format!("Database work did not reach expected active state: {expected_active}")).into());
+                        }
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+                Some("unlock") => {
+                    if let Some(client) = pg.take() {
+                        client.batch_execute("ROLLBACK").await?;
+                    }
+                    if let Some(conn) = mysql.take() {
+                        conn.disconnect().await?;
+                    }
+                }
+                Some("replace") => {
+                    listener.take().ok_or_else(|| io::Error::other("Listener already stopped"))?.shutdown().await?;
+                    let token = uuid::Uuid::new_v4().to_string();
+                    std::fs::write(directory.join("sdk-token.tmp"), &token)?;
+                    std::fs::rename(directory.join("sdk-token.tmp"), &token_path)?;
+                    let persisted = std::fs::read_to_string(&token_path)?;
+                    listener = Some(McpListener::bind_at(address, persisted.clone(), Some(app.handle().clone())).await?);
+                    response["token"] = json!(persisted);
+                }
+                Some("shutdown") => {
+                    listener.take().ok_or_else(|| io::Error::other("Listener already stopped"))?.shutdown().await?;
+                    if TcpStream::connect(address).await.is_ok() {
+                        return Err(io::Error::other("SDK fixture listener remains open").into());
+                    }
+                }
+                _ => return Err(io::Error::other("Unknown SDK fixture command").into()),
+            }
+            input.write_all(format!("{response}\n").as_bytes()).await?;
+        }
+        let status = child.wait().await?;
+        if !status.success() || listener.is_some() {
+            return Err(io::Error::other(format!("SDK acceptance did not finish: {status}")).into());
+        }
+        Ok::<_, Box<dyn std::error::Error>>(())
+    })
+    .await;
+    if child.try_wait().unwrap().is_none() {
+        child.kill().await.unwrap();
+    }
+    let status = child.wait().await.unwrap();
+    drop(pg);
+    if let Some(conn) = mysql {
+        conn.disconnect().await.unwrap();
+    }
+    if let Some(listener) = listener {
+        listener.shutdown().await.unwrap();
+    }
+    assert!(TcpStream::connect(address).await.is_err());
+    result.expect("SDK acceptance timed out").unwrap();
+    assert!(status.success(), "SDK client failed: {status}");
+    assert_eq!(app.state::<AppState>().sessions.lock().await.len(), 3);
+}
+
 #[tokio::test]
 async fn listener_replacement_rejects_old_token_and_closes_keep_alive() {
     let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -700,7 +854,15 @@ async fn authenticated_http_tools_against_all_databases() {
     assert!(ActivityStore::open(directory.join("activity.json"))
         .history()
         .is_empty());
-    server.shutdown().await.unwrap();
+    if std::env::var_os("ESPLORO_VERIFY_SDK").is_some() {
+        verify_sdk_client(&app, server, address, &directory).await;
+    } else {
+        assert!(
+            std::env::var_os("ESPLORO_REQUIRE_DATABASES").is_none(),
+            "Required MCP acceptance must run the SDK client"
+        );
+        server.shutdown().await.unwrap();
+    }
     assert!(TcpStream::connect(address).await.is_err());
     drop(app);
     std::fs::remove_dir_all(directory).unwrap();

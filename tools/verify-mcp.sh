@@ -1,6 +1,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for prerequisite in docker cargo npm xcrun; do
+for prerequisite in docker cargo npm node xcrun; do
   command -v "$prerequisite" >/dev/null || { echo "Missing prerequisite: $prerequisite" >&2; exit 1; }
 done
 docker info >/dev/null 2>&1 || { echo 'Docker is not running. Start Docker or Colima before verification; this command does not provision a VM.' >&2; exit 1; }
@@ -25,6 +25,8 @@ export ESPLORO_TEST_POSTGRES_URL="postgres://postgres:acceptance@127.0.0.1:$(por
 export ESPLORO_TEST_MYSQL_URL="mysql://root:acceptance@127.0.0.1:$(port mysql 3306)/acceptance"
 export ESPLORO_TEST_MARIADB_URL="mysql://root:acceptance@127.0.0.1:$(port mariadb 3306)/acceptance"
 export ESPLORO_REQUIRE_DATABASES=1
+export ESPLORO_VERIFY_SDK=1
+node --input-type=module -e 'await import("@modelcontextprotocol/sdk/client/index.js")'
 cargo metadata --locked --format-version 1 --manifest-path Cargo.toml >/dev/null
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets --features integration-db -- -D warnings
