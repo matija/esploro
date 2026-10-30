@@ -94,15 +94,39 @@ async fn postgres_agent_queries() {
         .to_string();
     assert!(error.contains("busy") && error.contains("retryable"));
     assert!(rejected_at.elapsed() < std::time::Duration::from_secs(1));
+    let waiting_at = std::time::Instant::now();
     for task in tasks {
-        assert!(task
+        assert!(task.await.unwrap().is_err());
+    }
+    assert!(waiting_at.elapsed() < std::time::Duration::from_secs(33));
+    client
+        .batch_execute("SELECT pg_stat_clear_snapshot()")
+        .await
+        .unwrap();
+    let active: i64 = client
+        .query_one(
+            "SELECT count(*) FROM pg_stat_activity WHERE query = $1 AND state = 'active'",
+            &[&format!("SELECT id FROM {table}")],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(active, 0);
+    client.batch_execute("ROLLBACK").await.unwrap();
+    let editor = pool.get().await.unwrap();
+    for setting in ["statement_timeout", "lock_timeout"] {
+        let value: String = editor
+            .query_one(&format!("SHOW {setting}"), &[])
             .await
             .unwrap()
-            .unwrap_err()
-            .to_string()
-            .contains("timed out"));
+            .get(0);
+        assert_eq!(value, "0");
     }
-    client.batch_execute("ROLLBACK").await.unwrap();
+    editor
+        .batch_execute(&format!("UPDATE {table} SET id = 1"))
+        .await
+        .unwrap();
+    drop(editor);
     assert!(execute(&DriverSession::Postgres(pool.clone()), "SELECT 1")
         .await
         .is_ok());
@@ -143,7 +167,45 @@ async fn mysql_agent_queries() {
         .unwrap();
         drop(conn);
         check(&DriverSession::Mysql(pool.clone()), &table).await;
+        let mut blocker = pool.get_conn().await.unwrap();
+        blocker
+            .query_drop(format!("LOCK TABLES {table} WRITE"))
+            .await
+            .unwrap();
+        let started = std::time::Instant::now();
+        assert!(execute(
+            &DriverSession::Mysql(pool.clone()),
+            &format!("SELECT id FROM {table}")
+        )
+        .await
+        .is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(33));
+        let active: Option<u64> = blocker
+            .exec_first(
+                "SELECT count(*) FROM information_schema.PROCESSLIST WHERE INFO = ?",
+                (format!("SELECT id FROM {table}"),),
+            )
+            .await
+            .unwrap();
+        assert_eq!(active, Some(0));
+        blocker.query_drop("UNLOCK TABLES").await.unwrap();
+        drop(blocker);
         let mut conn = pool.get_conn().await.unwrap();
+        let version: String = conn.query_first("SELECT VERSION()").await.unwrap().unwrap();
+        let limit: f64 = if version.contains("MariaDB") {
+            conn.query_first("SELECT @@session.max_statement_time")
+                .await
+                .unwrap()
+                .unwrap()
+        } else {
+            conn.query_first::<u64, _>("SELECT @@session.max_execution_time")
+                .await
+                .unwrap()
+                .unwrap() as f64
+        };
+        assert_eq!(limit, 0.0);
+        let value: Option<u64> = conn.query_first("SELECT 1").await.unwrap();
+        assert_eq!(value, Some(1));
         conn.query_drop(format!("UPDATE {table} SET id = 3"))
             .await
             .unwrap();

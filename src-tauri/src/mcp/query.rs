@@ -76,6 +76,16 @@ impl Output {
     }
 }
 
+fn remaining_millis(deadline: tokio::time::Instant) -> Result<u64, AppError> {
+    let milliseconds = deadline
+        .saturating_duration_since(tokio::time::Instant::now())
+        .as_millis();
+    if milliseconds == 0 {
+        return Err(AppError::Connection("Query timed out".into()));
+    }
+    Ok(milliseconds.min(i32::MAX as u128) as u64)
+}
+
 pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppError> {
     super::database_request(
         tokio::time::Instant::now() + super::QUERY_TIMEOUT,
@@ -128,6 +138,12 @@ pub(crate) async fn execute_until(
                         "SQL session settings do not match the validator; query refused".into(),
                     ));
                 }
+                let milliseconds = remaining_millis(deadline)?;
+                client
+                    .batch_execute(&format!(
+                        "SET LOCAL statement_timeout = {milliseconds}; SET LOCAL lock_timeout = {milliseconds}"
+                    ))
+                    .await?;
                 {
                     let stream = client.simple_query_raw(sql).await?;
                     pin_mut!(stream);
@@ -172,8 +188,14 @@ pub(crate) async fn execute_until(
             let result = tokio::time::timeout_at(deadline, async {
                 conn.query_drop("ROLLBACK").await?;
                 let (version, comment): (String, String) = conn.query_first("SELECT VERSION(), @@version_comment").await?.ok_or_else(|| AppError::Connection("Cannot identify server".into()))?;
-                let major = version.split('.').next().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
-                if !(version.contains("MariaDB") && major >= 10 || !version.contains("MariaDB") && major >= 5 && comment.contains("MySQL")) {
+                let mariadb = version.contains("MariaDB");
+                let numbers: Vec<u32> = version.split(['.', '-']).take(3).filter_map(|s| s.parse().ok()).collect();
+                let supported = match numbers.as_slice() {
+                    [major, minor, patch] if mariadb => (*major, *minor, *patch) >= (10, 1, 1),
+                    [major, minor, patch] => comment.contains("MySQL") && (*major, *minor, *patch) >= (5, 7, 8),
+                    _ => false,
+                };
+                if !supported {
                     return Err(AppError::Connection("Unsupported server; read-only execution refused".into()));
                 }
                 conn.query_drop("SET SESSION sql_mode = 'STRICT_ALL_TABLES'").await?;
@@ -185,7 +207,15 @@ pub(crate) async fn execute_until(
                     return Err(AppError::Connection("SQL session settings do not match the validator; query refused".into()));
                 }
                 conn.query_drop("START TRANSACTION READ ONLY").await?;
-                let mut result = conn.query_iter(sql).await?;
+                let milliseconds = remaining_millis(deadline)?;
+                conn.query_drop(format!("SET SESSION lock_wait_timeout = {}", (milliseconds / 1000).max(1))).await?;
+                let limited_sql = if mariadb {
+                    format!("SET STATEMENT max_statement_time = {} FOR {sql}", milliseconds as f64 / 1000.0)
+                } else {
+                    conn.query_drop(format!("SET SESSION max_execution_time = {milliseconds}")).await?;
+                    sql.to_string()
+                };
+                let mut result = conn.query_iter(limited_sql).await?;
                 if !output.columns(result.columns_ref().iter().map(|c| c.name_str().into_owned())) { return Ok(()); }
                 while let Some(row) = result.next().await? {
                     let cells = (0..row.len()).map(|i| {
