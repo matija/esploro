@@ -5,18 +5,35 @@ use crate::{
 use serde_json::{json, Value};
 use tauri::Manager;
 
+use super::policy::PolicyStore;
+
+fn authorize(policy: &PolicyStore, id: &str) -> Result<(), AppError> {
+    if policy.permits(id) {
+        Ok(())
+    } else {
+        Err(unavailable())
+    }
+}
+
+fn unavailable() -> AppError {
+    AppError::Connection(
+        "Connection unavailable. Use list_connections to select an available profile.".into(),
+    )
+}
+
 pub fn definitions() -> Value {
     json!([
-        {"name":"list_connections","description":"List all saved connection identifiers and labels without credentials. Does not connect to databases.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
+        {"name":"list_connections","description":"List permitted saved connection identifiers and labels without credentials. Does not connect to databases.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
         {"name":"execute_query","description":"Execute one validated read-only SELECT. Results are bounded; busy errors are retryable.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1},"sql":{"type":"string","minLength":1}},"required":["connectionId","sql"],"additionalProperties":false}},
         {"name":"inspect_schema","description":"Inspect schemas, objects and table/view columns for a saved connection. Opens a session lazily using its Keychain password.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1}},"required":["connectionId"],"additionalProperties":false}}
     ])
 }
 
-fn discovery(profiles: &[ConnectionProfile]) -> Value {
+fn discovery(profiles: &[ConnectionProfile], policy: &PolicyStore) -> Value {
     Value::Array(
         profiles
             .iter()
+            .filter(|p| policy.permits(&p.id))
             .map(|p| json!({"connectionId":p.id,"label":p.display_name}))
             .collect(),
     )
@@ -26,17 +43,19 @@ async fn inspect(
     profiles: &[ConnectionProfile],
     id: &str,
     state: &AppState,
+    policy: &PolicyStore,
 ) -> Result<Value, AppError> {
-    let profile = profiles.iter().find(|p| p.id == id).ok_or_else(|| {
-        AppError::Connection(format!(
-            "Connection {id} not found. Use list_connections to select a saved profile."
-        ))
-    })?;
+    authorize(policy, id)?;
+    let profile = profiles
+        .iter()
+        .find(|p| p.id == id)
+        .ok_or_else(unavailable)?;
     let result = async {
         let session = connections::ensure_session(profile, state).await?;
-        inspect_session(profile, session, state).await
+        inspect_session(profile, session, state, policy).await
     }
     .await;
+    authorize(policy, id)?;
     result.map_err(|error| {
         AppError::Connection(format!("Cannot inspect connection {id}: {error}. Check the database availability and host/port settings."))
     })
@@ -46,10 +65,13 @@ async fn inspect_session(
     profile: &ConnectionProfile,
     session: String,
     state: &AppState,
+    policy: &PolicyStore,
 ) -> Result<Value, AppError> {
     let id = &profile.id;
+    authorize(policy, id)?;
     let mut schemas = Vec::new();
     for name in schema::schemas(&session, &profile.database, state).await? {
+        authorize(policy, id)?;
         let objects = schema::objects(
             session.clone(),
             profile.database.clone(),
@@ -64,6 +86,7 @@ async fn inspect_session(
             .map(|t| &t.name)
             .chain(objects.views.iter())
         {
+            authorize(policy, id)?;
             columns.insert(
                 table.clone(),
                 serde_json::to_value(
@@ -113,6 +136,10 @@ pub async fn call<R: tauri::Runtime>(
     let started = std::time::Instant::now();
     let result = async {
         let app = app.ok_or_else(|| AppError::Connection("Application is unavailable".into()))?;
+        let policy = app.state::<PolicyStore>();
+        if name != "list_connections" {
+            authorize(&policy, arguments["connectionId"].as_str().unwrap())?;
+        }
         let profiles = connections::load_profiles(app).await;
         if name == "execute_query" {
             let store = app.state::<super::activity::ActivityStore>();
@@ -127,13 +154,13 @@ pub async fn call<R: tauri::Runtime>(
         }
         let profiles = profiles?;
         match name {
-            "list_connections" => Ok(discovery(&profiles)),
+            "list_connections" => Ok(discovery(&profiles, &policy)),
             "execute_query" => {
                 let id = arguments["connectionId"].as_str().unwrap();
                 let profile = profiles
                     .iter()
                     .find(|p| p.id == id)
-                    .ok_or_else(|| AppError::Connection("Connection not found".into()))?;
+                    .ok_or_else(unavailable)?;
                 super::validate_sql(
                     arguments["sql"].as_str().unwrap(),
                     match profile.driver {
@@ -143,6 +170,7 @@ pub async fn call<R: tauri::Runtime>(
                 )
                 .map_err(AppError::Validation)?;
                 let state = app.state::<AppState>();
+                authorize(&policy, id)?;
                 let session = connections::ensure_session(profile, &state).await?;
                 let driver = match &state
                     .sessions
@@ -157,6 +185,7 @@ pub async fn call<R: tauri::Runtime>(
                     }
                     crate::DriverSession::Mysql(pool) => crate::DriverSession::Mysql(pool.clone()),
                 };
+                authorize(&policy, id)?;
                 super::query::execute(&driver, arguments["sql"].as_str().unwrap()).await
             }
             _ => {
@@ -164,6 +193,7 @@ pub async fn call<R: tauri::Runtime>(
                     &profiles,
                     arguments["connectionId"].as_str().unwrap(),
                     &app.state::<AppState>(),
+                    &policy,
                 )
                 .await
             }
@@ -197,6 +227,21 @@ pub async fn call<R: tauri::Runtime>(
 mod tests {
     use super::*;
 
+    fn grants(profiles: &[ConnectionProfile]) -> PolicyStore {
+        let path =
+            std::env::temp_dir().join(format!("esploro-tools-{}.json", uuid::Uuid::new_v4()));
+        let policy = PolicyStore::open(path.clone());
+        policy
+            .save(super::super::policy::McpPolicy {
+                enabled: true,
+                permitted_connection_ids: profiles.iter().map(|p| p.id.clone()).collect(),
+                ..Default::default()
+            })
+            .unwrap();
+        std::fs::remove_file(path).unwrap();
+        policy
+    }
+
     fn profile(driver: &str) -> ConnectionProfile {
         serde_json::from_value(json!({"id":uuid::Uuid::new_v4().to_string(),"displayName":"Local database","color":null,"folder":null,"driver":driver,"host":"127.0.0.1","port":1,"socketPath":null,"database":"app","username":"secret-user","sslMode":"disable","createdAt":"","updatedAt":""})).unwrap()
     }
@@ -205,7 +250,7 @@ mod tests {
     async fn discovery_exposes_all_profiles_without_credentials_or_sessions() {
         let state = AppState::default();
         let profiles = vec![profile("postgres"), profile("mysql")];
-        let result = discovery(&profiles);
+        let result = discovery(&profiles, &grants(&profiles));
         assert_eq!(result.as_array().unwrap().len(), 2);
         for (entry, profile) in result.as_array().unwrap().iter().zip(&profiles) {
             assert_eq!(
@@ -221,10 +266,15 @@ mod tests {
         for driver in ["postgres", "mysql"] {
             let state = AppState::default();
             let profile = profile(driver);
-            let error = inspect(std::slice::from_ref(&profile), &profile.id, &state)
-                .await
-                .unwrap_err()
-                .to_string();
+            let error = inspect(
+                std::slice::from_ref(&profile),
+                &profile.id,
+                &state,
+                &grants(std::slice::from_ref(&profile)),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
             assert!(
                 error.contains("Credentials unavailable") && error.contains("Keychain"),
                 "{error}"
@@ -270,10 +320,15 @@ mod tests {
                     connection_id: profile.id.clone(),
                 },
             );
-            let error = inspect(std::slice::from_ref(&profile), &profile.id, &state)
-                .await
-                .unwrap_err()
-                .to_string();
+            let error = inspect(
+                std::slice::from_ref(&profile),
+                &profile.id,
+                &state,
+                &grants(std::slice::from_ref(&profile)),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
             assert!(error.to_lowercase().contains("refused"), "{error}");
             assert!(
                 error.contains("host/port") && error.contains(&profile.id),
@@ -333,9 +388,14 @@ mod tests {
                 }],
             )
             .await;
-        let result = inspect(std::slice::from_ref(&profile), &profile.id, &state)
-            .await
-            .unwrap();
+        let result = inspect(
+            std::slice::from_ref(&profile),
+            &profile.id,
+            &state,
+            &grants(std::slice::from_ref(&profile)),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             result["schemas"][0]["objects"]["tables"][0]["name"],
             "users"
@@ -350,11 +410,11 @@ mod tests {
     #[tokio::test]
     async fn missing_profile_is_actionable_and_opens_no_session() {
         let state = AppState::default();
-        let error = inspect(&[], "missing", &state)
+        let error = inspect(&[], "missing", &state, &grants(&[]))
             .await
             .unwrap_err()
             .to_string();
-        assert!(error.contains("not found") && error.contains("list_connections"));
+        assert!(error.contains("unavailable") && error.contains("list_connections"));
         assert!(state.sessions.lock().await.is_empty());
     }
 }

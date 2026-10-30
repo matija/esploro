@@ -2,6 +2,7 @@ use super::common;
 use esploro_lib::{
     mcp::{
         activity::{ActivityStatus, ActivityStore},
+        policy::{McpPolicy, PolicyStore},
         server::McpListener,
     },
     AppState, DriverSession, SessionInfo,
@@ -70,6 +71,7 @@ async fn authenticated_http_tools_against_all_databases() {
     let mut context = tauri::test::mock_context(tauri::test::noop_assets());
     context.config_mut().identifier = directory.to_string_lossy().into_owned();
     let app = tauri::test::mock_builder()
+        .manage(PolicyStore::open(directory.join("policy.json")))
         .manage(state)
         .manage(ActivityStore::open(directory.join("activity.json")).unwrap())
         .build(context)
@@ -103,6 +105,64 @@ async fn authenticated_http_tools_against_all_databases() {
         request(address, "acceptance-token", initialize).await.1["result"]["protocolVersion"],
         "2025-06-18"
     );
+    let denied_list = call(address, "list_connections", json!({})).await;
+    assert_eq!(denied_list["structuredContent"]["connections"], json!([]));
+    for name in ["inspect_schema", "execute_query"] {
+        let mut unavailable = None;
+        for id in ["postgres", "mysql", "mariadb", "missing"] {
+            let mut arguments = json!({"connectionId":id});
+            if name == "execute_query" {
+                arguments["sql"] = json!("SELECT 1 AS acceptance");
+            }
+            let result = call(address, name, arguments).await;
+            assert_eq!(result["isError"], true, "{result}");
+            assert!(result["structuredContent"].get("schemas").is_none());
+            assert!(result["structuredContent"].get("rows").is_none());
+            if let Some(expected) = &unavailable {
+                assert_eq!(&result, expected);
+            } else {
+                unavailable = Some(result);
+            }
+            assert!(app.state::<AppState>().sessions.lock().await.is_empty());
+        }
+    }
+    app.state::<PolicyStore>()
+        .save(McpPolicy {
+            enabled: true,
+            permitted_connection_ids: vec!["postgres".into()],
+            ..Default::default()
+        })
+        .unwrap();
+    let filtered = call(address, "list_connections", json!({})).await;
+    assert_eq!(
+        filtered["structuredContent"]["connections"],
+        json!([{"connectionId":"postgres","label":"postgres"}])
+    );
+    for name in ["inspect_schema", "execute_query"] {
+        let mut expected = None;
+        for id in ["mysql", "mariadb", "missing"] {
+            let mut arguments = json!({"connectionId":id});
+            if name == "execute_query" {
+                arguments["sql"] = json!("SELECT 1 AS acceptance");
+            }
+            let result = call(address, name, arguments).await;
+            assert_eq!(result["isError"], true);
+            assert_eq!(result["structuredContent"].as_object().unwrap().len(), 2);
+            if let Some(expected) = &expected {
+                assert_eq!(&result, expected);
+            } else {
+                expected = Some(result);
+            }
+            assert!(app.state::<AppState>().sessions.lock().await.is_empty());
+        }
+    }
+    app.state::<PolicyStore>()
+        .save(McpPolicy {
+            enabled: true,
+            permitted_connection_ids: vec!["postgres".into(), "mysql".into(), "mariadb".into()],
+            ..Default::default()
+        })
+        .unwrap();
     let list = call(address, "list_connections", json!({})).await;
     assert_eq!(
         list["structuredContent"]["connections"]
@@ -163,6 +223,31 @@ async fn authenticated_http_tools_against_all_databases() {
             true
         );
     }
+    app.state::<PolicyStore>()
+        .save(McpPolicy::default())
+        .unwrap();
+    assert_eq!(
+        call(address, "list_connections", json!({})).await["structuredContent"]["connections"],
+        json!([])
+    );
+    for name in ["inspect_schema", "execute_query"] {
+        let mut arguments = json!({"connectionId":"postgres"});
+        if name == "execute_query" {
+            arguments["sql"] = json!("SELECT 1 AS acceptance");
+        }
+        let result = call(address, name, arguments).await;
+        assert_eq!(result["isError"], true);
+        assert!(result["structuredContent"].get("schemas").is_none());
+        assert!(result["structuredContent"].get("rows").is_none());
+        assert_eq!(app.state::<AppState>().sessions.lock().await.len(), 3);
+    }
+    app.state::<PolicyStore>()
+        .save(McpPolicy {
+            enabled: true,
+            permitted_connection_ids: vec!["postgres".into(), "mysql".into(), "mariadb".into()],
+            ..Default::default()
+        })
+        .unwrap();
     let history = app.state::<ActivityStore>().history();
     assert_eq!(history.len(), 15);
     assert_eq!(
