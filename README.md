@@ -16,7 +16,25 @@ A SQL client for Mac. Browse and edit PostgreSQL, MySQL, and MariaDB databases, 
 - Review database roles and table privileges
 - Customize themes, fonts, and row density
 
-For MCP access, copy the configuration from **Settings → MCP** into your agent client. Keep Esploro open. **Settings → MCP Activity** shows recent query attempts.
+## MCP access
+
+MCP starts disabled, including after upgrading from the earlier MCP version. Existing installations receive no automatic profile grants. New Connection profiles remain unavailable until you grant access.
+
+1. Open **Settings → MCP**.
+2. Select the permitted Connection profiles.
+3. Select **Enable MCP**.
+4. Copy the configuration into a client that supports Streamable HTTP and bearer authentication.
+5. Keep Esploro open while the client uses MCP.
+
+The endpoint is `http://127.0.0.1:19482/mcp`. Clients discover only permitted profiles. Inspection returns separate pages of schemas, tables/views, and columns. Inspection and queries share two execution slots and a 30-second request deadline.
+
+Settings supports enable, disable, and **Retry listener** without an app restart. Disabling MCP cancels MCP work and releases the listener. Normal app Sessions remain open.
+
+**Replace token** requires confirmation and stops current MCP work. After successful replacement, the old token fails authentication, including on existing HTTP connections. Replace the configuration in every agent. If Keychain persistence fails, the previous token remains valid and MCP stays stopped. Review the listener status before retrying.
+
+**Settings → MCP Activity** shows the latest 20 query attempts. SQL literals and database errors can contain sensitive information. History excludes result rows and bearer tokens. If storage fails, history stays in memory without blocking startup or successful query results.
+
+See the [MCP reference](src-tauri/src/mcp/README.md) for client setup, pagination, limits, and SQL support.
 
 ## Download
 
@@ -28,7 +46,7 @@ Personal, non-commercial use is free. Commercial use of distributed Esploro buil
 
 Esploro connects directly from your Mac to your database server. Queries and results do not pass through an Esploro cloud service. Database passwords stay in macOS Keychain.
 
-MCP access covers all saved connections. Query results can reach cloud agents. Use restricted database roles for sensitive data.
+MCP exposes only permitted Connection profiles. Read-only access does not prevent data disclosure. Query results can reach cloud agents. Use restricted database Roles for sensitive data. Result limits do not cap process memory for individual values received by database drivers.
 
 Commercial license checks use an online service. See the [privacy policy](https://esploro.app/privacy) for details.
 
