@@ -21,6 +21,29 @@ pub const MAX_RESULT_ROWS: usize = 1_000;
 pub const MAX_RESULT_PAYLOAD_BYTES: usize = 1_000_000;
 pub const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_CONCURRENT_QUERIES: usize = 2;
+
+static DATABASE_TOOLS: tokio::sync::Semaphore =
+    tokio::sync::Semaphore::const_new(MAX_CONCURRENT_QUERIES);
+
+pub(crate) async fn database_request<T>(
+    deadline: tokio::time::Instant,
+    work: impl AsyncFnOnce(tokio::time::Instant) -> Result<T, crate::AppError>,
+) -> Result<T, crate::AppError> {
+    let _permit = DATABASE_TOOLS.try_acquire().map_err(|_| {
+        crate::AppError::Connection(
+            "busy: retryable; two database tools are already running".into(),
+        )
+    })?;
+    let result = tokio::time::timeout_at(deadline, work(deadline))
+        .await
+        .map_err(|_| crate::AppError::Connection("Database tool timed out".into()))?;
+    if tokio::time::Instant::now() >= deadline {
+        return Err(crate::AppError::Connection(
+            "Database tool timed out".into(),
+        ));
+    }
+    result
+}
 pub const MAX_HTTP_BODY_BYTES: usize = 128 * 1024;
 pub const MAX_SQL_BYTES: usize = 64 * 1024;
 

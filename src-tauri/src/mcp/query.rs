@@ -1,13 +1,8 @@
-use super::{
-    validate_sql, SqlDialect, MAX_CONCURRENT_QUERIES, MAX_RESULT_PAYLOAD_BYTES, MAX_RESULT_ROWS,
-    QUERY_TIMEOUT,
-};
+use super::{validate_sql, SqlDialect, MAX_RESULT_PAYLOAD_BYTES, MAX_RESULT_ROWS};
 use crate::{AppError, DriverSession};
 use futures_util::{pin_mut, TryStreamExt};
 use mysql_async::prelude::Queryable;
 use serde_json::{json, Value};
-
-static QUERIES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(MAX_CONCURRENT_QUERIES);
 
 struct Output {
     value: Value,
@@ -82,9 +77,18 @@ impl Output {
 }
 
 pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppError> {
-    let _permit = QUERIES.try_acquire().map_err(|_| {
-        AppError::Connection("busy: retryable; two agent queries are already running".into())
-    })?;
+    super::database_request(
+        tokio::time::Instant::now() + super::QUERY_TIMEOUT,
+        async |deadline| execute_until(driver, sql, deadline).await,
+    )
+    .await
+}
+
+pub(crate) async fn execute_until(
+    driver: &DriverSession,
+    sql: &str,
+    deadline: tokio::time::Instant,
+) -> Result<Value, AppError> {
     validate_sql(
         sql,
         match driver {
@@ -93,7 +97,6 @@ pub async fn execute(driver: &DriverSession, sql: &str) -> Result<Value, AppErro
         },
     )
     .map_err(AppError::Connection)?;
-    let deadline = tokio::time::Instant::now() + QUERY_TIMEOUT;
     let mut output = Output::new();
     match driver {
         DriverSession::Postgres(pool) => {

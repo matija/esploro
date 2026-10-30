@@ -3,7 +3,7 @@ use esploro_lib::{mcp::query::execute, DriverSession};
 use mysql_async::prelude::Queryable;
 use std::sync::Arc;
 
-static AGENT_TESTS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub(super) static AGENT_TESTS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn check(driver: &DriverSession, table: &str) {
     let result = execute(driver, &format!("SELECT id FROM {table}"))
@@ -87,11 +87,13 @@ async fn postgres_agent_queries() {
             client.batch_execute("SELECT pg_stat_clear_snapshot()").await.unwrap();
         }
     }).await.unwrap();
+    let rejected_at = std::time::Instant::now();
     let error = execute(&DriverSession::Postgres(pool.clone()), "SELECT 1")
         .await
         .unwrap_err()
         .to_string();
     assert!(error.contains("busy") && error.contains("retryable"));
+    assert!(rejected_at.elapsed() < std::time::Duration::from_secs(1));
     for task in tasks {
         assert!(task
             .await

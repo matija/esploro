@@ -21,7 +21,7 @@ async fn request(address: SocketAddr, token: &str, message: Value) -> (u16, Valu
     socket.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer {token}\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nMCP-Protocol-Version: 2025-06-18\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
     let mut response = String::new();
     tokio::time::timeout(
-        Duration::from_secs(15),
+        Duration::from_secs(40),
         socket.read_to_string(&mut response),
     )
     .await
@@ -98,6 +98,7 @@ async fn listener_replacement_rejects_old_token_and_closes_keep_alive() {
 
 #[tokio::test]
 async fn authenticated_http_tools_against_all_databases() {
+    let _guard = super::mcp_query::AGENT_TESTS.lock().await;
     let directory = std::env::temp_dir().join(format!("esploro-http-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&directory).unwrap();
     let state = AppState::default();
@@ -283,6 +284,54 @@ async fn authenticated_http_tools_against_all_databases() {
         .lock()
         .await
         .extend(sessions);
+    let state = app.state::<AppState>();
+    let held = state.sessions.lock().await;
+    let started = std::time::Instant::now();
+    let inspection = tokio::spawn(call(
+        address,
+        "inspect_schema",
+        json!({"connectionId":"postgres"}),
+    ));
+    let query = tokio::spawn(call(
+        address,
+        "execute_query",
+        json!({"connectionId":"postgres","sql":"SELECT 1"}),
+    ));
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    for name in ["inspect_schema", "execute_query"] {
+        let args = if name == "execute_query" {
+            json!({"connectionId":"postgres","sql":"SELECT 1"})
+        } else {
+            json!({"connectionId":"postgres"})
+        };
+        let result = tokio::time::timeout(Duration::from_secs(2), call(address, name, args))
+            .await
+            .unwrap();
+        assert_eq!(result["isError"], true, "{result}");
+        assert_eq!(result["structuredContent"]["retryable"], true, "{result}");
+    }
+    for task in [inspection, query] {
+        let result = task.await.unwrap();
+        assert_eq!(result["isError"], true, "{result}");
+        assert!(
+            result["structuredContent"]["error"]
+                .as_str()
+                .unwrap()
+                .contains("timed out"),
+            "{result}"
+        );
+    }
+    assert!(started.elapsed() < Duration::from_secs(35));
+    drop(held);
+    for name in ["inspect_schema", "execute_query"] {
+        let args = if name == "execute_query" {
+            json!({"connectionId":"postgres","sql":"SELECT 1"})
+        } else {
+            json!({"connectionId":"postgres"})
+        };
+        let result = call(address, name, args).await;
+        assert_eq!(result["isError"], false, "{result}");
+    }
     for id in ["postgres", "mysql", "mariadb"] {
         let schema = call(address, "inspect_schema", json!({"connectionId":id})).await;
         assert_ne!(schema["isError"], true, "{schema}");
@@ -458,7 +507,7 @@ async fn authenticated_http_tools_against_all_databases() {
         })
         .unwrap();
     let history = app.state::<ActivityStore>().history();
-    assert_eq!(history.len(), 15);
+    assert_eq!(history.len(), 17);
     assert_eq!(
         history
             .iter()

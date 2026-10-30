@@ -86,6 +86,7 @@ pub async fn call<R: tauri::Runtime>(
     name: &str,
     arguments: &Value,
 ) -> Result<Value, &'static str> {
+    let deadline = tokio::time::Instant::now() + super::QUERY_TIMEOUT;
     let valid = arguments.as_object().is_some_and(|args| match name {
         "list_connections" => args.is_empty(),
         "inspect_schema" => super::inspect::Request::parse(arguments).is_ok(),
@@ -105,6 +106,31 @@ pub async fn call<R: tauri::Runtime>(
     if !valid {
         return Err("Unknown tool or invalid arguments");
     }
+    if matches!(name, "inspect_schema" | "execute_query") {
+        return Ok(
+            match super::database_request(deadline, async |deadline| {
+                call_until(app, name, arguments, deadline)
+                    .await
+                    .map_err(|e| AppError::Validation(e.into()))
+            })
+            .await
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    json!({"content":[{"type":"text","text":error.to_string()}],"structuredContent":{"error":error.to_string(),"retryable":error.to_string().starts_with("busy:")},"isError":true})
+                }
+            },
+        );
+    }
+    call_until(app, name, arguments, deadline).await
+}
+
+async fn call_until<R: tauri::Runtime>(
+    app: Option<&tauri::AppHandle<R>>,
+    name: &str,
+    arguments: &Value,
+    deadline: tokio::time::Instant,
+) -> Result<Value, &'static str> {
     let mut activity = None;
     let started = std::time::Instant::now();
     let result = async {
@@ -159,7 +185,8 @@ pub async fn call<R: tauri::Runtime>(
                     crate::DriverSession::Mysql(pool) => crate::DriverSession::Mysql(pool.clone()),
                 };
                 authorize(&policy, id)?;
-                super::query::execute(&driver, arguments["sql"].as_str().unwrap()).await
+                super::query::execute_until(&driver, arguments["sql"].as_str().unwrap(), deadline)
+                    .await
             }
             _ => inspect(&profiles, arguments, &app.state::<AppState>(), &policy).await,
         }
