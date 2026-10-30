@@ -3,6 +3,7 @@ pub mod lifecycle;
 pub mod policy;
 pub mod server;
 pub use server::McpListener;
+mod inspect;
 pub mod query;
 pub mod token;
 mod tools;

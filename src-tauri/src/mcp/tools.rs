@@ -1,7 +1,4 @@
-use crate::{
-    commands::{connections, schema},
-    AppError, AppState, ConnectionProfile,
-};
+use crate::{commands::connections, AppError, AppState, ConnectionProfile};
 use serde_json::{json, Value};
 use tauri::Manager;
 
@@ -25,7 +22,7 @@ pub fn definitions() -> Value {
     json!([
         {"name":"list_connections","description":"List permitted saved connection identifiers and labels without credentials. Does not connect to databases.","inputSchema":{"type":"object","properties":{},"additionalProperties":false}},
         {"name":"execute_query","description":"Execute one validated read-only SELECT. Results are bounded; busy errors are retryable.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1},"sql":{"type":"string","minLength":1}},"required":["connectionId","sql"],"additionalProperties":false}},
-        {"name":"inspect_schema","description":"Inspect schemas, objects and table/view columns for a saved connection. Opens a session lazily using its Keychain password.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1}},"required":["connectionId"],"additionalProperties":false}}
+        {"name":"inspect_schema","description":"Page schemas with connectionId, tables/views with schema, or columns with schema and object. Stable name order; concurrent DDL may change pages. Results include truncated, truncationReasons, omittedEntries and nextCursor. Oversized entries are omitted with advancing continuation. Cursors are opaque, target-bound and expire on restart or cache eviction. Payloads are capped at 256,000 UTF-8 bytes.","inputSchema":{"type":"object","properties":{"connectionId":{"type":"string","minLength":1},"schema":{"type":"string","minLength":1},"object":{"type":"string","minLength":1},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"cursor":{"type":"string"}},"required":["connectionId"],"additionalProperties":false}}
     ])
 }
 
@@ -41,10 +38,13 @@ fn discovery(profiles: &[ConnectionProfile], policy: &PolicyStore) -> Value {
 
 async fn inspect(
     profiles: &[ConnectionProfile],
-    id: &str,
+    arguments: &Value,
     state: &AppState,
     policy: &PolicyStore,
 ) -> Result<Value, AppError> {
+    let request =
+        super::inspect::Request::parse(arguments).map_err(|e| AppError::Validation(e.into()))?;
+    let id = arguments["connectionId"].as_str().unwrap();
     authorize(policy, id)?;
     let profile = profiles
         .iter()
@@ -52,7 +52,8 @@ async fn inspect(
         .ok_or_else(unavailable)?;
     let result = async {
         let session = connections::ensure_session(profile, state).await?;
-        inspect_session(profile, session, state, policy).await
+        authorize(policy, id)?;
+        inspect_page(request, session, state).await
     }
     .await;
     authorize(policy, id)?;
@@ -61,49 +62,23 @@ async fn inspect(
     })
 }
 
-async fn inspect_session(
-    profile: &ConnectionProfile,
+async fn inspect_page(
+    request: super::inspect::Request,
     session: String,
     state: &AppState,
-    policy: &PolicyStore,
 ) -> Result<Value, AppError> {
-    let id = &profile.id;
-    authorize(policy, id)?;
-    let mut schemas = Vec::new();
-    for name in schema::schemas(&session, &profile.database, state).await? {
-        authorize(policy, id)?;
-        let objects = schema::objects(
-            session.clone(),
-            profile.database.clone(),
-            name.clone(),
-            state,
-        )
-        .await?;
-        let mut columns = serde_json::Map::new();
-        for table in objects
-            .tables
-            .iter()
-            .map(|t| &t.name)
-            .chain(objects.views.iter())
+    let driver = {
+        let sessions = state.sessions.lock().await;
+        match &sessions
+            .get(&session)
+            .ok_or_else(|| AppError::Connection("Session not found".into()))?
+            .driver
         {
-            authorize(policy, id)?;
-            columns.insert(
-                table.clone(),
-                serde_json::to_value(
-                    schema::columns(
-                        session.clone(),
-                        profile.database.clone(),
-                        name.clone(),
-                        table.clone(),
-                        state,
-                    )
-                    .await?,
-                )?,
-            );
+            crate::DriverSession::Postgres(pool) => crate::DriverSession::Postgres(pool.clone()),
+            crate::DriverSession::Mysql(pool) => crate::DriverSession::Mysql(pool.clone()),
         }
-        schemas.push(json!({"name":name,"objects":objects,"columns":columns}));
-    }
-    Ok(json!({"connectionId":id,"schemas":schemas}))
+    };
+    request.execute(&driver).await
 }
 
 pub async fn call<R: tauri::Runtime>(
@@ -113,19 +88,17 @@ pub async fn call<R: tauri::Runtime>(
 ) -> Result<Value, &'static str> {
     let valid = arguments.as_object().is_some_and(|args| match name {
         "list_connections" => args.is_empty(),
-        "inspect_schema" | "execute_query" => {
-            (if name == "execute_query" {
-                args.len() == 2
-                    && args
-                        .get("sql")
-                        .and_then(Value::as_str)
-                        .is_some_and(|s| !s.is_empty())
-            } else {
-                args.len() == 1
-            }) && args
-                .get("connectionId")
-                .and_then(Value::as_str)
-                .is_some_and(|id| !id.is_empty())
+        "inspect_schema" => super::inspect::Request::parse(arguments).is_ok(),
+        "execute_query" => {
+            args.len() == 2
+                && args
+                    .get("sql")
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.is_empty())
+                && args
+                    .get("connectionId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.is_empty())
         }
         _ => false,
     });
@@ -188,15 +161,7 @@ pub async fn call<R: tauri::Runtime>(
                 authorize(&policy, id)?;
                 super::query::execute(&driver, arguments["sql"].as_str().unwrap()).await
             }
-            _ => {
-                inspect(
-                    &profiles,
-                    arguments["connectionId"].as_str().unwrap(),
-                    &app.state::<AppState>(),
-                    &policy,
-                )
-                .await
-            }
+            _ => inspect(&profiles, arguments, &app.state::<AppState>(), &policy).await,
         }
     }
     .await;
@@ -268,7 +233,7 @@ mod tests {
             let profile = profile(driver);
             let error = inspect(
                 std::slice::from_ref(&profile),
-                &profile.id,
+                &json!({"connectionId":profile.id}),
                 &state,
                 &grants(std::slice::from_ref(&profile)),
             )
@@ -322,7 +287,7 @@ mod tests {
             );
             let error = inspect(
                 std::slice::from_ref(&profile),
-                &profile.id,
+                &json!({"connectionId":profile.id}),
                 &state,
                 &grants(std::slice::from_ref(&profile)),
             )
@@ -339,81 +304,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mysql_and_mariadb_inspection_returns_objects_and_columns_from_shared_cache() {
-        let profile = profile("mysql");
-        let state = AppState::default();
-        let session = "session".to_string();
-        let pool = mysql_async::Pool::new(mysql_async::OptsBuilder::default());
-        state.sessions.lock().await.insert(
-            session.clone(),
-            crate::SessionInfo {
-                connection_id: profile.id.clone(),
-                driver: crate::DriverSession::Mysql(std::sync::Arc::new(pool)),
-            },
-        );
-        let key = schema::SchemaCacheKey {
-            session_id: session.clone(),
-            database: profile.database.clone(),
-            schema: profile.database.clone(),
-        };
-        state
-            .schema_cache
-            .store_objects(
-                key.clone(),
-                &schema::SchemaObjects {
-                    tables: vec![schema::TableSummary {
-                        name: "users".into(),
-                        estimated_row_count: Some(2),
-                    }],
-                    views: vec![],
-                    sequences: vec![],
-                    functions: vec![],
-                },
-            )
-            .await;
-        state
-            .schema_cache
-            .store_columns(
-                key,
-                "users",
-                &[schema::ColumnDef {
-                    name: "id".into(),
-                    data_type: "int".into(),
-                    is_nullable: false,
-                    column_default: None,
-                    is_primary_key: true,
-                    is_foreign_key: false,
-                    foreign_key_ref: None,
-                    is_enum: false,
-                }],
-            )
-            .await;
-        let result = inspect(
-            std::slice::from_ref(&profile),
-            &profile.id,
-            &state,
-            &grants(std::slice::from_ref(&profile)),
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            result["schemas"][0]["objects"]["tables"][0]["name"],
-            "users"
-        );
-        assert_eq!(
-            result["schemas"][0]["columns"]["users"][0]["isPrimaryKey"],
-            true
-        );
-        assert_eq!(state.sessions.lock().await.len(), 1);
-    }
-
-    #[tokio::test]
     async fn missing_profile_is_actionable_and_opens_no_session() {
         let state = AppState::default();
-        let error = inspect(&[], "missing", &state, &grants(&[]))
-            .await
-            .unwrap_err()
-            .to_string();
+        let error = inspect(
+            &[],
+            &json!({"connectionId":"missing"}),
+            &state,
+            &grants(&[]),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
         assert!(error.contains("unavailable") && error.contains("list_connections"));
         assert!(state.sessions.lock().await.is_empty());
     }

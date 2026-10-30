@@ -41,6 +41,29 @@ async fn call(address: SocketAddr, name: &str, arguments: Value) -> Value {
     value["result"].clone()
 }
 
+async fn traverse(address: SocketAddr, mut args: Value, mode: &str) -> Vec<Value> {
+    let mut entries = Vec::new();
+    let mut previous = Value::Null;
+    for _ in 0..1000 {
+        let result = call(address, "inspect_schema", args.clone()).await;
+        assert_eq!(result["isError"], false, "{result}");
+        let page = &result["structuredContent"];
+        assert!(serde_json::to_vec(page).unwrap().len() <= 256_000);
+        assert_eq!(page["omittedEntries"], 0);
+        let items = page[mode].as_array().unwrap();
+        assert!(items.len() <= args["limit"].as_u64().unwrap_or(50) as usize);
+        entries.extend(items.iter().cloned());
+        if page["nextCursor"].is_null() {
+            return entries;
+        }
+        assert_eq!(page["truncated"], true);
+        assert_ne!(page["nextCursor"], previous);
+        previous = page["nextCursor"].clone();
+        args["cursor"] = previous.clone();
+    }
+    panic!("Inspection did not terminate");
+}
+
 #[tokio::test]
 async fn listener_replacement_rejects_old_token_and_closes_keep_alive() {
     let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -91,6 +114,47 @@ async fn authenticated_http_tools_against_all_databases() {
         } else {
             DriverSession::Mysql(Arc::new(common::mysql_pool(&url)))
         };
+        let huge = "é".repeat(140_000);
+        let definitions = (0..105)
+            .map(|n| format!("c{n:03} INTEGER"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let setup = format!("CREATE SCHEMA t6_metadata; CREATE TABLE t6_metadata.columns_page ({definitions}); CREATE TABLE t6_metadata.oversized (a_huge TEXT DEFAULT '{huge}', z_end INTEGER); CREATE VIEW t6_metadata.a_view AS SELECT c000 FROM t6_metadata.columns_page");
+        let medium = "é".repeat(70_000);
+        let setup = format!("{setup}; CREATE TABLE t6_metadata.byte_pages (a TEXT DEFAULT '{medium}', b TEXT DEFAULT '{medium}')");
+        match &session {
+            DriverSession::Postgres(pool) => {
+                pool.get()
+                    .await
+                    .unwrap()
+                    .batch_execute(&setup)
+                    .await
+                    .unwrap();
+            }
+            DriverSession::Mysql(pool) => {
+                use mysql_async::prelude::Queryable;
+                let mut conn = pool.get_conn().await.unwrap();
+                let variants = (0..1500)
+                    .map(|n| format!("'v{n:04}{}'", "\u{1}".repeat(30)))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let setup = setup.replace(
+                    &format!("a_huge TEXT DEFAULT '{huge}'"),
+                    &format!("a_huge ENUM({variants})"),
+                );
+                let medium_type = (0..800)
+                    .map(|n| format!("'v{n:04}{}'", "\u{1}".repeat(30)))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let setup = setup.replace(
+                    &format!("TEXT DEFAULT '{medium}'"),
+                    &format!("ENUM({medium_type})"),
+                );
+                for statement in setup.split(';').filter(|s| !s.trim().is_empty()) {
+                    conn.query_drop(statement).await.unwrap();
+                }
+            }
+        }
         sessions.push((
             id.to_string(),
             SessionInfo {
@@ -205,6 +269,15 @@ async fn authenticated_http_tools_against_all_databases() {
     );
     assert!(!list.to_string().contains("username"));
     assert!(app.state::<AppState>().sessions.lock().await.is_empty());
+    for args in [
+        json!({"connectionId":"postgres","cursor":"invalid"}),
+        json!({"connectionId":"mysql","object":"x"}),
+        json!({"connectionId":"mariadb","limit":101}),
+    ] {
+        let (_, invalid) = request(address, "acceptance-token", json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_schema","arguments":args}})).await;
+        assert!(invalid.get("error").is_some(), "{invalid}");
+        assert!(app.state::<AppState>().sessions.lock().await.is_empty());
+    }
     app.state::<AppState>()
         .sessions
         .lock()
@@ -214,6 +287,110 @@ async fn authenticated_http_tools_against_all_databases() {
         let schema = call(address, "inspect_schema", json!({"connectionId":id})).await;
         assert_ne!(schema["isError"], true, "{schema}");
         assert!(schema["structuredContent"]["schemas"].as_array().is_some());
+        let schemas = traverse(address, json!({"connectionId":id,"limit":1}), "schemas").await;
+        assert!(schemas.iter().any(|s| s["name"] == "t6_metadata"));
+        let objects = traverse(
+            address,
+            json!({"connectionId":id,"schema":"t6_metadata","limit":1}),
+            "objects",
+        )
+        .await;
+        assert_eq!(
+            objects
+                .iter()
+                .map(|v| v["name"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["a_view", "byte_pages", "columns_page", "oversized"]
+        );
+        assert_eq!(objects[0]["kind"], "VIEW");
+        assert_eq!(objects[1]["kind"], "BASE TABLE");
+        let bytes = call(
+            address,
+            "inspect_schema",
+            json!({"connectionId":id,"schema":"t6_metadata","object":"byte_pages","limit":100}),
+        )
+        .await;
+        let bytes = &bytes["structuredContent"];
+        assert!(serde_json::to_vec(bytes).unwrap().len() <= 256_000);
+        assert_eq!(bytes["truncated"], true);
+        assert_eq!(bytes["omittedEntries"], 0);
+        assert_eq!(bytes["truncationReasons"], json!(["byteLimit"]));
+        assert_eq!(bytes["columns"].as_array().unwrap().len(), 1);
+        assert_eq!(bytes["columns"][0]["name"], "a");
+        let continuation = call(address, "inspect_schema", json!({"connectionId":id,"schema":"t6_metadata","object":"byte_pages","cursor":bytes["nextCursor"]})).await;
+        assert_eq!(continuation["structuredContent"]["columns"][0]["name"], "b");
+        assert_eq!(continuation["structuredContent"]["truncated"], false);
+        let columns = traverse(
+            address,
+            json!({"connectionId":id,"schema":"t6_metadata","object":"columns_page","limit":7}),
+            "columns",
+        )
+        .await;
+        let default_page = call(
+            address,
+            "inspect_schema",
+            json!({"connectionId":id,"schema":"t6_metadata","object":"columns_page"}),
+        )
+        .await;
+        let default_page = &default_page["structuredContent"];
+        assert_eq!(default_page["columns"].as_array().unwrap().len(), 50);
+        assert_eq!(default_page["truncationReasons"], json!(["pageLimit"]));
+        let final_page = call(address, "inspect_schema", json!({"connectionId":id,"schema":"t6_metadata","object":"columns_page","limit":100,"cursor":default_page["nextCursor"]})).await;
+        assert_eq!(
+            final_page["structuredContent"]["columns"]
+                .as_array()
+                .unwrap()
+                .len(),
+            55
+        );
+        assert_eq!(
+            final_page["structuredContent"]["columns"][0]["name"],
+            "c050"
+        );
+        assert_eq!(final_page["structuredContent"]["truncated"], false);
+        assert_eq!(columns.len(), 105);
+        for (n, column) in columns.iter().enumerate() {
+            assert_eq!(column["name"], format!("c{n:03}"));
+            assert!(column["dataType"].as_str().is_some());
+            assert_eq!(column["isNullable"], true);
+            assert!(column.get("columnDefault").is_some());
+        }
+        let view = traverse(
+            address,
+            json!({"connectionId":id,"schema":"t6_metadata","object":"a_view"}),
+            "columns",
+        )
+        .await;
+        assert_eq!(view.len(), 1);
+        let huge = call(
+            address,
+            "inspect_schema",
+            json!({"connectionId":id,"schema":"t6_metadata","object":"oversized","limit":1}),
+        )
+        .await;
+        let page = &huge["structuredContent"];
+        assert!(serde_json::to_vec(page).unwrap().len() <= 256_000);
+        assert_eq!(page["omittedEntries"], 1, "{huge}");
+        assert_eq!(page["truncationReasons"], json!(["byteLimit"]));
+        assert_eq!(page["truncated"], true);
+        assert_eq!(page["columns"], json!([]));
+        let end = call(address, "inspect_schema", json!({"connectionId":id,"schema":"t6_metadata","object":"oversized","limit":1,"cursor":page["nextCursor"]})).await;
+        assert_eq!(end["structuredContent"]["columns"][0]["name"], "z_end");
+        assert_eq!(end["structuredContent"]["truncated"], false);
+        assert!(end["structuredContent"]["nextCursor"].is_null());
+        for args in [
+            json!({"connectionId":id,"cursor":"invalid"}),
+            json!({"connectionId":id,"object":"x"}),
+            json!({"connectionId":id,"limit":0}),
+            json!({"connectionId":id,"limit":101}),
+            json!({"connectionId":id,"limit":1.5}),
+            json!({"connectionId":id,"schema":"different","cursor":page["nextCursor"]}),
+            json!({"connectionId":id,"schema":"t6_metadata","object":"columns_page","cursor":page["nextCursor"]}),
+            json!({"connectionId":format!("wrong-{id}"),"schema":"t6_metadata","object":"oversized","cursor":page["nextCursor"]}),
+        ] {
+            let (_, invalid) = request(address, "acceptance-token", json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"inspect_schema","arguments":args}})).await;
+            assert!(invalid.get("error").is_some(), "{invalid}");
+        }
         let result = call(
             address,
             "execute_query",
