@@ -63,23 +63,29 @@ pub fn validate_sql(sql: &str, dialect: SqlDialect) -> Result<(), String> {
         SqlDialect::Postgres => &PostgreSqlDialect {},
         SqlDialect::Mysql => &MySqlDialect {},
     };
-    let statements = Parser::parse_sql(dialect, sql).map_err(|e| e.to_string())?;
+    let statements = Parser::parse_sql(dialect, sql)
+        .map_err(|_| "syntax: use valid SQL for the connection dialect".to_string())?;
     if statements.len() != 1 {
-        return Err("Exactly one SELECT is required".into());
+        return Err(if statements.is_empty() {
+            "statement: provide one SELECT"
+        } else {
+            "multiple statements: submit exactly one SELECT"
+        }
+        .into());
     }
     match statements.visit(&mut ReadOnly) {
         ControlFlow::Continue(()) => Ok(()),
-        ControlFlow::Break(()) => Err("SQL is outside the read-only allowlist".into()),
+        ControlFlow::Break(reason) => Err(reason.into()),
     }
 }
 
 struct ReadOnly;
 
-fn check(ok: bool) -> ControlFlow<()> {
+fn check(ok: bool) -> ControlFlow<&'static str> {
     if ok {
         ControlFlow::Continue(())
     } else {
-        ControlFlow::Break(())
+        ControlFlow::Break("unsupported expression: simplify to the documented SELECT subset")
     }
 }
 
@@ -95,13 +101,19 @@ fn safe_body(body: &SetExpr) -> bool {
 }
 
 impl Visitor for ReadOnly {
-    type Break = ();
+    type Break = &'static str;
 
-    fn pre_visit_statement(&mut self, statement: &Statement) -> ControlFlow<()> {
-        check(matches!(statement, Statement::Query(_)))
+    fn pre_visit_statement(&mut self, statement: &Statement) -> ControlFlow<&'static str> {
+        if !matches!(statement, Statement::Query(_)) {
+            return ControlFlow::Break("statement: only read-only SELECT queries are supported");
+        }
+        ControlFlow::Continue(())
     }
 
-    fn pre_visit_query(&mut self, query: &Query) -> ControlFlow<()> {
+    fn pre_visit_query(&mut self, query: &Query) -> ControlFlow<&'static str> {
+        if !query.locks.is_empty() {
+            return ControlFlow::Break("locks: remove FOR UPDATE, FOR SHARE or LOCK IN SHARE MODE");
+        }
         check(
             safe_body(&query.body)
                 && query.locks.is_empty()
@@ -112,7 +124,15 @@ impl Visitor for ReadOnly {
         )
     }
 
-    fn pre_visit_table_factor(&mut self, table: &TableFactor) -> ControlFlow<()> {
+    fn pre_visit_table_factor(&mut self, table: &TableFactor) -> ControlFlow<&'static str> {
+        if matches!(
+            table,
+            TableFactor::Table { args: Some(_), .. }
+                | TableFactor::TableFunction { .. }
+                | TableFactor::Function { .. }
+        ) {
+            return ControlFlow::Break("functions: use only documented unqualified scalar or aggregate functions, not table functions");
+        }
         check(match table {
             TableFactor::Table {
                 args,
@@ -133,10 +153,10 @@ impl Visitor for ReadOnly {
         })
     }
 
-    fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
+    fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<&'static str> {
         check(match expr {
             Expr::Function(f) => {
-                f.name.0.len() == 1
+                let allowed = f.name.0.len() == 1
                     && matches!(
                         f.name.to_string().to_ascii_lowercase().as_str(),
                         "count"
@@ -151,7 +171,11 @@ impl Visitor for ReadOnly {
                             | "length"
                             | "coalesce"
                             | "nullif"
-                    )
+                    );
+                if !allowed {
+                    return ControlFlow::Break("functions: use only count, sum, avg, min, max, abs, round, lower, upper, length, coalesce or nullif without qualification");
+                }
+                allowed
             }
             Expr::Identifier(i) => !i.value.starts_with('@'),
             Expr::CompoundIdentifier(ids) => ids.iter().all(|i| !i.value.starts_with('@')),
@@ -318,6 +342,34 @@ mod tests {
                 validate_sql(sql, SqlDialect::Mysql).is_err(),
                 "mysql: {sql}"
             );
+        }
+    }
+
+    #[test]
+    fn rejection_categories_do_not_echo_input() {
+        for dialect in [SqlDialect::Postgres, SqlDialect::Mysql] {
+            for (sql, category) in [
+                ("SELECT 'private_secret'; SELECT 2", "multiple statements:"),
+                ("SELECT private_secret()", "functions:"),
+                ("SELECT * FROM private_secret FOR UPDATE", "locks:"),
+                (
+                    "SELECT CAST('private_secret' AS INTEGER)",
+                    "unsupported expression:",
+                ),
+                ("SELECT 'private_secret", "syntax:"),
+                ("DELETE FROM private_secret", "statement:"),
+            ] {
+                let error = validate_sql(
+                    sql,
+                    match dialect {
+                        SqlDialect::Postgres => SqlDialect::Postgres,
+                        SqlDialect::Mysql => SqlDialect::Mysql,
+                    },
+                )
+                .unwrap_err();
+                assert!(error.starts_with(category), "{error}");
+                assert!(!error.contains("private_secret"));
+            }
         }
     }
 

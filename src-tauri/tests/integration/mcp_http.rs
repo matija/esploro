@@ -607,6 +607,27 @@ async fn authenticated_http_tools_against_all_databases() {
             .await;
             assert_eq!(result["isError"], true, "{result}");
         }
+        for (sql, category) in [
+            ("SELECT 'private_secret'; SELECT 2", "multiple statements:"),
+            ("SELECT private_secret()", "functions:"),
+            ("SELECT * FROM private_secret FOR UPDATE", "locks:"),
+            (
+                "SELECT CAST('private_secret' AS INTEGER)",
+                "unsupported expression:",
+            ),
+            ("SELECT 'private_secret", "syntax:"),
+        ] {
+            let result = call(
+                address,
+                "execute_query",
+                json!({"connectionId":id,"sql":sql}),
+            )
+            .await;
+            assert_eq!(result["isError"], true, "{result}");
+            let public = result.to_string();
+            assert!(public.contains(category), "{public}");
+            assert!(!public.contains("private_secret"), "{public}");
+        }
         assert_ne!(
             call(
                 address,
@@ -649,7 +670,7 @@ async fn authenticated_http_tools_against_all_databases() {
             .iter()
             .filter(|entry| entry.status == ActivityStatus::Failed)
             .count(),
-        9
+        15
     );
     for _ in 0..10 {
         assert_ne!(

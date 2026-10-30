@@ -4,7 +4,11 @@
 
 `validate_sql` uses the pinned `sqlparser` AST with PostgreSQL or MySQL dialects. MariaDB uses the MySQL dialect. It accepts one SELECT, including read-only WITH queries, joins, subqueries, grouping, sorting, pagination, and SELECT set operations.
 
-The function allowlist contains only unquoted, unqualified names:
+Expressions support identifiers, literals, nested expressions, ordinary unary and binary operators, null and Boolean tests, distinctness tests, IN, BETWEEN, LIKE/ILIKE, CASE, EXISTS, subqueries, tuples, and wildcards. Assignments and custom binary operators are rejected. Other expression forms fail closed.
+
+Rejections identify multiple statements, functions, locks, unsupported expressions, non-query statements, or invalid syntax. Submit one SELECT, remove locking clauses, and use only the documented expressions and functions. Syntax errors use a fixed message rather than parser details. Errors do not include SQL, identifiers, literals, or credentials.
+
+The function allowlist contains only unqualified names (matched without case sensitivity):
 
 | Functions | Purpose |
 | --- | --- |
