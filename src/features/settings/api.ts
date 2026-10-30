@@ -27,6 +27,11 @@ export interface McpActivity {
 export const settingsApi = {
   getMcpHistory: (): Promise<McpActivity[]> => normalizeCommandError(invoke("get_mcp_history")),
   clearMcpHistory: (): Promise<void> => normalizeCommandError(invoke("clear_mcp_history")),
+  getMcpPolicy: () => normalizeCommandError(commands.getMcpPolicy()),
+  setMcpEnabled: (enabled: boolean) => normalizeCommandError(commands.setMcpEnabled(enabled)),
+  setMcpGrants: (ids: string[]) => normalizeCommandError(commands.setMcpGrants(ids)),
+  retryMcp: () => normalizeCommandError(commands.retryMcp()),
+  replaceMcpToken: () => normalizeCommandError(commands.replaceMcpToken()),
   getMcpStatus: (): Promise<McpStatus> => normalizeCommandError(commands.getMcpStatus()),
   getMcpEndpoint: (): Promise<string> => normalizeCommandError(commands.getMcpEndpoint()),
   getMcpToken: (): Promise<string> => normalizeCommandError(commands.getMcpToken()),
