@@ -161,8 +161,9 @@ async fn call_until<R: tauri::Runtime>(
                 .ok()
                 .and_then(|profiles| profiles.iter().find(|p| p.id == id))
                 .map(|p| p.display_name.clone());
-            activity =
-                Some(store.begin(Some(app), id, label, arguments["sql"].as_str().unwrap())?);
+            activity = store
+                .begin(Some(app), id, label, arguments["sql"].as_str().unwrap())
+                .ok();
         }
         let profiles = profiles?;
         match name {
@@ -205,19 +206,14 @@ async fn call_until<R: tauri::Runtime>(
         }
     }
     .await;
-    let result = if let (Some(app), Some(id)) = (app, activity) {
-        match app.state::<super::activity::ActivityStore>().finish(
+    if let (Some(app), Some(id)) = (app, activity) {
+        let _ = app.state::<super::activity::ActivityStore>().finish(
             Some(app),
             &id,
             started.elapsed().as_millis() as u64,
             &result,
-        ) {
-            Ok(()) => result,
-            Err(error) => Err(error),
-        }
-    } else {
-        result
-    };
+        );
+    }
     Ok(match result {
         Ok(value) => {
             json!({"content":[{"type":"text","text":value.to_string()}],"structuredContent": if name == "list_connections" { json!({"connections":value}) } else { value },"isError":false})

@@ -7,7 +7,7 @@ import { McpActivitySettings } from "./McpActivitySettings";
 import { NAV_ITEMS, TITLE_TO_SECTION } from "./settingsNav";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
-vi.mock("./api", () => ({ settingsApi: { getMcpHistory: vi.fn(), clearMcpHistory: vi.fn() } }));
+vi.mock("./api", () => ({ settingsApi: { getMcpHistoryDegraded: vi.fn(), retryMcpHistory: vi.fn(), getMcpHistory: vi.fn(), clearMcpHistory: vi.fn() } }));
 
 let update: () => void;
 const unlisten = vi.fn();
@@ -19,6 +19,8 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(settingsApi.getMcpHistoryDegraded).mockResolvedValue(false);
+  vi.mocked(settingsApi.retryMcpHistory).mockResolvedValue(null);
   vi.mocked(settingsApi.getMcpHistory).mockResolvedValue([]);
   vi.mocked(settingsApi.clearMcpHistory).mockResolvedValue();
   vi.mocked(listen).mockImplementation(async (_name, callback) => {
@@ -111,4 +113,28 @@ it("retains history on clear failure and reports errors", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Clear History" }));
   expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Cannot clear history");
   expect(screen.getByRole("table")).toBeDefined();
+});
+
+it("reports corrupt or unwritable storage and retries without losing memory history", async () => {
+  vi.mocked(settingsApi.getMcpHistoryDegraded).mockResolvedValue(true);
+  vi.mocked(settingsApi.getMcpHistory).mockResolvedValue([entry("1")]);
+  mount();
+  expect(await screen.findByRole("status")).toHaveProperty("textContent", expect.stringContaining("kept in memory"));
+  expect(await screen.findByRole("table")).toBeDefined();
+  vi.mocked(settingsApi.getMcpHistoryDegraded).mockResolvedValue(false);
+  await userEvent.click(screen.getByRole("button", { name: "Retry Storage" }));
+  await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+  expect(settingsApi.retryMcpHistory).toHaveBeenCalledOnce();
+  expect(screen.getByRole("table")).toBeDefined();
+});
+
+it("allows clearing degraded storage even with no entries and reports a failed retry", async () => {
+  vi.mocked(settingsApi.getMcpHistoryDegraded).mockResolvedValue(true);
+  vi.mocked(settingsApi.retryMcpHistory).mockRejectedValue(new Error("Retry failed"));
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Retry Storage" }));
+  expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Retry failed");
+  await userEvent.click(screen.getByRole("button", { name: "Clear History" }));
+  expect(settingsApi.clearMcpHistory).toHaveBeenCalledOnce();
+  expect(screen.getByRole("status")).toBeDefined();
 });

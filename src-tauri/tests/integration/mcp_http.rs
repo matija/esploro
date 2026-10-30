@@ -172,7 +172,7 @@ async fn authenticated_http_tools_against_all_databases() {
     let app = tauri::test::mock_builder()
         .manage(PolicyStore::open(directory.join("policy.json")))
         .manage(state)
-        .manage(ActivityStore::open(directory.join("activity.json")).unwrap())
+        .manage(ActivityStore::open(directory.join("activity.json")))
         .build(context)
         .unwrap();
     let data = app.path().app_data_dir().unwrap();
@@ -672,6 +672,7 @@ async fn authenticated_http_tools_against_all_databases() {
             .count(),
         15
     );
+    std::fs::create_dir(directory.join("activity.json.tmp")).unwrap();
     for _ in 0..10 {
         assert_ne!(
             call(
@@ -688,11 +689,15 @@ async fn authenticated_http_tools_against_all_databases() {
     assert!(history
         .windows(2)
         .all(|entries| entries[0].started_at >= entries[1].started_at));
-    let reopened = ActivityStore::open(directory.join("activity.json")).unwrap();
+    assert!(app.state::<ActivityStore>().degraded());
+    assert_eq!(history[0].status, ActivityStatus::Succeeded);
+    std::fs::remove_dir(directory.join("activity.json.tmp")).unwrap();
+    app.state::<ActivityStore>().retry().unwrap();
+    assert!(!app.state::<ActivityStore>().degraded());
+    let reopened = ActivityStore::open(directory.join("activity.json"));
     assert_eq!(reopened.history().len(), 20);
     reopened.clear(Some(app.handle())).unwrap();
     assert!(ActivityStore::open(directory.join("activity.json"))
-        .unwrap()
         .history()
         .is_empty());
     server.shutdown().await.unwrap();

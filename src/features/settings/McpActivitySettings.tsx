@@ -22,6 +22,8 @@ const colors: Record<string, string> = {
 export function McpActivitySettings() {
   const client = useQueryClient();
   const history = useQuery({ queryKey, queryFn: settingsApi.getMcpHistory, refetchInterval: 5000 });
+  const degraded = useQuery({ queryKey: ["mcp-history-degraded"], queryFn: settingsApi.getMcpHistoryDegraded, refetchInterval: 5000 });
+  const retry = useMutation({ mutationFn: settingsApi.retryMcpHistory, onSuccess: () => { void client.invalidateQueries({ queryKey: ["mcp-history-degraded"] }); } });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [eventError, setEventError] = useState<string | null>(null);
   useEffect(() => {
@@ -32,6 +34,7 @@ export function McpActivitySettings() {
   const clear = useMutation({
     mutationFn: settingsApi.clearMcpHistory,
     onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["mcp-history-degraded"] });
       setSelectedId(null);
       client.setQueryData(queryKey, []);
       void client.invalidateQueries({ queryKey });
@@ -43,9 +46,11 @@ export function McpActivitySettings() {
     <section className="space-y-4 text-[13px] text-label">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold">MCP Activity</h2>
-        <button type="button" className="rounded border border-separator px-3 py-1.5 disabled:opacity-50" disabled={clear.isPending || !entries.length} onClick={() => clear.mutate()}>Clear History</button>
+        <button type="button" className="rounded border border-separator px-3 py-1.5 disabled:opacity-50" disabled={clear.isPending || (!entries.length && !degraded.data)} onClick={() => clear.mutate()}>Clear History</button>
       </div>
-      <p className="text-secondary">Latest 20 persisted query attempts. Full SQL, including SQL literals, remains locally stored. No result data is stored.</p>
+      <p className="text-secondary">Latest 20 query attempts. Full SQL, including SQL literals, and database error messages can contain sensitive information and remain locally stored when storage is available. No result data is stored. Bearer tokens are not stored.</p>
+      {degraded.data && <div role="status">Activity storage is degraded. History is kept in memory and may be lost when Esploro closes. Corrupt files are preserved under unique recovery names when accessible. <button type="button" disabled={retry.isPending} onClick={() => retry.mutate()}>Retry Storage</button></div>}
+      {(degraded.error || retry.error) && <p role="alert">{(degraded.error || retry.error)?.message}</p>}
       {(history.error || clear.error) && <p role="alert">{(history.error || clear.error)?.message}</p>}
       {eventError && <p role="alert">Live updates unavailable: {eventError}. History refreshes every five seconds.</p>}
       {history.isPending ? <p>Loading activity…</p> : !entries.length && !history.error ? <p>No MCP query attempts yet.</p> : null}

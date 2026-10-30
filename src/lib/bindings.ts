@@ -6,6 +6,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 export const commands = {
 	getMcpHistory: () => __TAURI_INVOKE<Activity[]>("get_mcp_history"),
 	clearMcpHistory: () => __TAURI_INVOKE<null>("clear_mcp_history"),
+	getMcpHistoryDegraded: () => __TAURI_INVOKE<boolean>("get_mcp_history_degraded"),
+	retryMcpHistory: () => __TAURI_INVOKE<null>("retry_mcp_history"),
 	getMcpStatus: () => __TAURI_INVOKE<McpStatus>("get_mcp_status"),
 	getMcpPolicy: () => __TAURI_INVOKE<McpPolicy>("get_mcp_policy"),
 	setMcpEnabled: (enabled: boolean) => __TAURI_INVOKE<null>("set_mcp_enabled", { enabled }),

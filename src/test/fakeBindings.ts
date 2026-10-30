@@ -25,6 +25,8 @@ export type FakeCommands = { [K in keyof RealCommands]: Mock<RealCommands[K]> };
  * the Rust side resolves to `null`, matching the generated signatures.
  */
 const defaultImpls: RealCommands = {
+  getMcpHistoryDegraded: () => Promise.resolve(false),
+  retryMcpHistory: () => Promise.resolve(null),
   getMcpHistory: () => Promise.resolve([]),
   clearMcpHistory: () => Promise.resolve(null),
   getMcpPolicy: async () => ({ version: 1, enabled: false, permittedConnectionIds: [] }),

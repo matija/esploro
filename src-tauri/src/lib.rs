@@ -52,6 +52,8 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             commands::activity::get_mcp_history,
             commands::activity::clear_mcp_history,
+            commands::activity::get_mcp_history_degraded,
+            commands::activity::retry_mcp_history,
             mcp::lifecycle::get_mcp_status,
             mcp::lifecycle::get_mcp_policy,
             mcp::lifecycle::set_mcp_enabled,
@@ -176,7 +178,7 @@ pub fn run() {
             ));
             app.manage(mcp::activity::ActivityStore::open(
                 app.path().app_data_dir()?.join("mcp_activity.json"),
-            )?);
+            ));
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 handle

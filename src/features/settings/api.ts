@@ -25,6 +25,8 @@ export interface McpActivity {
 }
 
 export const settingsApi = {
+  getMcpHistoryDegraded: () => normalizeCommandError(commands.getMcpHistoryDegraded()),
+  retryMcpHistory: () => normalizeCommandError(commands.retryMcpHistory()),
   getMcpHistory: (): Promise<McpActivity[]> => normalizeCommandError(invoke("get_mcp_history")),
   clearMcpHistory: (): Promise<void> => normalizeCommandError(invoke("clear_mcp_history")),
   getMcpPolicy: () => normalizeCommandError(commands.getMcpPolicy()),

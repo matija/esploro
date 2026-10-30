@@ -39,14 +39,28 @@ pub struct Activity {
 pub struct ActivityStore {
     path: PathBuf,
     entries: Mutex<Vec<Activity>>,
+    degraded: Mutex<bool>,
+    corrupt: Mutex<bool>,
 }
 
 impl ActivityStore {
-    pub fn open(path: PathBuf) -> Result<Self, AppError> {
+    pub fn open(path: PathBuf) -> Self {
+        let mut degraded = false;
+        let mut corrupt = false;
         let mut entries: Vec<Activity> = match std::fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice(&bytes)?,
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(entries) => entries,
+                Err(_) => {
+                    degraded = true;
+                    corrupt = true;
+                    Vec::new()
+                }
+            },
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-            Err(error) => return Err(error.into()),
+            Err(_) => {
+                degraded = true;
+                Vec::new()
+            }
         };
         entries.truncate(super::HISTORY_RETENTION);
         for entry in &mut entries {
@@ -63,9 +77,24 @@ impl ActivityStore {
         let store = Self {
             path,
             entries: Mutex::new(entries),
+            degraded: Mutex::new(degraded),
+            corrupt: Mutex::new(corrupt),
         };
-        store.update::<tauri::Wry>(None, |_| {})?;
-        Ok(store)
+        if !degraded || corrupt {
+            let _ = store.update::<tauri::Wry>(None, |_| {});
+            if degraded {
+                *store.degraded.lock().unwrap() = true;
+            }
+        }
+        store
+    }
+
+    pub fn degraded(&self) -> bool {
+        *self.degraded.lock().unwrap()
+    }
+
+    pub fn retry(&self) -> Result<(), AppError> {
+        self.update::<tauri::Wry>(None, |_| {})
     }
 
     pub fn history(&self) -> Vec<Activity> {
@@ -81,13 +110,24 @@ impl ActivityStore {
         let mut next = entries.clone();
         change(&mut next);
         next.truncate(super::HISTORY_RETENTION);
-        std::fs::create_dir_all(self.path.parent().unwrap())?;
-        let temporary = self.path.with_extension("json.tmp");
-        let mut file = std::fs::File::create(&temporary)?;
-        serde_json::to_writer(&mut file, &next)?;
-        file.sync_all()?;
-        std::fs::rename(temporary, &self.path)?;
         *entries = next;
+        let persisted = (|| -> Result<(), AppError> {
+            if *self.corrupt.lock().unwrap() {
+                let recovery = self
+                    .path
+                    .with_extension(format!("recovery-{}.json", uuid::Uuid::new_v4()));
+                std::fs::rename(&self.path, recovery)?;
+                *self.corrupt.lock().unwrap() = false;
+            }
+            std::fs::create_dir_all(self.path.parent().unwrap())?;
+            let temporary = self.path.with_extension("json.tmp");
+            let mut file = std::fs::File::create(&temporary)?;
+            serde_json::to_writer(&mut file, &*entries)?;
+            file.sync_all()?;
+            std::fs::rename(temporary, &self.path)?;
+            Ok(())
+        })();
+        *self.degraded.lock().unwrap() = persisted.is_err();
         if let Some(app) = app {
             let _ = app.emit("mcp-activity-changed", &*entries);
         }
@@ -176,6 +216,18 @@ pub fn clear_mcp_history(
     store.clear(Some(&app))
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn get_mcp_history_degraded(store: State<'_, ActivityStore>) -> bool {
+    store.degraded()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn retry_mcp_history(store: State<'_, ActivityStore>) -> Result<(), AppError> {
+    store.retry()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,7 +238,7 @@ mod tests {
     fn completion_preserves_start_order_and_failed_writes_preserve_history() {
         let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
         let path = directory.join("mcp_activity.json");
-        let store = ActivityStore::open(path.clone()).unwrap();
+        let store = ActivityStore::open(path.clone());
         let first = store
             .begin(NO_APP, "a", Some("A".into()), "SELECT 1")
             .unwrap();
@@ -199,15 +251,45 @@ mod tests {
         assert_eq!(store.history()[0].id, second);
         assert_eq!(store.history()[1].id, first);
         std::fs::create_dir(path.with_extension("json.tmp")).unwrap();
-        assert!(store.clear(NO_APP).is_err());
-        assert_eq!(store.history().len(), 2);
-        assert_eq!(
-            ActivityStore::open(path.clone()).err().unwrap().kind(),
-            "Io"
-        );
+        store.clear(NO_APP).unwrap();
+        assert!(store.history().is_empty());
+        assert!(store.degraded());
+        let reopened = ActivityStore::open(path.clone());
+        assert!(reopened.degraded());
+        let id = reopened.begin(NO_APP, "a", None, "SELECT 1").unwrap();
+        reopened.finish(NO_APP, &id, 1, &result).unwrap();
+        assert_eq!(reopened.history()[0].status, ActivityStatus::Succeeded);
+        std::fs::remove_dir(path.with_extension("json.tmp")).unwrap();
+        reopened.retry().unwrap();
+        assert!(!reopened.degraded());
         let persisted: Vec<Activity> =
             serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-        assert_eq!(persisted.len(), 2);
+        assert_eq!(persisted.len(), 3);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn corrupt_history_is_preserved_under_unique_recovery_names() {
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("mcp_activity.json");
+        for _ in 0..2 {
+            std::fs::write(&path, b"corrupt history").unwrap();
+            let store = ActivityStore::open(path.clone());
+            assert!(store.history().is_empty());
+            assert!(store.degraded());
+            store.retry().unwrap();
+            assert!(!store.degraded());
+        }
+        let recoveries: Vec<_> = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.to_string_lossy().contains("recovery-"))
+            .collect();
+        assert_eq!(recoveries.len(), 2);
+        for recovery in recoveries {
+            assert_eq!(std::fs::read(recovery).unwrap(), b"corrupt history");
+        }
         std::fs::remove_dir_all(directory).unwrap();
     }
 
@@ -215,7 +297,7 @@ mod tests {
     fn retention_order_persistence_rejections_and_clear() {
         let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
         let path = directory.join("mcp_activity.json");
-        let store = ActivityStore::open(path.clone()).unwrap();
+        let store = ActivityStore::open(path.clone());
         for index in 0..25 {
             store
                 .begin(
@@ -238,7 +320,7 @@ mod tests {
                 .map(|_| serde_json::json!({}))
                 .map_err(AppError::Validation);
         store.finish(NO_APP, &id, 7, &result).unwrap();
-        let reopened = ActivityStore::open(path.clone()).unwrap();
+        let reopened = ActivityStore::open(path.clone());
         assert_eq!(reopened.history()[0].status, ActivityStatus::Failed);
         assert_eq!(reopened.history()[0].sql, "DELETE FROM users");
         assert!(reopened.history()[0].error.is_some());
@@ -259,7 +341,7 @@ mod tests {
             .contains("private result"));
         reopened.clear(NO_APP).unwrap();
         reopened.finish(NO_APP, &id, 4, &result).unwrap();
-        assert!(ActivityStore::open(path).unwrap().history().is_empty());
+        assert!(ActivityStore::open(path).history().is_empty());
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
