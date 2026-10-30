@@ -7,6 +7,10 @@ export const commands = {
 	getMcpHistory: () => __TAURI_INVOKE<Activity[]>("get_mcp_history"),
 	clearMcpHistory: () => __TAURI_INVOKE<null>("clear_mcp_history"),
 	getMcpStatus: () => __TAURI_INVOKE<McpStatus>("get_mcp_status"),
+	getMcpPolicy: () => __TAURI_INVOKE<McpPolicy>("get_mcp_policy"),
+	setMcpEnabled: (enabled: boolean) => __TAURI_INVOKE<null>("set_mcp_enabled", { enabled }),
+	setMcpGrants: (permittedConnectionIds: string[]) => __TAURI_INVOKE<null>("set_mcp_grants", { permittedConnectionIds }),
+	retryMcp: () => __TAURI_INVOKE<null>("retry_mcp"),
 	getMcpEndpoint: () => __TAURI_INVOKE<string>("get_mcp_endpoint"),
 	getMcpToken: () => __TAURI_INVOKE<string>("get_mcp_token"),
 	listConnections: () => __TAURI_INVOKE<ConnectionProfile[]>("list_connections"),
@@ -245,6 +249,12 @@ export type LicenseStatus = {
 };
 
 export type LicenseTier = "Personal" | "Commercial" | "Unlicensed";
+
+export type McpPolicy = {
+	version: number,
+	enabled?: boolean,
+	permittedConnectionIds?: string[],
+};
 
 export type McpStatus = { state: "starting" } | { state: "running" } | { state: "error"; message: string } | { state: "stopped" };
 

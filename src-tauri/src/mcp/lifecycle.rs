@@ -1,5 +1,6 @@
 use super::{McpListener, ENDPOINT};
 use serde::Serialize;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 #[derive(Clone, Debug, PartialEq, Serialize, specta::Type)]
@@ -13,6 +14,7 @@ pub enum McpStatus {
 
 pub struct McpLifecycle<L = McpListener> {
     inner: Mutex<Inner<L>>,
+    transition: Mutex<()>,
 }
 
 struct Inner<L> {
@@ -24,6 +26,7 @@ struct Inner<L> {
 impl<L> Default for McpLifecycle<L> {
     fn default() -> Self {
         Self {
+            transition: Mutex::new(()),
             inner: Mutex::new(Inner {
                 status: McpStatus::Starting,
                 token: None,
@@ -58,6 +61,19 @@ impl<L> McpLifecycle<L> {
         }
     }
 
+    async fn prepare(&self, enabled: bool) -> bool {
+        let mut inner = self.inner.lock().await;
+        if !enabled {
+            inner.status = McpStatus::Stopped;
+            return false;
+        }
+        if inner.listener.is_some() {
+            return false;
+        }
+        inner.status = McpStatus::Starting;
+        true
+    }
+
     async fn stop(&self) -> Option<L> {
         let mut inner = self.inner.lock().await;
         inner.status = McpStatus::Stopped;
@@ -68,6 +84,17 @@ impl<L> McpLifecycle<L> {
 
 impl McpLifecycle {
     pub async fn start(&self, app: tauri::AppHandle) {
+        let _transition = self.transition.lock().await;
+        self.start_enabled(app).await;
+    }
+
+    async fn start_enabled(&self, app: tauri::AppHandle) {
+        if !self
+            .prepare(app.state::<super::policy::PolicyStore>().get().enabled)
+            .await
+        {
+            return;
+        }
         let token = tauri::async_runtime::spawn_blocking(super::token::load_or_create)
             .await
             .map_err(|_| "MCP token task failed".to_string())
@@ -83,12 +110,69 @@ impl McpLifecycle {
     }
 
     pub async fn shutdown(&self) {
+        let _transition = self.transition.lock().await;
+        self.stop_listener().await;
+    }
+
+    async fn stop_listener(&self) {
         if let Some(listener) = self.stop().await {
             if let Err(error) = listener.shutdown().await {
                 tauri_plugin_log::log::warn!("MCP shutdown: {error}");
             }
         }
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_mcp_policy(
+    policy: tauri::State<'_, super::policy::PolicyStore>,
+) -> super::policy::McpPolicy {
+    policy.get()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_mcp_enabled(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, McpLifecycle>,
+    enabled: bool,
+) -> Result<(), String> {
+    let _transition = state.transition.lock().await;
+    state.stop_listener().await;
+    let store = app.state::<super::policy::PolicyStore>();
+    let mut policy = store.get();
+    policy.enabled = enabled;
+    store.save(policy).map_err(|error| error.to_string())?;
+    state.start_enabled(app.clone()).await;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_mcp_grants(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, McpLifecycle>,
+    permitted_connection_ids: Vec<String>,
+) -> Result<(), String> {
+    let _transition = state.transition.lock().await;
+    state.stop_listener().await;
+    let store = app.state::<super::policy::PolicyStore>();
+    let mut policy = store.get();
+    policy.permitted_connection_ids = permitted_connection_ids;
+    store.save(policy).map_err(|error| error.to_string())?;
+    state.start_enabled(app.clone()).await;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn retry_mcp(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, McpLifecycle>,
+) -> Result<(), String> {
+    state.start(app).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -118,6 +202,58 @@ pub async fn get_mcp_token(state: tauri::State<'_, McpLifecycle>) -> Result<Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn repeated_transitions_conflict_retry_and_restart() {
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let path = directory.join("policy.json");
+        let store = super::super::policy::PolicyStore::open(path.clone());
+        let state = McpLifecycle::default();
+        assert!(!state.prepare(store.get().enabled).await);
+        let mut policy = store.get();
+        policy.enabled = true;
+        policy.permitted_connection_ids = vec!["saved".into()];
+        store.save(policy.clone()).unwrap();
+        let address = "127.0.0.1:19482".parse().unwrap();
+        let conflict = tokio::net::TcpListener::bind(address).await.unwrap();
+        assert!(state.prepare(store.get().enabled).await);
+        state
+            .start_with(Ok("secret".into()), |token| async {
+                McpListener::bind_at::<tauri::Wry>(address, token, None)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+            .await;
+        assert!(matches!(
+            state.inner.lock().await.status,
+            McpStatus::Error { .. }
+        ));
+        drop(conflict);
+        for _ in 0..3 {
+            let restarted = super::super::policy::PolicyStore::open(path.clone());
+            assert_eq!(restarted.get(), policy);
+            assert!(state.prepare(restarted.get().enabled).await);
+            state
+                .start_with(Ok("secret".into()), |token| async {
+                    McpListener::bind_at::<tauri::Wry>(address, token, None)
+                        .await
+                        .map_err(|error| error.to_string())
+                })
+                .await;
+            assert_eq!(state.inner.lock().await.status, McpStatus::Running);
+            assert!(!state.prepare(true).await);
+            state.stop().await.unwrap().shutdown().await.unwrap();
+            assert!(state.stop().await.is_none());
+            let released = tokio::net::TcpListener::bind(address).await.unwrap();
+            drop(released);
+        }
+        policy.enabled = false;
+        store.save(policy.clone()).unwrap();
+        let restarted = super::super::policy::PolicyStore::open(path);
+        assert_eq!(restarted.get(), policy);
+        assert!(!state.prepare(restarted.get().enabled).await);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[tokio::test]
     async fn success_and_exit() {

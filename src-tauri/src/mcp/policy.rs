@@ -2,7 +2,7 @@ use crate::AppError;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct McpPolicy {
     pub version: u32,
