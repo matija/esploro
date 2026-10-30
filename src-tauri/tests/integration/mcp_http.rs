@@ -42,6 +42,38 @@ async fn call(address: SocketAddr, name: &str, arguments: Value) -> Value {
 }
 
 #[tokio::test]
+async fn listener_replacement_rejects_old_token_and_closes_keep_alive() {
+    let reservation = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = reservation.local_addr().unwrap();
+    drop(reservation);
+    let listener = McpListener::bind_at::<tauri::Wry>(address, "old".into(), None)
+        .await
+        .unwrap();
+    let mut socket = TcpStream::connect(address).await.unwrap();
+    let message = json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}});
+    let body = message.to_string();
+    socket.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:19482\r\nAuthorization: Bearer old\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    let mut response = vec![0; 8192];
+    let count = tokio::time::timeout(Duration::from_secs(3), socket.read(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&response[..count]).starts_with("HTTP/1.1 200"));
+    listener.shutdown().await.unwrap();
+    let listener = McpListener::bind_at::<tauri::Wry>(address, "new".into(), None)
+        .await
+        .unwrap();
+    let mut remaining = Vec::new();
+    tokio::time::timeout(Duration::from_secs(3), socket.read_to_end(&mut remaining))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(request(address, "old", message.clone()).await.0, 401);
+    assert_eq!(request(address, "new", message).await.0, 200);
+    listener.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn authenticated_http_tools_against_all_databases() {
     let directory = std::env::temp_dir().join(format!("esploro-http-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&directory).unwrap();

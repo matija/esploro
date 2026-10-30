@@ -109,6 +109,23 @@ impl McpLifecycle {
         .await;
     }
 
+    async fn replace_with<F, Fut>(&self, persist: F) -> Result<String, String>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<String, String>>,
+    {
+        self.stop_listener().await;
+        match persist().await {
+            Ok(token) => Ok(token),
+            Err(message) => {
+                self.inner.lock().await.status = McpStatus::Error {
+                    message: message.clone(),
+                };
+                Err(message)
+            }
+        }
+    }
+
     pub async fn shutdown(&self) {
         let _transition = self.transition.lock().await;
         self.stop_listener().await;
@@ -162,6 +179,36 @@ pub async fn set_mcp_grants(
     policy.permitted_connection_ids = permitted_connection_ids;
     store.save(policy).map_err(|error| error.to_string())?;
     state.start_enabled(app.clone()).await;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn replace_mcp_token(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, McpLifecycle>,
+) -> Result<(), String> {
+    let _transition = state.transition.lock().await;
+    let token = state
+        .replace_with(|| async {
+            tauri::async_runtime::spawn_blocking(super::token::replace)
+                .await
+                .map_err(|_| "MCP token replacement task failed".to_string())?
+                .map_err(|_| "Cannot replace MCP token in Keychain; MCP is stopped".to_string())
+        })
+        .await?;
+    if state
+        .prepare(app.state::<super::policy::PolicyStore>().get().enabled)
+        .await
+    {
+        state
+            .start_with(Ok(token), |token| async {
+                McpListener::bind(token, app)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+            .await;
+    }
     Ok(())
 }
 
@@ -253,6 +300,48 @@ mod tests {
         assert_eq!(restarted.get(), policy);
         assert!(!state.prepare(restarted.get().enabled).await);
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn replacement_stops_listener_before_persistence_and_stays_stopped_on_failure() {
+        let state = McpLifecycle::default();
+        let address = "127.0.0.1:0".parse().unwrap();
+        state
+            .start_with(Ok("old".into()), |token| async {
+                McpListener::bind_at::<tauri::Wry>(address, token, None)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+            .await;
+        let token = state
+            .replace_with(|| async {
+                assert!(state.inner.lock().await.listener.is_none());
+                Ok("new".into())
+            })
+            .await
+            .unwrap();
+        assert_eq!(token, "new");
+        assert_eq!(state.inner.lock().await.status, McpStatus::Stopped);
+        assert!(state.prepare(true).await);
+        state
+            .start_with(Ok(token), |token| async {
+                McpListener::bind_at::<tauri::Wry>(address, token, None)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+            .await;
+        assert_eq!(state.inner.lock().await.status, McpStatus::Running);
+        assert!(state
+            .replace_with(|| async {
+                assert!(state.inner.lock().await.listener.is_none());
+                Err("Keychain write failed".into())
+            })
+            .await
+            .is_err());
+        let inner = state.inner.lock().await;
+        assert!(inner.listener.is_none());
+        assert!(inner.token.is_none());
+        assert!(matches!(inner.status, McpStatus::Error { .. }));
     }
 
     #[tokio::test]

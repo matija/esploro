@@ -11,6 +11,7 @@ export const commands = {
 	setMcpEnabled: (enabled: boolean) => __TAURI_INVOKE<null>("set_mcp_enabled", { enabled }),
 	setMcpGrants: (permittedConnectionIds: string[]) => __TAURI_INVOKE<null>("set_mcp_grants", { permittedConnectionIds }),
 	retryMcp: () => __TAURI_INVOKE<null>("retry_mcp"),
+	replaceMcpToken: () => __TAURI_INVOKE<null>("replace_mcp_token"),
 	getMcpEndpoint: () => __TAURI_INVOKE<string>("get_mcp_endpoint"),
 	getMcpToken: () => __TAURI_INVOKE<string>("get_mcp_token"),
 	listConnections: () => __TAURI_INVOKE<ConnectionProfile[]>("list_connections"),

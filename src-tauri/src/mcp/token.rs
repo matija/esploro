@@ -5,6 +5,20 @@ pub fn load_or_create() -> Result<String, keyring::Error> {
     load_or_create_with(&keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?)
 }
 
+pub fn replace() -> Result<String, keyring::Error> {
+    replace_with(&keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)?)
+}
+
+fn replace_with(store: &impl Store) -> Result<String, keyring::Error> {
+    let token = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    store.set(&token)?;
+    Ok(token)
+}
+
 trait Store {
     fn get(&self) -> Result<String, keyring::Error>;
     fn set(&self, token: &str) -> Result<(), keyring::Error>;
@@ -23,15 +37,7 @@ impl Store for keyring::Entry {
 fn load_or_create_with(store: &impl Store) -> Result<String, keyring::Error> {
     match store.get() {
         Ok(token) => Ok(token),
-        Err(keyring::Error::NoEntry) => {
-            let token = format!(
-                "{}{}",
-                uuid::Uuid::new_v4().simple(),
-                uuid::Uuid::new_v4().simple()
-            );
-            store.set(&token)?;
-            Ok(token)
-        }
+        Err(keyring::Error::NoEntry) => replace_with(store),
         Err(error) => Err(error),
     }
 }
@@ -101,6 +107,19 @@ mod tests {
             Err(keyring::Error::NoStorageAccess(_))
         ));
         assert!(store.token.borrow().is_none());
+    }
+
+    #[test]
+    fn replacement_persists_fresh_token_and_failure_preserves_old_token() {
+        let mut store = MemoryStore::default();
+        let old = load_or_create_with(&store).unwrap();
+        let new = replace_with(&store).unwrap();
+        assert_ne!(old, new);
+        assert!(new.len() == 64 && new.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_eq!(load_or_create_with(&store).unwrap(), new);
+        store.fail_write = true;
+        assert!(replace_with(&store).is_err());
+        assert_eq!(load_or_create_with(&store).unwrap(), new);
     }
 
     #[test]

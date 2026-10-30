@@ -57,6 +57,7 @@ fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             mcp::lifecycle::set_mcp_enabled,
             mcp::lifecycle::set_mcp_grants,
             mcp::lifecycle::retry_mcp,
+            mcp::lifecycle::replace_mcp_token,
             mcp::lifecycle::get_mcp_endpoint,
             mcp::lifecycle::get_mcp_token,
             commands::connections::list_connections,

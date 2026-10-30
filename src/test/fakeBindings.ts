@@ -31,6 +31,7 @@ const defaultImpls: RealCommands = {
   setMcpEnabled: async () => null,
   setMcpGrants: async () => null,
   retryMcp: async () => null,
+  replaceMcpToken: async () => null,
   getMcpStatus: () => Promise.resolve({ state: "stopped" }),
   getMcpEndpoint: () => Promise.resolve("http://127.0.0.1:19482/mcp"),
   getMcpToken: () => Promise.resolve("test-token"),
