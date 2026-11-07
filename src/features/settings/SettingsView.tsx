@@ -32,7 +32,7 @@ export function SettingsView({ section, onSectionChange }: SettingsViewProps) {
   return (
     <div className="flex h-full">
       {/* Left nav */}
-      <nav className="w-40 shrink-0 border-r border-separator bg-sidebar p-2 flex flex-col gap-0.5">
+      <nav aria-label="Settings" className="w-40 shrink-0 border-r border-separator p-3 flex flex-col gap-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const Icon = SECTION_ICON[item.id];
           return (
@@ -40,11 +40,12 @@ export function SettingsView({ section, onSectionChange }: SettingsViewProps) {
               key={item.id}
               type="button"
               onClick={() => onSectionChange(item.id)}
+              aria-current={section === item.id ? "page" : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[13px] text-left w-full",
                 "transition-colors duration-[var(--motion-fast)]",
                 section === item.id
-                  ? "bg-accent/12 text-accent font-medium"
+                  ? "bg-selected text-label font-medium"
                   : "text-secondary hover:bg-hover hover:text-label active:bg-pressed",
               )}
             >
@@ -63,8 +64,8 @@ export function SettingsView({ section, onSectionChange }: SettingsViewProps) {
       </nav>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-8">
-        <div className={section === "mcp-activity" ? "w-full" : "max-w-md w-full"}>
+      <div className="flex-1 min-w-0 overflow-auto px-8 py-7">
+        <div className={section === "mcp-activity" ? "w-full" : "max-w-xl w-full mx-auto"}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "editor" && <EditorSettings />}
           {section === "grid" && <DataGridSettings />}

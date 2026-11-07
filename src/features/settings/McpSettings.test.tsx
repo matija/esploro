@@ -88,7 +88,7 @@ it("registers MCP navigation and explains the access boundary", () => {
   mount();
   expect(screen.getByText(/Only permitted Connection profiles are exposed read-only/).textContent).toContain("cloud agents");
   expect(screen.getByText(/Use restricted database Roles/).textContent).toContain("not absolute isolation");
-  expect(screen.getByText(/MCP starts disabled/).textContent).toContain("including after upgrading");
+  expect(screen.getByText(/Grant connections, then enable agent access/).textContent).toContain("New connections start without access");
 });
 
 

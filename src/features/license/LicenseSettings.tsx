@@ -1,3 +1,4 @@
+import { SettingsSection } from "../settings/SettingsSection";
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { licenseApi, LICENSE_STATUS_KEY } from './api';
@@ -20,10 +21,7 @@ export function LicenseSettings() {
   if (isLoading) return null;
 
   return (
-    <section>
-      <h3 className="text-[12px] font-medium text-secondary uppercase tracking-[0.06em] mb-3">
-        License
-      </h3>
+    <SettingsSection title="License">
 
       {status?.tier === 'Commercial' ? (
         <div className="flex flex-col gap-3">
@@ -87,10 +85,18 @@ export function LicenseSettings() {
         </div>
       )}
 
+      {status?.gracePeriodEnds && (
+        <p className="text-sm text-secondary">
+          Valid through {new Date(status.gracePeriodEnds).toLocaleDateString(undefined, {
+            year: "numeric", month: "short", day: "numeric",
+          })}
+        </p>
+      )}
+
       <LicenseActivationSheet
         open={activationOpen}
         onClose={() => setActivationOpen(false)}
       />
-    </section>
+    </SettingsSection>
   );
 }

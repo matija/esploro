@@ -1,3 +1,4 @@
+import { SettingsSection } from "./SettingsSection";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { settingsApi } from "./api";
@@ -64,23 +65,21 @@ export function McpSettings() {
   const buttonClass = "rounded-[var(--radius-control)] border border-separator px-2.5 py-1 text-[13px] hover:bg-hover disabled:opacity-50";
 
   return (
-    <section className="flex flex-col gap-6 text-[13px]">
-      <div>
-        <h3 className="text-[12px] font-medium text-secondary uppercase mb-1">MCP</h3>
-        <p className="text-tertiary">Connect an agent harness using Streamable HTTP.</p>
+    <SettingsSection title="MCP">
+      <div className="flex items-center justify-between gap-4 border-b border-separator pb-4">
+        <p role="status" className="text-secondary">Server status: {status.data?.state ?? "Loading"}</p>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={policy.data?.enabled ?? false} disabled={busy || !policy.data || !!policy.error} onChange={(event) => void change(() => settingsApi.setMcpEnabled(event.target.checked))} /> Enable MCP</label>
       </div>
-      <p role="status">Server status: {status.data?.state ?? "Loading"}</p>
       {(status.data?.state === "error" || status.error) && <p role="alert">MCP listener unavailable. Check port 19482 and Keychain access, then retry.</p>}
       {endpoint.error && <p role="alert">Endpoint unavailable. Reopen Settings to retry.</p>}
-      <p className="text-tertiary">MCP starts disabled, including after upgrading from earlier versions. Enable it and grant individual Connection profiles to restore agent access. New profiles have no grant.</p>
+      <p className="text-tertiary">Grant connections, then enable agent access. New connections start without access.</p>
       {policy.error && <p role="alert">Cannot load MCP access policy. Check local policy storage and reopen Settings.</p>}
-      <label><input type="checkbox" checked={policy.data?.enabled ?? false} disabled={busy || !policy.data || !!policy.error} onChange={(event) => void change(() => settingsApi.setMcpEnabled(event.target.checked))} /> Enable MCP</label>
-      <button className={buttonClass} disabled={busy || !policy.data?.enabled} onClick={() => void change(settingsApi.retryMcp)}>Retry listener</button>
+      {(status.data?.state === "error" || status.data?.state === "stopped" || status.error) && <button className={buttonClass + " self-start"} disabled={busy || !policy.data?.enabled} onClick={() => void change(settingsApi.retryMcp)}>Retry listener</button>}
       <fieldset disabled={busy || !policy.data || !!policy.error} className="space-y-2">
-        <legend>Permitted Connection profiles</legend>
+        <legend className="mb-2 font-medium text-label">Permitted Connection profiles</legend>
         {profiles.error && <p role="alert">Cannot load Connection profiles. Reopen Settings to retry.</p>}
         {profiles.data?.length === 0 && <p>No saved Connection profiles.</p>}
-        {profiles.data?.map((profile) => <label key={profile.id} className="block"><input type="checkbox" checked={policy.data?.permittedConnectionIds?.includes(profile.id) ?? false} onChange={(event) => {
+        {profiles.data?.map((profile) => <label key={profile.id} className="flex items-center gap-2 rounded-[var(--radius-control)] py-2"><input type="checkbox" checked={policy.data?.permittedConnectionIds?.includes(profile.id) ?? false} onChange={(event) => {
           const ids = policy.data!.permittedConnectionIds ?? [];
           const next = event.target.checked ? [...ids, profile.id] : ids.filter((id) => id !== profile.id);
           void change(() => settingsApi.setMcpGrants(next));
@@ -92,13 +91,13 @@ export function McpSettings() {
         <button className={buttonClass} disabled={busy || !endpoint.data} onClick={() => void act("endpoint")}>Copy endpoint</button>
       </div>
       <div className="space-y-2">
-        <p>Persistent bearer token</p>
+        <h3 className="font-medium">Bearer token</h3>
         <code className="block break-all">{revealed ? token : "••••••••"}</code>
         <div className="flex gap-2">
           <button className={buttonClass} disabled={busy} onClick={() => revealed ? setRevealed(false) : void act("reveal")}>{revealed ? "Hide token" : "Reveal token"}</button>
           <button className={buttonClass} disabled={busy} onClick={() => void act("token")}>Copy token</button>
         </div>
-        <p className="text-tertiary">The token persists across app restarts. Keep it secret; it grants access only to permitted Connection profiles.</p>
+        <p className="text-tertiary">Keep this token secret. It grants access to permitted connections.</p>
       </div>
       <div className="space-y-2">
         <button className={buttonClass} disabled={busy} onClick={() => setConfirmReplacement(true)}>Replace token</button>
@@ -109,13 +108,13 @@ export function McpSettings() {
         </div>}
       </div>
       <div className="space-y-2">
-        <p>Harness configuration</p>
-        <p className="text-tertiary">Copy a Streamable HTTP configuration with an Authorization: Bearer header. The copied configuration contains your token.</p>
+        <h3 className="font-medium">Agent configuration</h3>
+        <p className="text-tertiary">The configuration includes your bearer token.</p>
         <button className={buttonClass} disabled={busy || !endpoint.data} onClick={() => void act("config")}>Copy configuration</button>
       </div>
       <p className="text-tertiary">Only permitted Connection profiles are exposed read-only. Query results can reach cloud agents. Use restricted database Roles to limit access to sensitive data. Read-only access is not absolute isolation and does not prevent data disclosure.</p>
       {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
-    </section>
+    </SettingsSection>
   );
 }

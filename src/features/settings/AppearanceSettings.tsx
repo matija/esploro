@@ -1,3 +1,4 @@
+import { SettingsSection } from "./SettingsSection";
 import * as Select from "@radix-ui/react-select";
 import {
   Check,
@@ -207,16 +208,7 @@ export function AppearanceSettings() {
   );
 
   return (
-    <section className="flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-[11px] font-medium text-secondary uppercase mb-1">
-            Appearance
-          </h3>
-          <p className="text-[12px] text-tertiary">
-            Theme and font preferences apply live and are stored in app preferences.
-          </p>
-        </div>
+    <SettingsSection title="Appearance" action={
         <button
           type="button"
           onClick={resetPreferences}
@@ -230,7 +222,7 @@ export function AppearanceSettings() {
           <RotateCcw size={13} />
           Reset
         </button>
-      </div>
+    }>
 
       <div className="space-y-2">
         <SettingLabel icon={<Monitor size={13} />} label="Theme" />
@@ -296,6 +288,7 @@ export function AppearanceSettings() {
             <button
               key={opt.value}
               type="button"
+              aria-pressed={preferences.editor.lineHeight === opt.value}
               onClick={() =>
                 updatePreferences((current) => ({
                   ...current,
@@ -323,7 +316,7 @@ export function AppearanceSettings() {
           Fix invalid font settings before they can be saved.
         </div>
       )}
-    </section>
+    </SettingsSection>
   );
 }
 

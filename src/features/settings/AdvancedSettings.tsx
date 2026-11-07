@@ -1,3 +1,4 @@
+import { SettingsSection } from "./SettingsSection";
 import { RotateCcw } from "lucide-react";
 import { useAppStore } from "../../store";
 import { useConfirm } from "../../components/ConfirmDialog";
@@ -32,24 +33,11 @@ export function AdvancedSettings() {
   }
 
   return (
-    <section className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-[12px] font-medium text-secondary uppercase mb-1">
-          Advanced
-        </h3>
-        <p className="text-[13px] text-tertiary">
-          Maintenance and diagnostic options.
-        </p>
-      </div>
-
+    <SettingsSection title="Advanced">
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-4 rounded-[var(--radius-panel)] border border-separator bg-sidebar p-4">
           <div className="space-y-1">
             <p className="text-[13px] font-medium text-label">Reset all preferences</p>
-            <p className="text-[13px] text-tertiary leading-relaxed">
-              Restores theme, fonts, editor behaviour, and grid settings to
-              their factory defaults.
-            </p>
           </div>
           <button
             type="button"
@@ -61,6 +49,6 @@ export function AdvancedSettings() {
           </button>
         </div>
       </div>
-    </section>
+    </SettingsSection>
   );
 }

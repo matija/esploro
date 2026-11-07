@@ -1,4 +1,4 @@
-import { AlignJustify, Table2, Hash } from "lucide-react";
+import { SettingsSection, SettingSwitch } from "./SettingsSection";
 import { useAppStore } from "../../store";
 import { cn } from "../../lib/utils";
 import {
@@ -8,20 +8,17 @@ import {
   type RowDensity,
 } from "./preferences";
 
-const DENSITY_LABELS: Record<RowDensity, { label: string; description: string; rowClass: string }> = {
+const DENSITY_LABELS: Record<RowDensity, { label: string; rowClass: string }> = {
   compact: {
     label: "Compact",
-    description: "33 px",
     rowClass: "py-1",
   },
   comfortable: {
     label: "Comfortable",
-    description: "44 px",
     rowClass: "py-2.5",
   },
   spacious: {
     label: "Spacious",
-    description: "56 px",
     rowClass: "py-[18px]",
   },
 };
@@ -37,12 +34,13 @@ function DensityCard({
   active: boolean;
   onClick: () => void;
 }) {
-  const { label, description, rowClass } = DENSITY_LABELS[density];
+  const { label, rowClass } = DENSITY_LABELS[density];
 
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "flex-1 rounded-[var(--radius-control)] border p-2.5 text-left",
         "transition-colors duration-[var(--motion-fast)]",
@@ -75,7 +73,6 @@ function DensityCard({
         >
           {label}
         </span>
-        <span className="text-[12px] text-tertiary">{description}</span>
       </div>
     </button>
   );
@@ -86,21 +83,9 @@ export function DataGridSettings() {
     useAppStore();
 
   return (
-    <section className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-[12px] font-medium text-secondary uppercase mb-1">
-          Data Grid
-        </h3>
-        <p className="text-[13px] text-tertiary">
-          Display settings for table and query result views.
-        </p>
-      </div>
-
+    <SettingsSection title="Data Grid">
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
-          <span className="text-accent">
-            <AlignJustify size={13} />
-          </span>
           Row density
         </div>
         <div className="flex gap-2">
@@ -113,16 +98,10 @@ export function DataGridSettings() {
             />
           ))}
         </div>
-        <p className="text-[12px] text-tertiary">
-          Takes effect when a table is next opened or queried.
-        </p>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
-          <span className="text-accent">
-            <Table2 size={13} />
-          </span>
           Rows per page
         </div>
         <div className="flex w-fit gap-1 rounded-[var(--radius-control)] bg-control p-1 shadow-[var(--shadow-hairline)]">
@@ -130,6 +109,7 @@ export function DataGridSettings() {
             <button
               key={size}
               type="button"
+              aria-pressed={gridPageSize === size}
               onClick={() => setGridPageSize(size)}
               className={cn(
                 "h-7 min-w-[2.5rem] rounded-[var(--radius-control)] px-2 text-[13px]",
@@ -143,41 +123,12 @@ export function DataGridSettings() {
             </button>
           ))}
         </div>
-        <p className="text-[12px] text-tertiary">
-          Number of rows fetched and displayed per page.
-        </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center gap-1.5 text-[13px] font-medium text-secondary">
-          <span className="text-accent">
-            <Hash size={13} />
-          </span>
-          Row count
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowTotalCount(!showTotalCount)}
-          className={cn(
-            "flex items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-[13px]",
-            "transition-colors duration-[var(--motion-fast)]",
-            showTotalCount
-              ? "border-accent bg-accent/8 shadow-[0_0_0_1px_var(--ds-accent)] text-accent"
-              : "border-separator bg-content text-secondary hover:bg-subtle",
-          )}
-        >
-          <span className={cn(
-            "inline-block h-4 w-4 rounded border-2 flex items-center justify-center",
-            showTotalCount ? "border-accent bg-accent" : "border-separator bg-transparent",
-          )}>
-            {showTotalCount ? <span className="block w-2 h-2 rounded-sm bg-content" /> : null}
-          </span>
-          Show total row count
-        </button>
-        <p className="text-[12px] text-tertiary">
-          Runs COUNT(*) on each table open. Disable for very large tables where counts are slow.
-        </p>
+      <div>
+        <SettingSwitch label="Show total row count" checked={showTotalCount} onChange={setShowTotalCount} />
+        <p className="text-[12px] text-tertiary">Counts can slow down large tables.</p>
       </div>
-    </section>
+    </SettingsSection>
   );
 }

@@ -52,11 +52,6 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
         </div>
       </div>
 
-      {/* Description */}
-      <p className="text-[13px] text-secondary leading-relaxed">
-        A native macOS database client for PostgreSQL, MySQL, and MariaDB.
-      </p>
-
       {/* Links */}
       <div className="flex flex-col gap-2">
         <button
@@ -64,7 +59,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
           onClick={() => void openUrl("https://matija.eu")}
           className="flex items-center gap-1.5 text-[14px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
         >
-          Built by Matija Munjaković
+          Matija Munjaković
           <ExternalLink size={11} className="text-tertiary" />
         </button>
         <button
@@ -72,7 +67,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
           onClick={() => void openUrl("https://tandoku.hr")}
           className="flex items-center gap-1.5 text-[13px] text-tertiary hover:text-secondary transition-colors duration-[var(--motion-fast)] w-fit"
         >
-          A Tandoku product
+          Tandoku
           <ExternalLink size={11} className="opacity-60" />
         </button>
         <button
@@ -80,7 +75,7 @@ export function AboutSettings({ onNavigateToLicense }: Props) {
           onClick={() => void openUrl("https://github.com/matija/esploro")}
           className="flex items-center gap-1.5 text-[14px] text-accent hover:text-accent/80 transition-colors duration-[var(--motion-fast)] w-fit"
         >
-          Source on GitHub
+          GitHub
           <ExternalLink size={11} className="text-tertiary" />
         </button>
       </div>

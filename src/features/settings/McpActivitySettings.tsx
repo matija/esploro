@@ -1,3 +1,4 @@
+import { SettingsSection } from "./SettingsSection";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
@@ -15,8 +16,8 @@ function status(entry: McpActivity) {
 }
 
 const colors: Record<string, string> = {
-  Running: "text-accent", Success: "text-green-600", Rejected: "text-orange-600",
-  Failed: "text-red-600", "Timed out": "text-amber-600", Interrupted: "text-secondary",
+  Running: "text-accent", Success: "text-success", Rejected: "text-warning",
+  Failed: "text-destructive", "Timed out": "text-warning", Interrupted: "text-secondary",
 };
 
 export function McpActivitySettings() {
@@ -43,12 +44,10 @@ export function McpActivitySettings() {
   const entries = [...(history.data ?? [])].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)).slice(0, 20);
   const selected = entries.find((entry) => entry.id === selectedId);
   return (
-    <section className="space-y-4 text-[13px] text-label">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold">MCP Activity</h2>
-        <button type="button" className="rounded border border-separator px-3 py-1.5 disabled:opacity-50" disabled={clear.isPending || (!entries.length && !degraded.data)} onClick={() => clear.mutate()}>Clear History</button>
-      </div>
-      <p className="text-secondary">Latest 20 query attempts. Full SQL, including SQL literals, and database error messages can contain sensitive information and remain locally stored when storage is available. No result data is stored. Bearer tokens are not stored.</p>
+    <SettingsSection title="MCP Activity" action={
+      <button type="button" className="rounded-[var(--radius-control)] border border-separator px-3 py-1.5 hover:bg-hover disabled:opacity-50" disabled={clear.isPending || (!entries.length && !degraded.data)} onClick={() => clear.mutate()}>Clear History</button>
+    }>
+      <p className="text-secondary">The latest 20 attempts are stored locally. SQL literals and errors may contain sensitive information. No result data is stored. Bearer tokens are not stored.</p>
       {degraded.data && <div role="status">Activity storage is degraded. History is kept in memory and may be lost when Esploro closes. Corrupt files are preserved under unique recovery names when accessible. <button type="button" disabled={retry.isPending} onClick={() => retry.mutate()}>Retry Storage</button></div>}
       {(degraded.error || retry.error) && <p role="alert">{(degraded.error || retry.error)?.message}</p>}
       {(history.error || clear.error) && <p role="alert">{(history.error || clear.error)?.message}</p>}
@@ -74,6 +73,6 @@ export function McpActivitySettings() {
         {selected.error && <div><p>{selected.error.kind}: {selected.error.message}</p>{selected.error.code && <p>Error code: {selected.error.code}</p>}{selected.error.position !== null && <p>SQL position: {selected.error.position}</p>}</div>}
         <p>{selected.truncated ? `Results truncated: ${selected.returnedRowCount ?? 0} rows returned; additional rows were omitted.` : "Results were not truncated."}</p>
       </section>}
-    </section>
+    </SettingsSection>
   );
 }
