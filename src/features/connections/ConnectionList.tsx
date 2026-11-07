@@ -220,9 +220,8 @@ function ConnectionRow({
         {/* Hover actions */}
         <div
           className={cn(
-            'flex items-center gap-0.5 mt-[1px] transition-opacity shrink-0',
-            'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-            isFocused && 'opacity-100',
+            'hidden items-center gap-0.5 shrink-0 group-hover:flex group-focus-within:flex',
+            isFocused && 'flex',
           )}
         >
           {isActive ? (

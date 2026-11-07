@@ -443,9 +443,8 @@ function TreeRow({
       {hasInlineActions && (
         <span
           className={cn(
-            "flex items-center gap-0.5 shrink-0 transition-opacity",
-            "opacity-0 group-hover:opacity-100",
-            (isFocused || isRefreshing) && "opacity-100",
+            "hidden items-center gap-0.5 shrink-0 group-hover:flex group-focus-within:flex",
+            (isFocused || isRefreshing) && "flex",
           )}
         >
           {node.kind === "roles-group" && (
@@ -497,7 +496,8 @@ function TreeRow({
       {secondary && (
         <span className={cn(
           "text-[11px] text-secondary shrink-0 ml-1",
-          hasInlineActions && "group-hover:hidden",
+          hasInlineActions && "group-hover:hidden group-focus-within:hidden",
+          hasInlineActions && (isFocused || isRefreshing) && "hidden",
         )}>
           {secondary}
         </span>

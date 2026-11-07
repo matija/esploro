@@ -6,7 +6,7 @@ export function ObjectName({ name, className }: { name: string; className?: stri
       {name.length > 12 ? (
         <>
           <span className="min-w-0 truncate">{name.slice(0, -8)}</span>
-          <span className="max-w-[60%] shrink-0 truncate" dir="rtl">{name.slice(-8)}</span>
+          <span className="max-w-[60%] shrink-0 truncate" dir="rtl"><bdi dir="ltr">{name.slice(-8)}</bdi></span>
         </>
       ) : (
         <span className="truncate">{name}</span>
