@@ -35,6 +35,7 @@ import {
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/Toast";
 import { CellRenderer } from "../data-grid/CellRenderer";
+import { ColumnLabel } from "../data-grid/ColumnLabel";
 import { COL_WIDTH, HEADER_HEIGHT, ROW_HEIGHT_BY_DENSITY } from "../data-grid/constants";
 
 const RESULT_HEIGHT_KEY = "esploro-query-result-height";
@@ -236,20 +237,10 @@ function ResultGrid({
           {columns.map((col) => (
             <div
               key={col.name}
-              className="flex items-center gap-1.5 px-2 select-none shrink-0 bg-sidebar"
+              className="flex items-center gap-1.5 px-2 overflow-hidden select-none shrink-0 bg-sidebar"
               style={{ width: COL_WIDTH, minWidth: COL_WIDTH, height: HEADER_HEIGHT }}
             >
-              <span
-                className="text-xs font-semibold text-label truncate flex-1 min-w-0"
-                title={col.name}
-              >
-                {col.name}
-              </span>
-              {col.dataType && (
-                <span className="text-[9px] text-secondary bg-control px-1 py-px rounded shrink-0">
-                  {col.dataType}
-                </span>
-              )}
+              <ColumnLabel col={col} />
             </div>
           ))}
         </div>

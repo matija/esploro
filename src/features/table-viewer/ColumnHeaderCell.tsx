@@ -1,10 +1,6 @@
-import { ChevronUp, ChevronDown, Filter, KeyRound, Link } from "lucide-react";
-import * as Tooltip from "@radix-ui/react-tooltip";
-import {
-  type ResultColumn,
-  getTypeFamily,
-  typeFamilyBadgeClass,
-} from "./types";
+import { ChevronUp, ChevronDown, Filter } from "lucide-react";
+import type { ResultColumn } from "./types";
+import { ColumnLabel } from "../data-grid/ColumnLabel";
 import { cn } from "../../lib/utils";
 import { HEADER_HEIGHT } from "../data-grid/constants";
 
@@ -38,7 +34,7 @@ export function ColumnHeaderCell({
       }
       tabIndex={-1}
       className={cn(
-        "relative flex items-center gap-1.5 px-2 select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
+        "relative flex items-center gap-1 px-2 overflow-hidden select-none cursor-default hover:bg-hover group shrink-0 transition-colors",
         isFiltered && "bg-accent/5",
       )}
       style={{ width, minWidth: width, height: HEADER_HEIGHT }}
@@ -51,59 +47,24 @@ export function ColumnHeaderCell({
       }}
       onContextMenu={onContextMenu}
     >
-      {col.isPrimaryKey && (
-        <KeyRound size={10} className="text-schema-key shrink-0" aria-label="Primary key" />
-      )}
-      {col.isForeignKey && !col.isPrimaryKey && (
-        <Link size={10} className="text-schema-foreign-key shrink-0" aria-label="Foreign key" />
-      )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <span className="text-xs font-semibold text-label truncate flex-1 min-w-0">
-            {col.name}
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="bottom"
-            sideOffset={4}
-            className="z-50 px-2 py-1 rounded-[var(--radius-control)] border border-separator bg-raised shadow-[var(--shadow-popover)] text-xs text-label font-mono"
-          >
-            {col.name}
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-      {col.isNullable && (
-        <span className="text-[10px] font-mono text-tertiary shrink-0" title="Nullable">?</span>
-      )}
+      <ColumnLabel col={col}>
+        {sortDir === "asc" && <ChevronUp size={12} className="shrink-0 text-accent" />}
+        {sortDir === "desc" && <ChevronDown size={12} className="shrink-0 text-accent" />}
+      </ColumnLabel>
       {/* Filter icon: accent when filtered, visible on hover when not */}
       <button
         type="button"
-        onClick={onFilterClick}
+        onClick={(event) => { event.stopPropagation(); onFilterClick(event); }}
         title={`Filter by ${col.name}`}
         className={cn(
           "shrink-0 p-1 rounded transition-colors",
           isFiltered
             ? "text-accent"
-            : "text-tertiary opacity-0 group-hover:opacity-100 hover:text-accent",
+            : "text-tertiary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:text-accent",
         )}
       >
         <Filter size={11} />
       </button>
-      <span
-        className={cn(
-          "text-[10px] font-mono px-1 py-px rounded shrink-0",
-          typeFamilyBadgeClass(getTypeFamily(col.dataType)),
-        )}
-      >
-        {col.dataType}
-      </span>
-      {sortDir === "asc" && (
-        <ChevronUp size={12} className="text-accent shrink-0" />
-      )}
-      {sortDir === "desc" && (
-        <ChevronDown size={12} className="text-accent shrink-0" />
-      )}
       {/* Resize handle */}
       <div
         role="separator"
