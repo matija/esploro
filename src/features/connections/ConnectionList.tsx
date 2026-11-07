@@ -185,7 +185,7 @@ function ConnectionRow({
         )}
       >
         {/* Status dot */}
-        <div className="shrink-0 relative">
+        <div className="relative flex h-5 w-3 shrink-0 items-center justify-center">
           {isConnecting ? (
             <Loader2 size={10} className="text-accent animate-spin" />
           ) : isActive ? (
@@ -220,8 +220,8 @@ function ConnectionRow({
         {/* Hover actions */}
         <div
           className={cn(
-            'hidden items-center gap-0.5 shrink-0 group-hover:flex group-focus-within:flex',
-            isFocused && 'flex',
+            'flex items-center gap-0.5 shrink-0 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto',
+            isFocused && 'opacity-100 pointer-events-auto',
           )}
         >
           {isActive ? (
