@@ -100,6 +100,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     if (!rawUrl.trim()) return;
     const parsed = parseConnectionUrl(rawUrl.trim());
     if (parsed.driver) setDriver(parsed.driver);
+    if (parsed.sslMode) setSslMode(parsed.sslMode);
     if (parsed.host) { setHost(parsed.host); setConnType('host'); }
     if (parsed.port) setPort(String(parsed.port));
     if (parsed.database) setDatabase(parsed.database);

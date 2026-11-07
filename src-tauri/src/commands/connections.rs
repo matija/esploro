@@ -231,6 +231,15 @@ fn build_mysql_pool(
         .user(Some(profile.username.clone()))
         .pass(Some(password.to_string()))
         .pool_opts(pool_opts)
+        .ssl_opts(match profile.ssl_mode {
+            SslMode::Disable => None,
+            SslMode::Prefer | SslMode::Require => Some(
+                mysql_async::SslOpts::default()
+                    .with_danger_accept_invalid_certs(true)
+                    .with_danger_skip_domain_validation(true),
+            ),
+            SslMode::VerifyFull => Some(mysql_async::SslOpts::default()),
+        })
         .tcp_keepalive(Some(KEEPALIVE_IDLE.as_millis() as u32));
     Ok(mysql_async::Pool::new(opts))
 }
