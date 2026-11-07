@@ -8,9 +8,8 @@ import {
   OP_LABELS,
   getTypeFamily,
   getOperatorsForFamily,
-  typeFamilyBadgeClass,
 } from "./types";
-import { cn } from "../../lib/utils";
+import { ColumnLabel } from "../data-grid/ColumnLabel";
 
 export interface FilterEntry {
   operator: FilterOperator;
@@ -69,12 +68,8 @@ export function ColumnFilterPopover({
           onInteractOutside={() => onOpenChange(false)}
           className="z-50 w-64 rounded-[var(--radius-popover)] border border-separator bg-raised shadow-[var(--shadow-popover)] p-3 flex flex-col gap-2.5"
         >
-          {/* Column name + type badge */}
           <div className="flex items-center gap-2 pb-1 border-b border-separator">
-            <span className="text-xs font-semibold text-label truncate flex-1">{col.name}</span>
-            <span className={cn("text-[10px] font-mono px-1 py-px rounded shrink-0", typeFamilyBadgeClass(family))}>
-              {col.dataType}
-            </span>
+            <ColumnLabel col={col} />
           </div>
 
           {/* Operator selector */}

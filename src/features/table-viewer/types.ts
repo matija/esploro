@@ -103,17 +103,6 @@ export function editableKind(udt: string, driver: "postgres" | "mysql"): Editabl
 
 export type TypeFamily = "text" | "numeric" | "date" | "boolean" | "json" | "other";
 
-export function typeFamilyBadgeClass(family: TypeFamily): string {
-  switch (family) {
-    case "text":    return "text-syntax-string bg-syntax-string/10";
-    case "numeric": return "text-syntax-number bg-syntax-number/10";
-    case "date":    return "text-syntax-type bg-syntax-type/10";
-    case "boolean": return "text-syntax-special bg-syntax-special/10";
-    case "json":    return "text-syntax-enum bg-syntax-enum/10";
-    default:        return "text-secondary bg-control";
-  }
-}
-
 export const OP_LABELS: Record<FilterOperator, string> = {
   Eq: "=",
   Neq: "≠",
