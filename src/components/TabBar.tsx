@@ -158,11 +158,11 @@ function TabItem({
       }}
       onContextMenu={onContextMenu}
       className={cn(
-        "group flex items-center gap-1 px-3 h-full",
+        "group flex items-center gap-2 px-3 h-full rounded-t-[var(--radius-control)]",
         "text-xs cursor-default select-none shrink-0",
-        "border-r border-separator border-b-2",
+        "border-b-2",
         active
-          ? "bg-content text-label border-b-accent"
+          ? "bg-content text-label border-b-transparent shadow-[var(--shadow-hairline)]"
           : tab.isError
             ? "text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)] border-b-query-failed"
             : "text-secondary hover:text-label hover:bg-control transition-colors duration-[var(--motion-fast)] border-b-transparent",
@@ -193,7 +193,7 @@ function TabItem({
         className={cn(
           "rounded p-0.5 transition-colors duration-[var(--motion-fast)] shrink-0 ml-0.5",
           "hover:bg-control text-secondary hover:text-label",
-          "opacity-0 group-hover:opacity-100",
+          "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
           active && "opacity-100",
         )}
         aria-label={`Close ${tab.title}`}
@@ -213,7 +213,7 @@ export function TabBar() {
       <div
         role="tablist"
         data-tauri-drag-region
-        className="flex h-[30px] items-stretch overflow-x-auto bg-sidebar border-b border-separator"
+        className="flex h-9 shrink-0 items-stretch gap-0.5 px-2 pt-1 overflow-x-auto bg-sidebar border-b border-separator"
         style={{ scrollbarWidth: "none" }}
       >
         {tabs.map((tab) => (

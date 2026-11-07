@@ -16,6 +16,7 @@ export function Sidebar() {
     sidebarWidth,
     setSidebarWidth,
     profiles,
+    recentObjects,
     setProfiles,
     pendingNewConnection,
     setPendingNewConnection,
@@ -136,7 +137,8 @@ export function Sidebar() {
                 type="button"
                 onClick={openCreate}
                 title="New connection"
-                className="p-0.5 rounded text-secondary hover:text-label hover:bg-control transition-colors"
+                aria-label="Add connection"
+                className="p-1 rounded text-secondary hover:text-label hover:bg-control transition-colors"
               >
                 <Plus size={12} />
               </button>
@@ -154,13 +156,15 @@ export function Sidebar() {
             />
           </SidebarSection>
 
-          <SidebarSection title="Saved Queries">
+          <SidebarSection title="Saved queries">
             <SavedQueriesSection />
           </SidebarSection>
 
-          <SidebarSection title="Recent">
-            <RecentObjectsSection />
-          </SidebarSection>
+          {recentObjects.length > 0 && (
+            <SidebarSection title="Recent">
+              <RecentObjectsSection />
+            </SidebarSection>
+          )}
         </div>
 
         {/* Resize handle */}

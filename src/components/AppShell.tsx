@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-import * as Popover from "@radix-ui/react-popover";
+import { useEffect } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2, Search, SquarePen, Settings } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "../store";
 import { Sidebar } from "./Sidebar";
@@ -67,6 +66,8 @@ function StatusBar() {
 
   const loadingTabs = tabs.filter((t) => t.isLoading);
 
+  if (!profile && loadingTabs.length === 0 && !lastAction) return null;
+
   return (
     <div
       data-tauri-drag-region
@@ -120,117 +121,6 @@ function StatusBar() {
 const toolbarBtnClass =
   "flex items-center gap-1.5 h-[26px] px-2 rounded-[var(--radius-control)] text-[13px] text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-hover hover:text-label active:bg-pressed select-none";
 
-function LicenseBadge() {
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const { data: status } = useQuery({
-    queryKey: LICENSE_STATUS_KEY,
-    queryFn: licenseApi.getStatus,
-    staleTime: 60_000,
-  });
-  const { addTab, tabs, setActiveTab, updateTabTitle } = useAppStore(
-    useShallow((state) => ({
-      addTab: state.addTab,
-      tabs: state.tabs,
-      setActiveTab: state.setActiveTab,
-      updateTabTitle: state.updateTabTitle,
-    })),
-  );
-
-  const tier = status?.tier ?? "Unlicensed";
-  const isLicensed = tier === "Personal" || tier === "Commercial";
-
-  function openLicenseSettings() {
-    const existing = tabs.find((t) => t.type === "settings");
-    if (existing) {
-      updateTabTitle(existing.id, "Licensing");
-      setActiveTab(existing.id);
-    } else {
-      addTab({ type: "settings", title: "Licensing" });
-    }
-    setPopoverOpen(false);
-  }
-
-  const badgeButton = (
-    <button
-      type="button"
-      title={isLicensed ? `${tier} license active` : "No active license"}
-      className={cn(
-        "flex items-center gap-1.5 h-[22px] px-2.5 rounded-full border text-[12px] font-medium select-none transition-colors duration-[var(--motion-fast)]",
-        isLicensed
-          ? "border-success/30 bg-success/15 text-label hover:bg-success/25"
-          : "border-warning/30 bg-warning/15 text-label hover:bg-warning/25",
-      )}
-    >
-      <span
-        className={cn(
-          "w-1.5 h-1.5 rounded-full shrink-0",
-          isLicensed ? "bg-success" : "bg-warning",
-        )}
-      />
-      {isLicensed ? tier : "Unlicensed"}
-    </button>
-  );
-
-  if (!isLicensed) {
-    return (
-      <div
-        role="button"
-        tabIndex={-1}
-        onClick={openLicenseSettings}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openLicenseSettings();
-          }
-        }}
-        className="contents cursor-default"
-      >
-        {badgeButton}
-      </div>
-    );
-  }
-
-  const validThrough = status?.gracePeriodEnds
-    ? new Date(status.gracePeriodEnds).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : null;
-
-  return (
-    <Popover.Root open={popoverOpen} onOpenChange={setPopoverOpen}>
-      <Popover.Trigger asChild>{badgeButton}</Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          className={cn(
-            "z-50 min-w-[180px] rounded-[var(--radius-popover)] border border-separator bg-raised px-3 py-2.5 shadow-[var(--shadow-popover)]",
-            "text-[14px] text-label space-y-1",
-            "animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
-          )}
-        >
-          <p className="font-medium">{tier} license</p>
-          <p className="text-tertiary">
-            {validThrough ? `Valid through ${validThrough}` : "License active"}
-          </p>
-          <div className="pt-1 border-t border-separator mt-1">
-            <button
-              type="button"
-              onClick={openLicenseSettings}
-              className="text-accent hover:underline underline-offset-2 text-[13px]"
-            >
-              Manage license…
-            </button>
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
-  );
-}
-
 function UpdateIndicator() {
   const { updateInfo } = useUpdateChecker();
   const setUpdateSheetOpen = useAppStore((s) => s.setUpdateSheetOpen);
@@ -275,11 +165,11 @@ function Toolbar() {
   }
 
   return (
-    <div className="flex items-center gap-1 px-2">
+    <div className="flex w-full items-center gap-1 px-3">
       <button
         type="button"
         onClick={() => setCommandPaletteOpen(true)}
-        className={cn(toolbarBtnClass, "gap-2 min-w-[140px] bg-control/50 shadow-[var(--shadow-hairline)]")}
+        className={cn(toolbarBtnClass, "gap-2 w-[200px] mr-auto bg-control/50 shadow-[var(--shadow-hairline)]")}
         title="Search (⌘K)"
       >
         <Search size={12} className="shrink-0 text-tertiary" />
@@ -347,7 +237,6 @@ function Toolbar() {
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       <UpdateIndicator />
-      <LicenseBadge />
     </div>
   );
 }

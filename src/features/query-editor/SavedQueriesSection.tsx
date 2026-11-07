@@ -67,14 +67,7 @@ export function SavedQueriesSection() {
 
   if (queries.length === 0) {
     return (
-      <div className="px-3 py-3 text-center">
-        <p className="text-xs text-secondary leading-snug">
-          No saved queries yet.
-        </p>
-        <p className="text-[12px] text-tertiary mt-0.5 leading-snug">
-          Run a query and press Save (⌘S).
-        </p>
-      </div>
+      <p className="px-6 py-1.5 text-[12px] text-tertiary">No saved queries</p>
     );
   }
 

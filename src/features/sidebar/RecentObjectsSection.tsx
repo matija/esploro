@@ -1,4 +1,4 @@
-import { Database, FileText, Table2, Eye, X } from "lucide-react";
+import { FileText, Table2, Eye, X } from "lucide-react";
 import { useAppStore, type RecentObject } from "../../store";
 import { cn } from "../../lib/utils";
 
@@ -81,19 +81,6 @@ function RecentRow({ item }: { item: RecentObject }) {
 
 export function RecentObjectsSection() {
   const { recentObjects, clearRecentObjects } = useAppStore();
-
-  if (recentObjects.length === 0) {
-    return (
-      <div className="px-3 py-3 text-center">
-        <div className="flex items-center justify-center w-7 h-7 mx-auto mb-2 rounded-[var(--radius-control)] bg-accent/8">
-          <Database size={14} className="text-tertiary" />
-        </div>
-        <p className="text-[12px] text-tertiary leading-relaxed">
-          Recently opened tables and queries will appear here.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-0.5 px-1">

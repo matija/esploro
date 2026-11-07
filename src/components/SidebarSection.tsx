@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -16,16 +16,19 @@ export function SidebarSection({
   action,
 }: SidebarSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentId = useId();
 
   return (
-    <div>
-      <div className="flex items-center px-3 py-1">
+    <div className="mb-4">
+      <div className="flex items-center px-3 py-1.5">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={contentId}
           className={cn(
             "flex flex-1 items-center gap-1",
-            "text-[12px] font-semibold uppercase tracking-wide text-secondary",
+            "text-[12px] font-medium text-secondary",
             "hover:text-label transition-colors select-none",
           )}
         >
@@ -42,6 +45,8 @@ export function SidebarSection({
       </div>
       {/* CSS grid row trick: animates from 0fr → 1fr for smooth disclosure */}
       <div
+        id={contentId}
+        inert={!open}
         style={{
           display: "grid",
           gridTemplateRows: open ? "1fr" : "0fr",

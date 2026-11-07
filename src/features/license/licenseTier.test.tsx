@@ -1,18 +1,11 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import * as Tooltip from "@radix-ui/react-tooltip";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LicenseStatus, LicenseTier } from "./types";
-import { createTestQueryClient, renderWithProviders } from "../../test/renderWithProviders";
+import { renderWithProviders } from "../../test/renderWithProviders";
 import { useAppStore } from "../../store";
 import { LicenseBanner } from "./LicenseBanner";
-import { AppShell } from "../../components/AppShell";
+import { LicenseSettings } from "./LicenseSettings";
 
-// The two tier-driven surfaces — the bottom banner and the toolbar badge — both
-// read the same `license-status` query, so every scenario is expressed as one
-// `LicenseStatus` fixture served by a stubbed `./api`. Stubbing the feature api
-// (rather than the invoke layer) keeps the fixture the single input: what the
-// query resolves to is exactly what the components render from.
 let status: LicenseStatus;
 
 const dismissBanner = vi.fn(() => Promise.resolve());
@@ -37,9 +30,6 @@ vi.mock("./api", () => ({
   },
 }));
 
-// The badge only exists inside the shell's toolbar, and the shell mounts the
-// sidebar, tab bar and updates alongside it. Faking the generated bindings once
-// stands all of that up without a mock per feature.
 vi.mock("../../lib/bindings", async () => ({
   commands: (await import("../../test/fakeBindings")).createFakeCommands(),
 }));
@@ -64,21 +54,13 @@ function renderBanner() {
   return { user, ...renderWithProviders(<LicenseBanner />) };
 }
 
-/** Mounts the whole shell; the toolbar badge is the surface under test. */
-function renderShell() {
+function renderSettings() {
   const user = userEvent.setup();
-  render(
-    <QueryClientProvider client={createTestQueryClient()}>
-      <Tooltip.Provider delayDuration={500}>
-        <AppShell />
-      </Tooltip.Provider>
-    </QueryClientProvider>,
-  );
+  renderWithProviders(<LicenseSettings />);
   return user;
 }
 
 beforeAll(() => {
-  // Radix popovers position through floating-ui, which observes its elements.
   globalThis.ResizeObserver ??= class {
     observe() {}
     unobserve() {}
@@ -180,73 +162,44 @@ describe("license banner", () => {
   });
 });
 
-// ─── Toolbar badge ───────────────────────────────────────────────────────────
-
-describe("toolbar license badge", () => {
+describe("license settings", () => {
   it.each<LicenseTier>(["Personal", "Commercial"])(
-    "labels a %s license as active and opens its details",
+    "shows a %s license and opens activation",
     async (tier) => {
       status = licenseStatus({ tier });
+      const user = renderSettings();
 
-      const user = renderShell();
-
-      const trigger = await screen.findByRole("button", { name: tier });
-      expect(trigger.getAttribute("title")).toBe(`${tier} license active`);
-
-      await user.click(trigger);
-
-      expect(await screen.findByText(`${tier} license`)).toBeDefined();
-      expect(screen.getByText("License active")).toBeDefined();
-      // A licensed badge is informational — it opens a popover, not a tab.
-      expect(useAppStore.getState().tabs).toEqual([]);
-
-      await user.click(screen.getByRole("button", { name: "Manage license…" }));
-      expect(useAppStore.getState().tabs).toMatchObject([
-        { type: "settings", title: "Licensing" },
-      ]);
+      expect(await screen.findByText(tier === "Personal" ? "Personal (free)" : "Commercial")).toBeDefined();
+      await user.click(screen.getByRole("button", {
+        name: tier === "Personal" ? "Activate a license key" : "Enter a different key",
+      }));
+      expect(await screen.findByRole("dialog")).toBeDefined();
     },
   );
 
   it("shows how long a licence with a grace period is valid for", async () => {
-    status = licenseStatus({
-      tier: "Commercial",
-      gracePeriodEnds: "2026-11-30T00:00:00Z",
-    });
-
-    const user = renderShell();
-
-    await user.click(await screen.findByRole("button", { name: "Commercial" }));
+    status = licenseStatus({ tier: "Commercial", gracePeriodEnds: "2026-11-30T00:00:00Z" });
+    renderSettings();
 
     const expected = new Date("2026-11-30T00:00:00Z").toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
+      year: "numeric", month: "short", day: "numeric",
     });
     expect(await screen.findByText(`Valid through ${expected}`)).toBeDefined();
   });
 
-  it("marks an unlicensed install and jumps straight to licence settings", async () => {
-    status = licenseStatus({ tier: "Unlicensed" });
+  it("shows purchase and activation controls for an unlicensed install", async () => {
+    const user = renderSettings();
 
-    const user = renderShell();
-
-    // The unlicensed badge is wrapped in a click target that opens settings, so
-    // it is addressed by its tooltip rather than by role.
-    const trigger = await screen.findByTitle("No active license");
-
-    await user.click(trigger);
-
-    // No details to show without a licence: the badge is a shortcut instead.
-    expect(screen.queryByText("Unlicensed license")).toBeNull();
-    expect(useAppStore.getState().tabs).toMatchObject([
-      { type: "settings", title: "Licensing" },
-    ]);
+    expect(await screen.findByText("No license")).toBeDefined();
+    await user.click(screen.getByRole("button", { name: "Purchase license →" }));
+    expect(openPricingPage).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Activate a license key" }));
+    expect(await screen.findByRole("dialog")).toBeDefined();
   });
 
-  it("falls back to unlicensed while the status is still loading", () => {
-    renderShell();
-
-    // First paint, before the status query resolves: no licence is assumed.
-    expect(screen.getByTitle("No active license").textContent).toBe("Unlicensed");
+  it("waits for the status before displaying a licence", () => {
+    renderSettings();
+    expect(screen.queryByText("No license")).toBeNull();
+    expect(screen.queryByText("Commercial")).toBeNull();
   });
 });
