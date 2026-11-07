@@ -226,6 +226,7 @@ fn build_mysql_pool(
     let pool_opts = mysql_async::PoolOpts::default().with_constraints(constraints);
     let opts = mysql_async::OptsBuilder::default()
         .ip_or_hostname(host)
+        .prefer_socket(false)
         .tcp_port(profile.port)
         .db_name(Some(profile.database.clone()))
         .user(Some(profile.username.clone()))
