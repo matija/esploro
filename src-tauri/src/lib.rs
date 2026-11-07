@@ -26,6 +26,7 @@ pub enum DriverSession {
 pub struct SessionInfo {
     pub driver: DriverSession,
     pub connection_id: String,
+    pub profile_key: String,
 }
 
 pub struct AppState {
