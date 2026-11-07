@@ -1431,34 +1431,36 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           </span>
         </div>
 
-      {driver !== "mysql" && (
-        <div className="flex shrink-0 items-center gap-1">
-          {(["data", "privileges"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              aria-pressed={viewMode === mode}
-              className={cn(
-                "px-2.5 py-0.5 text-[12px] rounded transition-colors capitalize",
-                viewMode === mode
-                  ? "bg-control text-label shadow-[var(--shadow-hairline)]"
-                  : "text-secondary hover:text-label hover:bg-hover",
-              )}
-            >
-              {mode === "data" ? "Data" : "Privileges"}
-            </button>
-          ))}
-        </div>
-      )}
+        {driver !== "mysql" && (
+          <div className="flex shrink-0 items-center gap-1">
+            {(["data", "privileges"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                aria-pressed={viewMode === mode}
+                className={cn(
+                  "px-2.5 py-0.5 text-[12px] rounded transition-colors capitalize",
+                  viewMode === mode
+                    ? "bg-control text-label shadow-[var(--shadow-hairline)]"
+                    : "text-secondary hover:text-label hover:bg-hover",
+                )}
+              >
+                {mode === "data" ? "Data" : "Privileges"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1" />
 
         {/* Connection badge */}
         {connectionLabel && (
-          <div className="flex min-w-0 max-w-[180px] items-center gap-1.5 text-xs text-secondary"
+          <div
+            className="flex min-w-0 max-w-[180px] items-center gap-1.5 text-xs text-secondary"
             aria-label={`${connectionLabel}: ${connectionStatus}`}
-            title={`${connectionLabel} / ${ctx.database} · ${connectionStatus}`}>
+            title={`${connectionLabel} / ${ctx.database} · ${connectionStatus}`}
+          >
             <span
               className="rounded-full shrink-0"
               style={{
@@ -1488,56 +1490,55 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
 
       {viewMode === "data" && (
         <div className="flex min-w-0 shrink-0 items-center border-b border-separator bg-sidebar/50 px-3 py-1.5">
-        <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
-          <div className="flex-1 min-w-0">
-            <Suspense fallback={<span className="text-secondary text-xs">…</span>}>
-            <MiniSqlEditor
-              ref={rawWhereEditorRef}
-              value={rawWhereInput}
-              onChange={handleRawWhereInputChange}
-              onApply={applyRawWhere}
-              onClear={async () => {
-                if (!await guardNavigation()) return;
-                discardEdits();
-                cancelDraftWhere();
-                setRawWhereInput("");
-                setAppliedRawWhere("");
-                updateTableTabState(tab.id, {
-                  rawWhereInput: "",
-                  appliedRawWhere: "",
-                });
-                setPage(0);
-              }}
-              schemaCompletions={schemaCompletions}
-              whereColumns={columns}
-              sqlDriver={driver}
-              placeholder="WHERE …"
-            />
-            </Suspense>
+          <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
+            <div className="flex-1 min-w-0">
+              <Suspense fallback={<span className="text-secondary text-xs">…</span>}>
+              <MiniSqlEditor
+                ref={rawWhereEditorRef}
+                value={rawWhereInput}
+                onChange={handleRawWhereInputChange}
+                onApply={applyRawWhere}
+                onClear={async () => {
+                  if (!await guardNavigation()) return;
+                  discardEdits();
+                  cancelDraftWhere();
+                  setRawWhereInput("");
+                  setAppliedRawWhere("");
+                  updateTableTabState(tab.id, {
+                    rawWhereInput: "",
+                    appliedRawWhere: "",
+                  });
+                  setPage(0);
+                }}
+                schemaCompletions={schemaCompletions}
+                whereColumns={columns}
+                sqlDriver={driver}
+                placeholder="WHERE …"
+              />
+              </Suspense>
+            </div>
+            <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-separator/60 pl-1">
+              <button
+                type="button"
+                title="Copy SQL"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void copyRawWhereSql()}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-[var(--radius-control)] text-secondary hover:bg-hover hover:text-label transition-colors"
+              >
+                {copiedRawSql ? <ClipboardCheck size={12} className="text-accent" /> : <ClipboardCopy size={12} />}
+              </button>
+              <button
+                type="button"
+                title="Run filter"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => rawWhereEditorRef.current?.apply()}
+                className="inline-flex h-5 items-center gap-1 rounded-[var(--radius-control)] bg-accent px-1.5 text-[11px] font-medium text-inverse hover:bg-accent-hover transition-colors"
+              >
+                <Play size={10} fill="currentColor" />
+                Run
+              </button>
+            </div>
           </div>
-          <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-separator/60 pl-1">
-            <button
-              type="button"
-              title="Copy SQL"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => void copyRawWhereSql()}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-[var(--radius-control)] text-secondary hover:bg-hover hover:text-label transition-colors"
-            >
-              {copiedRawSql ? <ClipboardCheck size={12} className="text-accent" /> : <ClipboardCopy size={12} />}
-            </button>
-            <button
-              type="button"
-              title="Run filter"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => rawWhereEditorRef.current?.apply()}
-              className="inline-flex h-5 items-center gap-1 rounded-[var(--radius-control)] bg-accent px-1.5 text-[11px] font-medium text-inverse hover:bg-accent-hover transition-colors"
-            >
-              <Play size={10} fill="currentColor" />
-              Run
-            </button>
-          </div>
-        </div>
-
         </div>
       )}
 

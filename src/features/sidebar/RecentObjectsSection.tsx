@@ -1,6 +1,7 @@
 import { FileText, Table2, Eye, X } from "lucide-react";
 import { useAppStore, type RecentObject } from "../../store";
 import { cn } from "../../lib/utils";
+import { ObjectName } from "../../components/ObjectName";
 
 function objectIcon(type: RecentObject["type"]) {
   switch (type) {
@@ -69,9 +70,7 @@ function RecentRow({ item }: { item: RecentObject }) {
       )}
     >
       {objectIcon(item.type)}
-      <span className="flex-1 min-w-0 truncate text-[13px] text-label">
-        {item.title}
-      </span>
+      <ObjectName name={item.title} className="flex-1 text-[13px] text-label" />
       <span className="shrink-0 text-[11px] text-tertiary tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--motion-fast)]">
         {formatAge(item.timestamp)}
       </span>

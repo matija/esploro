@@ -24,6 +24,7 @@ import {
 import { useAppStore } from "../../store";
 import { useToast } from "../../components/Toast";
 import { useConfirm } from "../../components/ConfirmDialog";
+import { ObjectName } from "../../components/ObjectName";
 import { fuzzyScore } from "../../lib/fuzzy";
 import { withSessionRetry } from "../../lib/sessionRetry";
 import { schemaApi } from "./api";
@@ -429,15 +430,14 @@ function TreeRow({
       )}
 
       {/* Label */}
-      <span
+      <ObjectName
+        name={label}
         className={cn(
-          "text-[13px] text-label truncate flex-1 min-w-0",
+          "text-[13px] text-label flex-1",
           node.kind === "group" &&
             "text-secondary text-[11px] uppercase tracking-wide",
         )}
-      >
-        {label}
-      </span>
+      />
 
       {/* Inline hover actions for tables/views/roles-group */}
       {hasInlineActions && (
