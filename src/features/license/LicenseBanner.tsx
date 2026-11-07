@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { licenseApi, LICENSE_STATUS_KEY } from './api';
 import { LicenseActivationSheet } from './LicenseActivationSheet';
@@ -21,57 +22,43 @@ export function LicenseBanner() {
     queryClient.invalidateQueries({ queryKey: LICENSE_STATUS_KEY });
   }
 
-  if (status?.revalidationRequired) {
-    return (
-      <div className="shrink-0 flex items-center gap-3 px-4 py-2.5
-        bg-warning/10 border-t border-warning/30 text-label">
-        <span className="flex-1 text-xs">
-          License re-validation required — connect to the internet to continue using Esploro commercially.
-        </span>
-        <button
-          type="button"
-          onClick={() => setActivationOpen(true)}
-          className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
-            bg-warning/20 text-label hover:bg-warning/30 transition-colors"
-        >
-          Re-enter key
-        </button>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="shrink-0 flex items-center gap-3 px-4 py-2.5
-        bg-warning/10 border-t border-warning/30 text-label">
-        <span className="flex-1 text-xs">
-          Esploro is free for personal use. Commercial use requires a license.
+      <div className={cn(
+        "shrink-0 flex items-center gap-3 px-4 py-2 border-t text-label",
+        status?.revalidationRequired ? "bg-warning/10 border-warning/30" : "bg-sidebar border-separator",
+      )}>
+        <span className="min-w-0 flex-1 text-xs text-secondary">
+          {status?.revalidationRequired
+            ? "License re-validation required — connect to the internet to continue using Esploro commercially."
+            : "Personal use is free. Commercial use requires a license."}
         </span>
-        <button
-          type="button"
-          onClick={() => licenseApi.openPricingPage()}
-          className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
-            bg-warning/20 text-label hover:bg-warning/30 transition-colors"
-        >
-          Purchase license
-        </button>
+        {!status?.revalidationRequired && (
+          <button
+            type="button"
+            onClick={() => licenseApi.openPricingPage()}
+            className="shrink-0 rounded px-2 py-1 text-xs text-accent hover:bg-hover transition-colors"
+          >
+            Purchase license
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActivationOpen(true)}
-          className="shrink-0 px-2.5 py-1 rounded text-xs font-medium
-            bg-warning/20 text-label hover:bg-warning/30 transition-colors"
+          className="shrink-0 px-2.5 py-1 rounded-[var(--radius-control)] border border-separator bg-content text-xs text-label hover:bg-hover transition-colors"
         >
-          I have a license key
+          {status?.revalidationRequired ? "Re-enter key" : "Activate license"}
         </button>
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="shrink-0 p-1 rounded
-            hover:bg-warning/20 transition-colors"
-          title="Dismiss"
-        >
-          <X size={13} />
-        </button>
+        {!status?.revalidationRequired && (
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="shrink-0 p-1 rounded text-secondary hover:bg-hover hover:text-label transition-colors"
+            title="Dismiss"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
 
       <LicenseActivationSheet

@@ -106,13 +106,13 @@ describe("license banner", () => {
     const { user } = renderBanner();
 
     expect(
-      await screen.findByText("Esploro is free for personal use. Commercial use requires a license."),
+      await screen.findByText("Personal use is free. Commercial use requires a license."),
     ).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: "Purchase license" }));
     expect(openPricingPage).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "I have a license key" }));
+    await user.click(screen.getByRole("button", { name: "Activate license" }));
     expect(await screen.findByRole("dialog")).toBeDefined();
   });
 
@@ -143,7 +143,7 @@ describe("license banner", () => {
       revalidationRequired: true,
     });
 
-    renderBanner();
+    const { user } = renderBanner();
 
     expect(await screen.findByText(/License re-validation required/)).toBeDefined();
     expect(screen.getByRole("button", { name: "Re-enter key" })).toBeDefined();
@@ -151,6 +151,8 @@ describe("license banner", () => {
     // affordance is offered, because the banner cannot be dismissed away.
     expect(screen.queryByRole("button", { name: "Purchase license" })).toBeNull();
     expect(screen.queryByTitle("Dismiss")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Re-enter key" }));
+    expect(await screen.findByRole("dialog")).toBeDefined();
   });
 
   it("asks for re-validation even when the banner itself is not flagged", async () => {
