@@ -427,8 +427,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   </Field>
                 </div>
 
-                {driver === 'postgres' && (
-                  <Field label="SSL Mode">
+                <Field label="SSL Mode">
                     <select
                       value={sslMode}
                       onChange={(e) => setSslMode(e.target.value as SslMode)}
@@ -439,12 +438,11 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                     >
                       {SSL_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
-                          {o.label}
+                          {driver === 'mysql' && o.value === 'prefer' ? 'Prefer (requires TLS for MySQL)' : o.label}
                         </option>
                       ))}
                     </select>
-                  </Field>
-                )}
+                </Field>
 
                 <Field label="Connection pool limit">
                   <Input
