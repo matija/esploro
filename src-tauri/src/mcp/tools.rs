@@ -319,6 +319,7 @@ mod tests {
                 crate::SessionInfo {
                     driver: pool,
                     connection_id: profile.id.clone(),
+                    profile_key: serde_json::to_string(&profile).unwrap(),
                 },
             );
             let error = inspect(

@@ -291,6 +291,7 @@ mod tests {
                 crate::SessionInfo {
                     driver: crate::DriverSession::Postgres(std::sync::Arc::new(pool)),
                     connection_id: "normal".into(),
+                    profile_key: String::new(),
                 },
             );
             let sessions = held.sessions.lock().await;

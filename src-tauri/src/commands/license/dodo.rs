@@ -5,6 +5,7 @@
 use chrono::Utc;
 use serde_json::Value;
 use tauri::AppHandle;
+use tokio::io::AsyncWriteExt;
 
 use super::{clear_stored_license, read_stored_license, write_stored_license, StoredLicense};
 
@@ -23,13 +24,12 @@ pub(super) enum DodoError {
 /// Returns `Ok(true/false)` based on the `valid` field in Dodo's response.
 pub(super) async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoError> {
     let url = format!("{DODO_BASE}/licenses/validate");
-    let body = format!(
-        "{{\"license_key\":\"{}\"}}",
-        license_key.replace('"', "\\\"")
-    );
+    let body = serde_json::json!({"license_key": license_key}).to_string();
 
-    let output = tokio::process::Command::new("curl")
+    let mut child = tokio::process::Command::new("/usr/bin/curl")
+        .kill_on_drop(true)
         .args([
+            "-q",
             "-s",
             "--max-time",
             "10",
@@ -39,13 +39,25 @@ pub(super) async fn call_dodo_validate(license_key: &str) -> Result<bool, DodoEr
             "Content-Type: application/json",
             "-H",
             "Accept: application/json",
-            "-d",
-            &body,
+            "--data-binary",
+            "@-",
             "-w",
             "\n%{http_code}",
             &url,
         ])
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|_| DodoError::NetworkOrServer)?;
+    let mut stdin = child.stdin.take().ok_or(DodoError::NetworkOrServer)?;
+    stdin
+        .write_all(body.as_bytes())
+        .await
+        .map_err(|_| DodoError::NetworkOrServer)?;
+    drop(stdin);
+    let output = child
+        .wait_with_output()
         .await
         .map_err(|_| DodoError::NetworkOrServer)?;
 

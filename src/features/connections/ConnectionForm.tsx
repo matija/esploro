@@ -100,6 +100,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
     if (!rawUrl.trim()) return;
     const parsed = parseConnectionUrl(rawUrl.trim());
     if (parsed.driver) setDriver(parsed.driver);
+    if (parsed.sslMode) setSslMode(parsed.sslMode);
     if (parsed.host) { setHost(parsed.host); setConnType('host'); }
     if (parsed.port) setPort(String(parsed.port));
     if (parsed.database) setDatabase(parsed.database);
@@ -426,24 +427,24 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   </Field>
                 </div>
 
-                {driver === 'postgres' && (
-                  <Field label="SSL Mode">
-                    <select
-                      value={sslMode}
-                      onChange={(e) => setSslMode(e.target.value as SslMode)}
-                      className={cn(
-                        'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
-                        'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
-                      )}
-                    >
-                      {SSL_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
+                <Field label="SSL Mode">
+                  <select
+                    value={sslMode}
+                    onChange={(e) => setSslMode(e.target.value as SslMode)}
+                    className={cn(
+                      'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
+                      'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
+                    )}
+                  >
+                    {SSL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {driver === 'mysql' && o.value === 'prefer'
+                          ? 'Prefer (requires TLS for MySQL)'
+                          : o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
                 <Field label="Connection pool limit">
                   <Input

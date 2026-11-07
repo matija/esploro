@@ -43,6 +43,14 @@ export function parseConnectionUrl(url: string): ParsedConnectionUrl {
     if (u.protocol === 'postgres:' || u.protocol === 'postgresql:') {
       return {
         driver: 'postgres',
+        sslMode: (() => {
+          const mode = u.searchParams.get('sslmode');
+          if (mode === 'disable') return 'disable';
+          if (mode === 'verify-full' || mode === 'verify-ca') return 'verifyFull';
+          if (mode === 'require') return 'require';
+          if (mode === 'allow' || mode === 'prefer' || mode === null) return 'prefer';
+          return 'verifyFull';
+        })(),
         host: u.hostname || undefined,
         port: u.port ? parseInt(u.port) : 5432,
         database: u.pathname.slice(1) || undefined,

@@ -226,11 +226,21 @@ fn build_mysql_pool(
     let pool_opts = mysql_async::PoolOpts::default().with_constraints(constraints);
     let opts = mysql_async::OptsBuilder::default()
         .ip_or_hostname(host)
+        .prefer_socket(false)
         .tcp_port(profile.port)
         .db_name(Some(profile.database.clone()))
         .user(Some(profile.username.clone()))
         .pass(Some(password.to_string()))
         .pool_opts(pool_opts)
+        .ssl_opts(match profile.ssl_mode {
+            SslMode::Disable => None,
+            SslMode::Prefer | SslMode::Require => Some(
+                mysql_async::SslOpts::default()
+                    .with_danger_accept_invalid_certs(true)
+                    .with_danger_skip_domain_validation(true),
+            ),
+            SslMode::VerifyFull => Some(mysql_async::SslOpts::default()),
+        })
         .tcp_keepalive(Some(KEEPALIVE_IDLE.as_millis() as u32));
     Ok(mysql_async::Pool::new(opts))
 }
@@ -289,6 +299,7 @@ pub async fn update_connection(
     id: String,
     input: ConnectionInput,
     password: Option<String>,
+    state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let mut profiles = load_profiles(&app).await?;
     let profile = profiles
@@ -313,6 +324,8 @@ pub async fn update_connection(
         keychain_entry(&id)?.set_password(&pwd)?;
     }
 
+    let mut sessions = state.sessions.lock().await;
+    sessions.retain(|_, info| info.connection_id != id);
     save_profiles(&app, &profiles).await
 }
 
@@ -423,7 +436,11 @@ async fn ensure_session_with_password(
 ) -> Result<String, AppError> {
     let id = &profile.id;
     let mut sessions = state.sessions.lock().await;
-    if let Some((session_id, _)) = sessions.iter().find(|(_, info)| info.connection_id == *id) {
+    let profile_key = serde_json::to_string(profile)?;
+    if let Some((session_id, _)) = sessions
+        .iter()
+        .find(|(_, info)| info.connection_id == *id && info.profile_key == profile_key)
+    {
         return Ok(session_id.clone());
     }
     let password = password()?;
@@ -446,6 +463,7 @@ async fn ensure_session_with_password(
                 SessionInfo {
                     driver: DriverSession::Postgres(Arc::new(pool)),
                     connection_id: id.clone(),
+                    profile_key: profile_key.clone(),
                 },
             );
         }
@@ -462,6 +480,7 @@ async fn ensure_session_with_password(
                 SessionInfo {
                     driver: DriverSession::Mysql(Arc::new(pool)),
                     connection_id: id.clone(),
+                    profile_key: profile_key.clone(),
                 },
             );
         }
@@ -547,6 +566,7 @@ mod tests {
                 SessionInfo {
                     driver: pool,
                     connection_id: profile.id.clone(),
+                    profile_key: serde_json::to_string(&profile).unwrap(),
                 },
             );
             let (first, second) = tokio::join!(
