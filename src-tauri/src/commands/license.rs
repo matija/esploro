@@ -351,7 +351,18 @@ pub fn open_customer_portal() -> Result<(), AppError> {
 #[tauri::command]
 #[specta::specta]
 pub fn open_url(url: String) -> Result<(), AppError> {
-    std::process::Command::new("open")
+    if !matches!(
+        url.as_str(),
+        "https://matija.eu"
+            | "https://tandoku.hr"
+            | "https://github.com/matija/esploro"
+            | "https://esploro.app/pricing"
+    ) {
+        return Err(AppError::Validation(
+            "URL is not an approved destination".into(),
+        ));
+    }
+    std::process::Command::new("/usr/bin/open")
         .arg(&url)
         .spawn()
         .map(|_| ())
