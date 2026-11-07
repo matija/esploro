@@ -201,7 +201,7 @@ describe("running a query", () => {
   it("shows no result pane until the first run", async () => {
     await renderEditor();
 
-    expect(screen.queryByText(/to run the query/)).toBe(null);
+    expect(screen.queryByText("No results")).toBe(null);
     expect(screen.queryByRole("separator", { name: "Resize result pane" })).toBe(null);
   });
 
@@ -258,7 +258,7 @@ describe("running a query", () => {
 
     await user.click(runButton());
 
-    expect(await screen.findByText(/to run the query/)).toBeDefined();
+    expect(await screen.findByText("No results")).toBeDefined();
     expect(screen.queryAllByRole("gridcell")).toEqual([]);
   });
 
@@ -378,7 +378,7 @@ describe("SQL errors", () => {
     expect(runButton().textContent).toContain("Error");
     expect(screen.queryAllByRole("gridcell")).toEqual([]);
     // No result pane content, but the pane itself opens after a run.
-    expect(screen.getByText(/to run the query/)).toBeDefined();
+    expect(screen.getByText("No results")).toBeDefined();
   });
 
   it("clears the previous error when the next run starts", async () => {

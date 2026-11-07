@@ -37,20 +37,17 @@ function Field({
   label,
   children,
   error,
-  hint,
 }: {
   label: string;
   children: React.ReactNode;
   error?: string;
-  hint?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-secondary">{label}</label>
+    <label className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-xs font-medium text-secondary">{label}</span>
       {children}
-      {hint && <p className="text-xs text-secondary">{hint}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+      {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
+    </label>
   );
 }
 
@@ -228,16 +225,17 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
         <Dialog.Content
           className={cn(
-            'fixed right-0 top-0 bottom-0 z-50',
-            'w-[440px] flex flex-col',
-            'bg-content border-l border-separator shadow-2xl',
+            'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
+            'w-[520px] max-w-[calc(100vw-32px)] max-h-[calc(100dvh-64px)] flex flex-col rounded-[var(--radius-modal)] overflow-hidden',
+            'bg-content border border-separator shadow-[var(--shadow-modal)]',
           )}
           aria-label={isEdit ? 'Edit connection' : 'New connection'}
+          aria-describedby={undefined}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-separator shrink-0">
             <Dialog.Title className="text-sm font-semibold text-label">
-              {isEdit ? 'Edit Connection' : 'New Connection'}
+              {isEdit ? 'Edit connection' : 'New connection'}
             </Dialog.Title>
             <button
               type="button"
@@ -253,12 +251,13 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             {/* Driver selector */}
             <fieldset className="flex flex-col gap-1 border-none p-0">
-              <legend className="text-xs font-medium text-secondary">Database</legend>
+              <legend className="text-xs font-medium text-secondary">Database type</legend>
               <div className="flex rounded-md overflow-hidden border border-separator w-fit">
                 {(['postgres', 'mysql'] as DbDriver[]).map((d) => (
                   <button
                     type="button"
                     key={d}
+                    aria-pressed={driver === d}
                     onClick={() => {
                       setDriver(d);
                       setPort(String(DEFAULT_PORT[d]));
@@ -280,7 +279,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
             {/* Quick-connect URL */}
             <div className="flex gap-2">
               <Input
-                aria-label="Quick-connect URL"
+                aria-label="Connection URL"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder={driver === 'mysql' ? 'mysql://user:pass@host:3306/db' : 'postgres://user:pass@host:5432/db'}
@@ -294,50 +293,19 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   'bg-control text-label hover:bg-separator transition-colors',
                 )}
               >
-                Parse URL
+                Use URL
               </button>
             </div>
 
             <div className="border-t border-separator" />
 
-            <Field label="Display Name" error={errors.displayName}>
+            <Field label="Name" error={errors.displayName}>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="My Database"
               />
             </Field>
-
-            <div className="flex gap-4">
-              {/* Color */}
-              <fieldset className="flex flex-col gap-1 border-none p-0">
-                <legend className="text-xs font-medium text-secondary">Color</legend>
-                <div className="flex gap-1.5 mt-0.5">
-                  {DEFAULT_COLORS.map((c) => (
-                    <button
-                      type="button"
-                      key={c}
-                      aria-label={`Color: ${c}`}
-                      onClick={() => setColor(c)}
-                      style={{ backgroundColor: c }}
-                      className={cn(
-                        'w-5 h-5 rounded-full border-2 transition-transform',
-                        color === c ? 'border-label scale-110' : 'border-transparent',
-                      )}
-                    />
-                  ))}
-                </div>
-              </fieldset>
-
-              {/* Folder */}
-              <Field label="Folder (optional)">
-                <Input
-                  value={folder}
-                  onChange={(e) => setFolder(e.target.value)}
-                  placeholder="Production"
-                />
-              </Field>
-            </div>
 
             {/* Connection type toggle — Postgres only */}
             {driver === 'postgres' && (
@@ -348,6 +316,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                     <button
                       type="button"
                       key={t}
+                      aria-pressed={connType === t}
                       onClick={() => setConnType(t)}
                       className={cn(
                         'px-3 py-1 text-xs font-medium transition-colors',
@@ -372,7 +341,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 />
               </Field>
             ) : (
-              <div className="flex gap-3">
+              <div className="grid grid-cols-[1fr_96px] gap-3">
                 <Field label="Host" error={errors.host}>
                   <Input
                     value={host}
@@ -403,60 +372,91 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               />
             </Field>
 
-            <Field label="Username" error={errors.username}>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="postgres"
-              />
-            </Field>
-
-            <Field label={isEdit ? 'Password (leave blank to keep)' : 'Password'} error={errors.password}>
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                placeholder={isEdit ? '••••••••' : 'Required'}
-              />
-            </Field>
-
-            {driver === 'postgres' && (
-              <Field label="SSL Mode">
-                <select
-                  value={sslMode}
-                  onChange={(e) => setSslMode(e.target.value as SslMode)}
-                  className={cn(
-                    'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
-                    'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
-                  )}
-                >
-                  {SSL_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-
-            <div className="border-t border-separator" />
-
-            <fieldset className="flex flex-col gap-3 border-none p-0">
-              <legend className="text-xs font-medium text-secondary uppercase tracking-wide">Advanced</legend>
-              <Field
-                label={`Max connections (1–${MAX_POOL_MAX_CONNECTIONS}, default ${DEFAULT_POOL_MAX_CONNECTIONS})`}
-                hint="Size of the connection pool for this profile only. Each saved connection keeps its own pool, so the limit is not shared across profiles."
-              >
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Username" error={errors.username}>
                 <Input
-                  value={poolMaxConnections}
-                  onChange={(e) => setPoolMaxConnections(e.target.value)}
-                  type="number"
-                  min={1}
-                  max={MAX_POOL_MAX_CONNECTIONS}
-                  className="w-24"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="postgres"
                 />
               </Field>
-            </fieldset>
+
+              <Field label="Password" error={errors.password}>
+                <Input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type="password"
+                  placeholder={isEdit ? 'Unchanged' : 'Required'}
+                />
+              </Field>
+            </div>
+
+            <details className="border-t border-separator pt-4">
+              <summary className="cursor-default text-[13px] font-medium text-secondary hover:text-label">Advanced</summary>
+              <div className="mt-4 space-y-4">
+                <div className="flex gap-4">
+                  {/* Color */}
+                  <fieldset className="flex flex-col gap-1 border-none p-0">
+                    <legend className="text-xs font-medium text-secondary">Color</legend>
+                    <div className="flex gap-1.5 mt-0.5">
+                      {DEFAULT_COLORS.map((c) => (
+                        <button
+                          type="button"
+                          key={c}
+                          aria-pressed={color === c}
+                          aria-label={`Color: ${c}`}
+                          onClick={() => setColor(c)}
+                          style={{ backgroundColor: c }}
+                          className={cn(
+                            'w-5 h-5 rounded-full border-2 transition-transform',
+                            color === c ? 'border-label scale-110' : 'border-transparent',
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  {/* Folder */}
+                  <Field label="Folder">
+                    <Input
+                      value={folder}
+                      onChange={(e) => setFolder(e.target.value)}
+                      placeholder="Production"
+                    />
+                  </Field>
+                </div>
+
+                {driver === 'postgres' && (
+                  <Field label="SSL Mode">
+                    <select
+                      value={sslMode}
+                      onChange={(e) => setSslMode(e.target.value as SslMode)}
+                      className={cn(
+                        'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
+                        'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
+                      )}
+                    >
+                      {SSL_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
+                <Field label="Connection pool limit">
+                  <Input
+                    value={poolMaxConnections}
+                    onChange={(e) => setPoolMaxConnections(e.target.value)}
+                    type="number"
+                    min={1}
+                    max={MAX_POOL_MAX_CONNECTIONS}
+                    className="w-24"
+                  />
+                </Field>
+              </div>
+            </details>
 
             {errors._form && (
               <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">
@@ -494,7 +494,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
               )}
             >
               <Zap size={12} />
-              {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+              {testState === 'testing' ? 'Testing…' : 'Test connection'}
             </button>
 
             <div className="flex gap-2">
@@ -515,7 +515,7 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                   'disabled:opacity-50',
                 )}
               >
-                {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Connection'}
+                {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add connection'}
               </button>
             </div>
           </div>

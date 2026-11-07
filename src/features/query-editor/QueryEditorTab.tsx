@@ -343,7 +343,7 @@ function EmptyResultState() {
     <div className="flex flex-col items-center justify-center h-full gap-2 select-none pointer-events-none">
       <Terminal size={28} className="text-secondary opacity-40" />
       <p className="text-xs text-secondary opacity-60">
-        Press <kbd className="font-mono bg-control px-1 py-px rounded text-[11px]">⌘↵</kbd> to run the query
+        No results
       </p>
     </div>
   );
@@ -841,7 +841,7 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
             onChange={(event) => setConnectionId(event.target.value || null)}
             className="min-w-0 bg-transparent text-xs"
           >
-            <option value="">No connection — pick one</option>
+            <option value="">Select connection</option>
             {profiles.map((profile) => (
               <option key={profile.id} value={profile.id}>{profile.displayName}</option>
             ))}
@@ -872,7 +872,6 @@ export function QueryEditorTab({ tab }: { tab: Tab }) {
           <Save size={12} />
           <span>Save</span>
           {isDirty && <span className="w-1 h-1 rounded-full bg-accent shrink-0" />}
-          <kbd className="text-[9px] opacity-50 font-mono ml-0.5">⌘S</kbd>
         </button>
 
         {/* Run button */}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Plug, PlugZap, Pencil, Trash2, Copy, ChevronRight, Folder, Plus, Loader2, ServerCrash, ClipboardPaste } from 'lucide-react';
+import { Plug, PlugZap, Pencil, Trash2, Copy, ChevronRight, Folder, Plus, Loader2, ClipboardPaste } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { connectionsApi } from './api';
 import type { ConnectionProfile, ConnectionInput } from './types';
@@ -459,19 +459,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
 
   if (profiles.length === 0) {
     return (
-      <div className="px-4 py-4 flex flex-col items-center gap-3 text-center">
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center"
-          style={{ background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
-        >
-          <ServerCrash size={17} className="text-accent" />
-        </div>
-        <div>
-          <p className="text-xs font-medium text-label">No connections</p>
-          <p className="text-[12px] text-tertiary mt-0.5 leading-snug">
-            Add a PostgreSQL or MySQL database to get started
-          </p>
-        </div>
+      <div className="px-3 py-2">
         <div className="flex flex-col gap-1.5">
           {onNewConnection && (
             <button
@@ -484,7 +472,7 @@ export function ConnectionList({ profiles, onEdit, onRefresh, onNewConnection, o
               )}
             >
               <Plus size={11} />
-              New Connection
+              New connection
             </button>
           )}
           {onPasteConnectionUrl && (

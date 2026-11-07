@@ -1761,11 +1761,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     <p className="text-sm font-medium text-label">
                       No rows match these filters
                     </p>
-                    <p className="text-xs text-secondary">
-                      {apiFilters.length === 1
-                        ? "1 active filter"
-                        : `${apiFilters.length} active filters`}
-                    </p>
                     <button
                       type="button"
                       onClick={clearAllFilters}
@@ -1780,9 +1775,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
                     <Database size={24} className="text-tertiary mb-1" />
                     <p className="text-sm font-medium text-label">
                       This table is empty
-                    </p>
-                    <p className="text-xs text-secondary">
-                      No rows have been inserted yet
                     </p>
                   </div>
                 )
