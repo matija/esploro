@@ -33,10 +33,21 @@ if [[ -z "${RELEASE_NOTES:-}" ]]; then
   fi
 fi
 
-step "Building (aarch64)..."
-CI=true npm run tauri build
+RESUME_AFTER_STAPLING=false
+case "${1:-}" in
+  "") ;;
+  --resume-after-stapling) RESUME_AFTER_STAPLING=true ;;
+  *) err "Usage: $0 [--resume-after-stapling]"; exit 1 ;;
+esac
+[[ $# -le 1 ]] || { err "Usage: $0 [--resume-after-stapling]"; exit 1; }
 
-DMG=$(ls -t target/release/bundle/dmg/*.dmg | head -1)
+if [[ "$RESUME_AFTER_STAPLING" == false ]]; then
+  step "Building (aarch64)..."
+  CI=true npm run tauri build
+fi
+
+DMG="target/release/bundle/dmg/Esploro_${RELEASE_VERSION}_aarch64.dmg"
+[[ -f "$DMG" ]] || { err "DMG not found: $DMG"; exit 1; }
 APP_TAR="target/release/bundle/macos/Esploro.app.tar.gz"
 APP_TAR_SIG="$APP_TAR.sig"
 LATEST_JSON="target/release/bundle/latest.json"
@@ -47,8 +58,14 @@ LATEST_JSON="target/release/bundle/latest.json"
   exit 1
 }
 
-ok "Built ${_c_dim}$DMG${_c_reset}"
-notarize_dmg "$DMG"
+if [[ "$RESUME_AFTER_STAPLING" == true ]]; then
+  step "Validating existing stapled DMG..."
+  xcrun stapler validate "$DMG"
+  spctl --assess --type open --context context:primary-signature "$DMG"
+else
+  ok "Built ${_c_dim}$DMG${_c_reset}"
+  notarize_dmg "$DMG"
+fi
 
 step "Writing updater manifest..."
 APP_TAR_SIG="$APP_TAR_SIG" LATEST_JSON="$LATEST_JSON" node -e '
