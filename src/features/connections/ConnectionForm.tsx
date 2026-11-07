@@ -428,20 +428,22 @@ export function ConnectionForm({ open, onClose, profile, initialUrl, onSaved }: 
                 </div>
 
                 <Field label="SSL Mode">
-                    <select
-                      value={sslMode}
-                      onChange={(e) => setSslMode(e.target.value as SslMode)}
-                      className={cn(
-                        'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
-                        'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
-                      )}
-                    >
-                      {SSL_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {driver === 'mysql' && o.value === 'prefer' ? 'Prefer (requires TLS for MySQL)' : o.label}
-                        </option>
-                      ))}
-                    </select>
+                  <select
+                    value={sslMode}
+                    onChange={(e) => setSslMode(e.target.value as SslMode)}
+                    className={cn(
+                      'w-full rounded-md border border-separator bg-control px-2.5 py-1.5',
+                      'text-sm text-label focus:outline-none focus:ring-2 focus:ring-accent/50',
+                    )}
+                  >
+                    {SSL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {driver === 'mysql' && o.value === 'prefer'
+                          ? 'Prefer (requires TLS for MySQL)'
+                          : o.label}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Connection pool limit">
