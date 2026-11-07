@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::Instant;
 
 use mysql_async::prelude::Queryable;
@@ -28,8 +28,22 @@ pub(super) async fn query_table_pg(
                         WHERE n.nspname = c.udt_schema \
                           AND t.typname = c.udt_name \
                           AND t.typtype = 'e' \
-                    ) AS is_enum \
+                    ) AS is_enum, \
+                    EXISTS ( \
+                        SELECT 1 FROM pg_index i \
+                        WHERE i.indrelid = rel.oid AND i.indisprimary \
+                          AND a.attnum = ANY(i.indkey) \
+                    ) AS is_primary_key, \
+                    EXISTS ( \
+                        SELECT 1 FROM pg_constraint con \
+                        WHERE con.conrelid = rel.oid AND con.contype = 'f' \
+                          AND a.attnum = ANY(con.conkey) \
+                    ) AS is_foreign_key, \
+                    rel.relkind IN ('r', 'p', 'm') AS include_ctid \
              FROM information_schema.columns c \
+             JOIN pg_namespace ns ON ns.nspname = c.table_schema \
+             JOIN pg_class rel ON rel.relnamespace = ns.oid AND rel.relname = c.table_name \
+             JOIN pg_attribute a ON a.attrelid = rel.oid AND a.attname = c.column_name \
              WHERE c.table_schema = $1 AND c.table_name = $2 \
              ORDER BY c.ordinal_position",
             &[&request.schema, &request.table],
@@ -43,44 +57,14 @@ pub(super) async fn query_table_pg(
         )));
     }
 
-    let pk_cols: HashSet<String> = client
-        .query(
-            "SELECT a.attname \
-             FROM pg_index i \
-             JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) \
-             WHERE i.indrelid = (quote_ident($1) || '.' || quote_ident($2))::regclass \
-               AND i.indisprimary",
-            &[&request.schema, &request.table],
-        )
-        .await
-        .unwrap_or_default()
-        .iter()
-        .map(|r| r.get::<_, String>(0))
-        .collect();
-
-    let fk_cols: HashSet<String> = client
-        .query(
-            "SELECT DISTINCT a.attname \
-             FROM pg_constraint con \
-             JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ANY(con.conkey) \
-             WHERE con.conrelid = (quote_ident($1) || '.' || quote_ident($2))::regclass \
-               AND con.contype = 'f'",
-            &[&request.schema, &request.table],
-        )
-        .await
-        .unwrap_or_default()
-        .iter()
-        .map(|r| r.get::<_, String>(0))
-        .collect();
-
     let result_columns: Vec<ResultColumn> = col_rows
         .iter()
         .map(|r| {
             let name: String = r.get(0);
             ResultColumn {
                 is_nullable: r.get::<_, String>(2) == "YES",
-                is_primary_key: pk_cols.contains(&name),
-                is_foreign_key: fk_cols.contains(&name),
+                is_primary_key: r.get(5),
+                is_foreign_key: r.get(6),
                 data_type: r.get(1),
                 is_enum: r.get(4),
                 name,
@@ -88,17 +72,7 @@ pub(super) async fn query_table_pg(
         })
         .collect();
 
-    let include_ctid = client
-        .query_opt(
-            "SELECT c.relkind IN ('r', 'p', 'm') \
-             FROM pg_class c \
-             JOIN pg_namespace n ON n.oid = c.relnamespace \
-             WHERE n.nspname = $1 AND c.relname = $2",
-            &[&request.schema, &request.table],
-        )
-        .await?
-        .map(|row| row.get::<_, bool>(0))
-        .unwrap_or(false);
+    let include_ctid = col_rows[0].get::<_, bool>(7);
 
     // Map: column_name -> udt_name (used for native-type detection and cell reading)
     let col_type_map: HashMap<String, String> = col_rows
