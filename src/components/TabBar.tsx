@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Database, Terminal, Settings, AlertCircle, User, Layers } from "lucide-react";
 import { useAppStore, type Tab } from "../store";
@@ -143,9 +143,16 @@ function TabItem({
 }) {
   const { setActiveTab, closeTab } = useAppStore();
   const confirm = useConfirm();
+  const tabRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (active) tabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [active]);
+
 
   return (
     <div
+      ref={tabRef}
       role="tab"
       aria-selected={active}
       tabIndex={active ? 0 : -1}
@@ -173,8 +180,8 @@ function TabItem({
       ) : (
         tabIcon(tab, active)
       )}
-      <span className="max-w-[120px] truncate" title={tab.title}>
-        {tab.type === "table" ? truncateSmart(tab.title, 18) : tab.title}
+      <span className="max-w-[300px] truncate" title={tab.title}>
+        {tab.type === "table" ? truncateSmart(tab.title, 48) : tab.title}
       </span>
       {tab.isDirty && !tab.isLoading && (
         <span

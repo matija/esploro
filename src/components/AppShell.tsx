@@ -64,9 +64,10 @@ function StatusBar() {
   const profile = connId ? profiles.find((p) => p.id === connId) : null;
   const database = activeTab?.tableContext?.database;
 
-  const loadingTabs = tabs.filter((t) => t.isLoading);
+  const loadingTabs = tabs.filter((t) => t.isLoading && t.id !== activeTabId);
+  const showContext = activeTab?.type !== "table";
 
-  if (!profile && loadingTabs.length === 0 && !lastAction) return null;
+  if (loadingTabs.length === 0 && (!showContext || (!profile && !lastAction))) return null;
 
   return (
     <div
@@ -74,7 +75,7 @@ function StatusBar() {
       className="flex items-center justify-between h-5 px-3 border-t border-separator bg-sidebar text-[13px] text-tertiary shrink-0 select-none"
     >
       {/* Left: connection + database */}
-      <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0 flex-1">
+      {showContext && <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0 flex-1">
         {profile ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
@@ -89,7 +90,7 @@ function StatusBar() {
         ) : (
           <span>No connection</span>
         )}
-      </div>
+      </div>}
 
       {/* Center: background work */}
       {loadingTabs.length > 0 && (
@@ -104,7 +105,7 @@ function StatusBar() {
       )}
 
       {/* Right: last action info */}
-      {lastAction && (
+      {showContext && lastAction && (
         <div className="flex items-center gap-2 shrink-0 tabular-nums">
           {lastAction.rowCount != null && (
             <span>

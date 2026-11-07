@@ -22,7 +22,7 @@ function cellValuesEqual(a: CellValue, b: CellValue): boolean {
 function CellRendererImpl({ cell, isEnum = false }: { cell: CellValue; isEnum?: boolean }) {
   if (cell.t === "null") {
     return (
-      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none tracking-widest border border-separator/50">
+      <span className="font-mono text-[11px] text-secondary">
         NULL
       </span>
     );
@@ -32,7 +32,7 @@ function CellRendererImpl({ cell, isEnum = false }: { cell: CellValue; isEnum?: 
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 font-mono text-[9px] font-semibold px-1.5 py-px rounded bg-control border border-separator/50 leading-none tracking-wide",
+          "font-mono text-[11px]",
           cell.v ? "text-label" : "text-tertiary",
         )}
       >
@@ -76,7 +76,7 @@ function CellRendererImpl({ cell, isEnum = false }: { cell: CellValue; isEnum?: 
   const raw = cell.v;
   if (raw === "") {
     return (
-      <span className="inline-flex shrink-0 font-mono text-[9px] font-medium px-1.5 py-px rounded bg-control text-tertiary leading-none italic border border-separator/50">
+      <span className="font-mono text-[11px] italic text-secondary">
         {"''"}
       </span>
     );

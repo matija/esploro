@@ -1410,18 +1410,20 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
     );
   }
 
+  const connectionStatus = liveSessionId && !(error instanceof Error && error.message.includes("Could not reconnect")) ? "Connected" : "Disconnected";
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full overflow-hidden text-label">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 h-9 bg-sidebar border-b border-separator shrink-0">
+      <div className="flex items-center gap-3 px-3 h-10 border-b border-separator shrink-0">
         {/* Object icon + schema-qualified name */}
-        <div className="flex items-center gap-1.5 min-w-0 shrink">
+        <div className="flex items-center gap-1.5 min-w-0 max-w-[45%]">
           <span className="shrink-0 text-schema-table">
             <Table2 size={13} />
           </span>
-          <span className="text-xs truncate">
+          <span className="text-xs truncate" title={`${ctx.schema}.${ctx.table}`}>
             {ctx.schema && (
               <span className="text-secondary">{ctx.schema}<span className="mx-0.5 text-tertiary">.</span></span>
             )}
@@ -1429,7 +1431,63 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           </span>
         </div>
 
-        {/* Raw WHERE query bar (replaces the database badge) */}
+      {driver !== "mysql" && (
+        <div className="flex shrink-0 items-center gap-1">
+          {(["data", "privileges"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              aria-pressed={viewMode === mode}
+              className={cn(
+                "px-2.5 py-0.5 text-[12px] rounded transition-colors capitalize",
+                viewMode === mode
+                  ? "bg-control text-label shadow-[var(--shadow-hairline)]"
+                  : "text-secondary hover:text-label hover:bg-hover",
+              )}
+            >
+              {mode === "data" ? "Data" : "Privileges"}
+            </button>
+          ))}
+        </div>
+      )}
+
+        <div className="flex-1" />
+
+        {/* Connection badge */}
+        {connectionLabel && (
+          <div className="flex min-w-0 max-w-[180px] items-center gap-1.5 text-xs text-secondary"
+            aria-label={`${connectionLabel}: ${connectionStatus}`}
+            title={`${connectionLabel} / ${ctx.database} · ${connectionStatus}`}>
+            <span
+              className="rounded-full shrink-0"
+              style={{
+                width: 6,
+                height: 6,
+                backgroundColor:
+                  error instanceof Error && error.message.includes("Could not reconnect")
+                    ? 'var(--ds-warning)'
+                    : liveSessionId ? 'var(--ds-success)' : 'var(--border-default)',
+              }}
+            />
+            <span className="truncate">{connectionLabel}</span>
+          </div>
+        )}
+
+        <RefreshButton
+          dataUpdatedAt={dataUpdatedAt}
+          isFetching={isFetching}
+          isLoading={isLoading}
+          onRefresh={async () => {
+            if (!await guardNavigation()) return;
+            discardEdits();
+            void refetch();
+          }}
+        />
+      </div>
+
+      {viewMode === "data" && (
+        <div className="flex min-w-0 shrink-0 items-center border-b border-separator bg-sidebar/50 px-3 py-1.5">
         <div className="flex-1 min-w-0 flex items-center bg-control rounded px-2 h-[24px] border border-transparent focus-within:border-accent/40">
           <div className="flex-1 min-w-0">
             <Suspense fallback={<span className="text-secondary text-xs">…</span>}>
@@ -1480,57 +1538,6 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
           </div>
         </div>
 
-        {/* Connection badge */}
-        {connectionLabel && (
-          <div className="flex items-center gap-1.5 text-xs text-secondary bg-control px-2 py-1 rounded shrink-0 max-w-[220px]">
-            <span
-              className="rounded-full shrink-0"
-              style={{
-                width: 9,
-                height: 9,
-                backgroundColor:
-                  error instanceof Error && error.message.includes("Could not reconnect")
-                    ? 'var(--ds-warning)'
-                    : liveSessionId ? 'var(--ds-success)' : 'var(--border-default)',
-              }}
-            />
-            <span className="truncate">{connectionLabel}</span>
-            <span className="shrink-0 text-tertiary text-[11px]">
-              {error instanceof Error && error.message.includes("Could not reconnect") ? "Disconnected" : "Connected"}
-            </span>
-          </div>
-        )}
-
-        <RefreshButton
-          dataUpdatedAt={dataUpdatedAt}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          onRefresh={async () => {
-            if (!await guardNavigation()) return;
-            discardEdits();
-            void refetch();
-          }}
-        />
-      </div>
-
-      {/* Tab bar (Data | Privileges) — Postgres only */}
-      {driver !== "mysql" && (
-        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-separator shrink-0 bg-sidebar">
-          {(["data", "privileges"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              className={cn(
-                "px-2.5 py-0.5 text-[12px] rounded transition-colors capitalize",
-                viewMode === mode
-                  ? "bg-control text-label shadow-[var(--shadow-hairline)]"
-                  : "text-secondary hover:text-label hover:bg-hover",
-              )}
-            >
-              {mode === "data" ? "Data" : "Privileges"}
-            </button>
-          ))}
         </div>
       )}
 
@@ -1692,7 +1699,7 @@ export function TableViewerTab({ tab }: { tab: Tab }) {
             <div
               ref={headerRef}
               role="rowgroup"
-              className="shrink-0 flex border-b-2 border-separator bg-sidebar overflow-x-hidden"
+              className="shrink-0 flex border-b border-separator bg-sidebar overflow-x-hidden"
               style={{ minWidth: "100%" }}
             >
               <div

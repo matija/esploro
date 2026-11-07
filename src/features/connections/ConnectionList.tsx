@@ -161,6 +161,7 @@ function ConnectionRow({
     <>
       <div
         role="button"
+        title={`${profile.displayName} · ${profile.username}@${hostLabel}/${profile.database}`}
         data-nav-key={`conn:${profile.id}`}
         tabIndex={-1}
         onClick={onFocus}
@@ -175,7 +176,7 @@ function ConnectionRow({
         }}
         onContextMenu={handleContextMenu}
         className={cn(
-          'group flex items-start gap-2 py-1.5 transition-colors',
+          'group flex items-center gap-2 py-1.5 transition-colors',
           'border-l-2 border-transparent',
           indented ? 'pl-6 pr-2' : 'px-2 pr-2',
           isFocused
@@ -184,7 +185,7 @@ function ConnectionRow({
         )}
       >
         {/* Status dot */}
-        <div className="mt-[3px] shrink-0 relative">
+        <div className="shrink-0 relative">
           {isConnecting ? (
             <Loader2 size={10} className="text-accent animate-spin" />
           ) : isActive ? (
@@ -193,15 +194,15 @@ function ConnectionRow({
               onClick={(e) => { e.stopPropagation(); onDisconnect(); }}
               title={`Disconnect from ${profile.displayName}`}
               aria-label={`Disconnect from ${profile.displayName}`}
-              className="block w-2.5 h-2.5 rounded-full cursor-pointer"
+              className="block w-2 h-2 rounded-full cursor-pointer"
               style={{
                 backgroundColor: 'var(--ds-success)',
-                boxShadow: `0 0 0 2px ${profile.color ?? 'var(--border-default)'}`,
+                boxShadow: `0 0 0 1px ${profile.color ?? 'var(--border-default)'}`,
               }}
             />
           ) : (
             <span
-              className="block w-2.5 h-2.5 rounded-full"
+              className="block w-2 h-2 rounded-full"
               style={{
                 border: '1.5px solid var(--border-default)',
               }}
@@ -214,17 +215,14 @@ function ConnectionRow({
           <div className="text-[14px] text-label truncate leading-[1.4]">
             {profile.displayName}
           </div>
-          <div className="text-[12px] text-tertiary truncate leading-[1.4]">
-            {profile.username}@{hostLabel}/{profile.database}
-          </div>
         </div>
 
         {/* Hover actions */}
         <div
           className={cn(
             'flex items-center gap-0.5 mt-[1px] transition-opacity shrink-0',
-            'opacity-0 group-hover:opacity-100',
-            (isActive || isFocused) && 'opacity-100',
+            'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+            isFocused && 'opacity-100',
           )}
         >
           {isActive ? (
